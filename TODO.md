@@ -176,9 +176,19 @@
 ## 🤖 Phase 2: AI 분류 시스템
 
 ### 2.1 모델 선택
-- [ ] Claude/GPT/로컬 모델 선택 가능
-- [ ] 모델별 API 인터페이스
-- [ ] 설정 UI
+- [x] Claude/GPT/Gemini/로컬 모델 선택 가능
+- [x] 모델별 API 인터페이스
+- [x] 설정 API 구현
+
+**완료**: 2026-01-17 ✅
+- AI 서비스 클래스 구현 (Anthropic, OpenAI, Google, Ollama)
+- API 라우트: GET /api/ai-models/services, POST /api/ai-models/test
+- 설정 관리: GET/PATCH /api/config/ai
+- .env.example에 AI 서비스 설정 추가
+
+**메모**:
+- UI는 Phase 9에서 구현 예정
+- 현재는 API만 완성
 
 ### 2.2 자동 분석
 - [ ] 대화 종료 시 AI 분석
