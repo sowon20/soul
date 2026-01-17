@@ -14,10 +14,12 @@ app.use(express.urlencoded({ extended: true }));
 const memoryRoutes = require('../routes/memory');
 const aiModelsRoutes = require('../routes/ai-models');
 const configRoutes = require('../routes/config');
+const searchRoutes = require('../routes/search');
 
 app.use('/api/memory', memoryRoutes);
 app.use('/api/ai-models', aiModelsRoutes);
 app.use('/api/config', configRoutes);
+app.use('/api/search', searchRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

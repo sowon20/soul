@@ -338,9 +338,31 @@
 ## 🔎 Phase 3: 검색 시스템
 
 ### 3.1 기본 검색
-- [ ] GET /api/search
-- [ ] 키워드 매칭
-- [ ] 날짜/태그/파일 유형 필터
+- [x] GET /api/search
+- [x] 키워드 매칭
+- [x] 날짜/태그/파일 유형 필터
+
+**완료**: 2026-01-17 ✅
+- search.js 유틸리티 구현
+  - searchConversations() - 키워드 검색 + 필터링
+  - advancedSearch() - AND/OR/제외 키워드 검색
+  - getAllTags() - 태그 목록 + 사용 빈도
+  - getAllCategories() - 카테고리 목록 + 분포
+  - getStatistics() - 통계 정보
+- API 엔드포인트:
+  - GET /api/search - 기본 검색 (q, tags, category, date range, importance)
+  - POST /api/search/advanced - 고급 검색 (keywords, anyKeywords, excludeKeywords)
+  - GET /api/search/tags - 태그 목록
+  - GET /api/search/categories - 카테고리 목록
+  - GET /api/search/stats - 통계 정보
+- 기능:
+  - 주제/태그/카테고리/ID 키워드 매칭
+  - 날짜 범위 필터 (startDate, endDate)
+  - 중요도 범위 필터 (minImportance, maxImportance)
+  - 태그 다중 필터 (AND 조건)
+  - 정렬 (date/importance/relevance)
+  - 페이지네이션 (limit, offset)
+  - 관련성 점수 계산
 
 ### 3.2 지능형 검색
 - [ ] "개떡같이" 검색어 해석
