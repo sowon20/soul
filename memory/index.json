@@ -1,7 +1,26 @@
 {
   "version": "1.0.0",
-  "lastUpdated": "2026-01-17T19:22:55.285Z",
+  "lastUpdated": "2026-01-17T19:45:40.703Z",
   "conversations": [
+    {
+      "id": "test-no-ai",
+      "date": "2026-01-17T19:45:40.678Z",
+      "participants": [
+        "user",
+        "soul"
+      ],
+      "messageCount": 2,
+      "topics": [
+        "대화"
+      ],
+      "tags": [],
+      "category": "기타",
+      "importance": 5,
+      "filename": "2026-01-17_194540_대화.md",
+      "path": "raw/2026-01-17_194540_대화.md",
+      "fileSize": 389,
+      "lastModified": "2026-01-17T19:45:40.702Z"
+    },
     {
       "id": "main-conversation",
       "date": "2026-01-17T19:22:54.901Z",

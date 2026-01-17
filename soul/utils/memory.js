@@ -1,5 +1,6 @@
 const fs = require('fs').promises;
 const path = require('path');
+const { AIServiceFactory } = require('./ai-service');
 
 /**
  * 메모리 저장소 유틸리티
@@ -131,28 +132,70 @@ importance: ${importance}
   }
 
   /**
-   * 대화를 파일로 저장
+   * AI를 사용하여 대화 자동 분석
+   */
+  async analyzeConversation(messages) {
+    try {
+      // AI 서비스 생성
+      const aiService = AIServiceFactory.createService();
+
+      // 메시지 포맷 변환
+      const formattedMessages = messages.map(msg => ({
+        sender: msg.sender || msg.role || 'user',
+        text: msg.content || msg.text || ''
+      }));
+
+      // AI 분석 실행
+      const analysis = await aiService.analyzeConversation(formattedMessages);
+
+      return {
+        topics: analysis.topics || [],
+        tags: analysis.tags || [],
+        category: analysis.category || '기타',
+        importance: analysis.importance || 5
+      };
+    } catch (error) {
+      console.error('AI analysis failed:', error);
+      // AI 분석 실패 시 기본값 반환
+      return {
+        topics: ['대화'],
+        tags: [],
+        category: '기타',
+        importance: 5
+      };
+    }
+  }
+
+  /**
+   * 대화를 파일로 저장 (AI 자동 분석 포함)
    */
   async saveConversation(conversationData) {
     const {
       id,
       messages = [],
-      metadata = {}
+      metadata = {},
+      autoAnalyze = true  // 자동 분석 활성화 여부
     } = conversationData;
 
-    // 메타데이터 기본값 설정
+    // AI 자동 분석 실행
+    let aiAnalysis = {};
+    if (autoAnalyze && messages.length > 0) {
+      aiAnalysis = await this.analyzeConversation(messages);
+    }
+
+    // 메타데이터 병합 (사용자 제공 메타데이터가 우선)
     const fullMetadata = {
       id,
       date: metadata.date || new Date().toISOString(),
       participants: metadata.participants || ['user', 'soul'],
       messageCount: messages.length,
-      topics: metadata.topics || ['대화'],
-      tags: metadata.tags || [],
-      category: metadata.category || '',
-      importance: metadata.importance || 5
+      topics: metadata.topics || aiAnalysis.topics || ['대화'],
+      tags: metadata.tags || aiAnalysis.tags || [],
+      category: metadata.category || aiAnalysis.category || '기타',
+      importance: metadata.importance || aiAnalysis.importance || 5
     };
 
-    // 파일명 생성
+    // 파일명 생성 (첫 번째 주제 사용)
     const topic = fullMetadata.topics[0] || '대화';
     const filename = this.generateFilename(topic);
     const filepath = path.join(this.rawPath, filename);
@@ -184,7 +227,8 @@ importance: ${importance}
       success: true,
       filename,
       path: filepath,
-      metadata: indexMetadata
+      metadata: indexMetadata,
+      aiAnalysis: autoAnalyze ? aiAnalysis : null
     };
   }
 }

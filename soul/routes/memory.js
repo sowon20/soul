@@ -8,7 +8,7 @@ const memoryUtils = require('../utils/memory');
  */
 router.post('/archive', async (req, res) => {
   try {
-    const { conversationId, messages, metadata } = req.body;
+    const { conversationId, messages, metadata, autoAnalyze } = req.body;
 
     if (!conversationId) {
       return res.status(400).json({
@@ -27,7 +27,8 @@ router.post('/archive', async (req, res) => {
     const result = await memoryUtils.saveConversation({
       id: conversationId,
       messages,
-      metadata: metadata || {}
+      metadata: metadata || {},
+      autoAnalyze: autoAnalyze !== undefined ? autoAnalyze : true
     });
 
     res.json(result);
@@ -47,7 +48,7 @@ router.post('/archive', async (req, res) => {
 router.post('/archive/:conversationId', async (req, res) => {
   try {
     const { conversationId } = req.params;
-    const { messages, metadata } = req.body;
+    const { messages, metadata, autoAnalyze } = req.body;
 
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({
@@ -59,7 +60,8 @@ router.post('/archive/:conversationId', async (req, res) => {
     const result = await memoryUtils.saveConversation({
       id: conversationId,
       messages,
-      metadata: metadata || {}
+      metadata: metadata || {},
+      autoAnalyze: autoAnalyze !== undefined ? autoAnalyze : true
     });
 
     res.json(result);
