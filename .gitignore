@@ -1,0 +1,39 @@
+# Python venv
+.venv/
+.venv*/
+.venv310/
+venv/
+env/
+**/.venv/
+**/.venv*/
+**/venv/
+**/env/
+
+
+# Python cache
+__pycache__/
+*.pyc
+
+# macOS junk
+.DS_Store
+**/.DS_Store
+__MACOSX/
+.AppleDouble/
+.LSOverride
+
+# Windows junk
+Thumbs.db
+Desktop.ini
+
+# Node / build
+node_modules/
+dist/
+build/
+
+
+# API keys / secrets
+*.key
+.env
+.env.*
+!.env.example
+!.env.sample
