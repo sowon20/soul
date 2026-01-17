@@ -162,6 +162,11 @@
 - [x] index.json 자동 업데이트
 - [x] 필드: id, date, length, participants, path, tags
 
+**완료**: 2026-01-17 ✅
+- API 테스트 완료 (POST /api/memory/archive)
+- 파일 생성 확인 (2026-01-17_192254_Phase_1_테스트.md)
+- index.json 자동 업데이트 확인
+
 **메모**:
 - 기존 `/soul_memories/raw/` → `/memory/raw/`
 - conversationId는 'main-conversation' 고정
