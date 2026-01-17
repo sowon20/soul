@@ -1,0 +1,29 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2026-01-17T19:22:55.285Z",
+  "conversations": [
+    {
+      "id": "main-conversation",
+      "date": "2026-01-17T19:22:54.901Z",
+      "participants": [
+        "user",
+        "soul"
+      ],
+      "messageCount": 2,
+      "topics": [
+        "Phase 1 테스트"
+      ],
+      "tags": [
+        "개발",
+        "테스트",
+        "메모리"
+      ],
+      "category": "개발",
+      "importance": 7,
+      "filename": "2026-01-17_192254_Phase_1_테스트.md",
+      "path": "raw/2026-01-17_192254_Phase_1_테스트.md",
+      "fileSize": 456,
+      "lastModified": "2026-01-17T19:22:55.284Z"
+    }
+  ]
+}

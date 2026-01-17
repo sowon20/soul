@@ -147,20 +147,20 @@
 ## 🏗️ Phase 1: 메모리 저장 시스템
 
 ### 1.1 저장소 구조
-- [ ] 메타데이터 헤더 포맷 정의
-- [ ] `/memory/raw/` 디렉토리 생성
-- [ ] 파일명 규칙: `YYYY-MM-DD_HHmmss_주제.md`
-- [ ] index.json 스키마 설계
+- [x] 메타데이터 헤더 포맷 정의
+- [x] `/memory/raw/` 디렉토리 생성
+- [x] 파일명 규칙: `YYYY-MM-DD_HHmmss_주제.md`
+- [x] index.json 스키마 설계
 
 ### 1.2 실시간 저장
-- [ ] 대화 종료 시 자동 저장 훅
-- [ ] API: POST /api/archive/:conversationId
-- [ ] Markdown 변환 로직
-- [ ] 파일 시스템 저장
+- [x] 대화 종료 시 자동 저장 훅
+- [x] API: POST /api/archive/:conversationId
+- [x] Markdown 변환 로직
+- [x] 파일 시스템 저장
 
 ### 1.3 메타데이터
-- [ ] index.json 자동 업데이트
-- [ ] 필드: id, date, length, participants, path, tags
+- [x] index.json 자동 업데이트
+- [x] 필드: id, date, length, participants, path, tags
 
 **메모**:
 - 기존 `/soul_memories/raw/` → `/memory/raw/`
