@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const searchUtils = require('../utils/search');
+const recommendationUtils = require('../utils/recommendation');
 
 /**
  * GET /api/search
@@ -139,6 +140,108 @@ router.post('/smart', async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error('Error in smart search:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/search/similar/:conversationId
+ * 비슷한 대화 찾기
+ */
+router.get('/similar/:conversationId', async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const { limit = 5, minScore = 5 } = req.query;
+
+    const result = await recommendationUtils.findSimilar(conversationId, {
+      limit: parseInt(limit),
+      minScore: parseInt(minScore)
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error finding similar conversations:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/search/graph
+ * 관계 그래프 데이터
+ */
+router.get('/graph', async (req, res) => {
+  try {
+    const { minScore = 5, includeEdges = 'true' } = req.query;
+
+    const result = await recommendationUtils.buildRelationshipGraph({
+      minScore: parseInt(minScore),
+      includeEdges: includeEdges === 'true'
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error building relationship graph:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/search/recommendations
+ * 추천 대화
+ */
+router.get('/recommendations', async (req, res) => {
+  try {
+    const { basedOn = 'recent', limit = 5, excludeRecent = 3 } = req.query;
+
+    const result = await recommendationUtils.getRecommendations({
+      basedOn,
+      limit: parseInt(limit),
+      excludeRecent: parseInt(excludeRecent)
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error getting recommendations:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/search/by-tags
+ * 태그 기반 검색
+ */
+router.post('/by-tags', async (req, res) => {
+  try {
+    const { tags, matchType = 'any', limit = 10, sortBy = 'relevance' } = req.body;
+
+    if (!tags || !Array.isArray(tags) || tags.length === 0) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'tags must be a non-empty array'
+      });
+    }
+
+    const result = await recommendationUtils.findByTags(tags, {
+      matchType,
+      limit: parseInt(limit),
+      sortBy
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error searching by tags:', error);
     res.status(500).json({
       error: 'Internal Server Error',
       message: error.message

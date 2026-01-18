@@ -402,9 +402,27 @@
 - [ ] 금액/날짜 범위 검색
 
 ### 3.4 연관 검색
-- [ ] 비슷한 주제 찾기
-- [ ] 관계 그래프
-- [ ] "이것도 볼래?" 추천
+- [x] 비슷한 주제 찾기
+- [x] 관계 그래프
+- [x] "이것도 볼래?" 추천
+
+**완료**: 2026-01-17 ✅
+- recommendation.js 유틸리티 구현
+  - calculateSimilarity() - 유사도 계산 알고리즘
+    - 공통 주제 (가중치 10)
+    - 공통 태그 (가중치 5)
+    - 같은 카테고리 (가중치 8)
+    - 비슷한 중요도 (가중치 3)
+    - 시간적 근접성 (가중치 2)
+  - findSimilar() - 비슷한 대화 찾기
+  - buildRelationshipGraph() - 관계 그래프 생성 (nodes + edges)
+  - getRecommendations() - 추천 시스템 (recent/important/category 기반)
+  - findByTags() - 태그 기반 연관 검색 (any/all 매칭)
+- API 엔드포인트:
+  - GET /api/search/similar/:conversationId - 비슷한 대화
+  - GET /api/search/graph - 관계 그래프 데이터
+  - GET /api/search/recommendations - 추천 대화
+  - POST /api/search/by-tags - 태그 기반 검색
 
 ---
 
