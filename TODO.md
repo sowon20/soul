@@ -146,11 +146,19 @@
   - [x] 사용자 활동 패턴 학습
   - [x] server/index.js 통합
   
-- [ ] **자연어 설정** (4h)
-  - [ ] 의도 감지 고도화
-  - [ ] 컨텍스트 추적
-  - [ ] 패턴 학습
-  
+- [x] **자연어 설정** (4h) ✅ 완료
+  - [x] 의도 감지 고도화 (intent-detector-advanced.js)
+  - [x] 컨텍스트 추적 (context-tracker.js)
+  - [x] 패턴 학습 (pattern-learner.js)
+  - [x] 엔티티 추출 (사람/장소/시간/숫자)
+  - [x] 대명사 해소 (anaphora resolution)
+  - [x] 선호도 관리
+  - [x] 단축 표현 학습
+  - [x] 개인화된 의도 감지
+  - [x] 피드백 학습 시스템
+  - [x] API 라우트 (nlp-advanced.js - 17개 엔드포인트)
+  - [x] server/index.js 통합
+
 - [ ] **Self-Generated UI** (2h)
   - [ ] AI가 UI 요소 생성
   

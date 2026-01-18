@@ -24,6 +24,7 @@ const chatRoutes = require('../routes/chat');
 const memoryAdvancedRoutes = require('../routes/memory-advanced');
 const workersRoutes = require('../routes/workers');
 const notificationsRoutes = require('../routes/notifications');
+const nlpAdvancedRoutes = require('../routes/nlp-advanced');
 
 app.use('/api/memory', memoryRoutes);
 app.use('/api/ai-models', aiModelsRoutes);
@@ -38,6 +39,7 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/memory-advanced', memoryAdvancedRoutes);
 app.use('/api/workers', workersRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/nlp-advanced', nlpAdvancedRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
