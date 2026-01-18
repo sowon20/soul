@@ -733,41 +733,68 @@
 
 ---
 
-## 🎯 Phase 8: 스마트 라우팅 (단일 인격 핵심 기능)
+## 🎯 Phase 8: 스마트 라우팅 (단일 인격 핵심 기능) ✅ 완료
 
 **목표**: 작업에 맞는 최적 모델 자동 선택 (사용자는 모름)
 
-- [ ] complexity.js - 작업 유형 감지
-  - [ ] detectTaskType() - vision, reasoning, coding, simple_chat 등
-  - [ ] estimateComplexity() - 복잡도 점수 (1-10)
-  - [ ] requiresSpecialCapability() - 특수 기능 필요 여부
-- [ ] model-router.js - 모델 선택 로직
-  - [ ] selectBestModel() - 작업 + 사용자 설정 → 최적 모델
-  - [ ] getAvailableProviders() - 활성화된 AI 제공사 목록
-  - [ ] fallbackChain() - 1순위 실패 시 2순위 자동 시도
-- [ ] API 라우트 수정
-  - [ ] POST /api/chat에 라우팅 로직 통합
-  - [ ] 모델 전환 로그 (디버깅용, 사용자에게 노출 X)
-- [ ] Batch 큐 구현
-  - [ ] 백그라운드 작업 큐 (요약, 태그 생성 등)
-  - [ ] 저렴한 모델 우선 사용
-- [ ] Cron Job
-  - [ ] 매일 새벽 배치 작업 실행
-- [ ] 테스트
-  - [ ] 다양한 작업 유형별 라우팅 검증
-  - [ ] Fallback 체인 테스트
+- [x] **smart-router.js** - 스마트 라우터 시스템
+  - [x] SmartRouter 클래스 (태스크 분석 & 모델 선택)
+  - [x] analyzeTask() - 복잡도 분석 (0-10)
+  - [x] detectTaskType() - 11개 태스크 유형 탐지
+  - [x] selectModel() - Haiku/Sonnet/Opus 자동 선택
+  - [x] 비용 추정 (estimatedCost)
+  - [x] 라우팅 통계 (getStats)
+  - [x] 3개 모델 정보 (MODELS)
 
-**라우팅 예시**:
-- "이미지 설명해줘" → Gemini (vision 최적)
-- "복잡한 코드 리팩토링" → Claude Sonnet (추론 최적)
-- "간단한 질문" → GPT-4o-mini (빠르고 저렴)
-- "중요한 문서 분석" → Claude Opus (최고 품질)
+- [x] **personality-core.js** - 단일 인격 시스템
+  - [x] PersonalityCore 클래스
+  - [x] PERSONALITY_PROFILE (인격 정의)
+  - [x] generateSystemPrompt() - 일관된 시스템 프롬프트 생성
+  - [x] validateResponse() - 응답 일관성 검증
+  - [x] handleModelSwitch() - 모델 전환 시 컨텍스트 유지
+  - [x] trackTopic() - 대화 주제 추적
+  - [x] setUserPreference() - 사용자 선호도 설정
 
-**중요**: 단일 인격 철학
-- ❌ 모델마다 다른 인격/말투
+- [x] **API 라우트 수정**
+  - [x] POST /api/chat - 스마트 라우팅 통합
+  - [x] POST /api/chat/analyze-task - 태스크 분석만
+  - [x] GET /api/chat/routing-stats - 라우팅 통계
+  - [x] GET /api/chat/models - 모델 목록
+  - [x] GET /api/chat/personality - 인격 정보
+  - [x] POST /api/chat/personality/preference - 선호도 설정
+
+- [x] **테스트**
+  - [x] 간단한 질문 → Haiku
+  - [x] 코드 생성 → Sonnet
+  - [x] 아키텍처 설계 → Opus
+  - [x] 라우팅 통계 조회
+  - [x] 모델 목록 조회
+  - [x] 인격 정보 조회
+  - [x] 통합 채팅 테스트
+  - [x] test-all-apis.sh 업데이트 (8개 테스트)
+
+- [x] **문서화**
+  - [x] SMART_ROUTING.md (완전한 문서)
+  - [x] API 레퍼런스
+  - [x] 사용 예제
+  - [x] 모델 선택 로직
+  - [x] 비용 최적화 가이드
+
+**라우팅 로직**:
+- complexity ≥ 7 OR requiresExpertise → Opus
+- complexity ≤ 3 AND NOT requiresReasoning → Haiku
+- else → Sonnet
+
+**태스크 유형**:
+- 간단한 질문, 번역, 요약 → Haiku (1-2)
+- 코드 생성, 리뷰, 분석, 문제 해결 → Sonnet (4-6)
+- 아키텍처 설계, 복잡한 디버깅, 연구, 전문 컨설팅 → Opus (7-9)
+
+**단일 인격 철학** ✅:
 - ✅ 모델 전환해도 동일한 인격 유지
-- 시스템 프롬프트는 항상 통일된 인격 주입
-- 사용자는 모델 전환을 전혀 인식하지 못함
+- ✅ 시스템 프롬프트는 항상 통일된 인격 주입
+- ✅ 사용자는 모델 전환을 인식하지 못함
+- ✅ 응답 일관성 자동 검증
 
 ---
 

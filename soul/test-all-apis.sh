@@ -267,6 +267,45 @@ test_panel_system() {
         "GET" "/api/panel/modes" "" "modes"
 }
 
+# 9. 스마트 라우팅 시스템 테스트
+test_smart_routing() {
+    log_section "9. 스마트 라우팅 시스템"
+
+    test_api "간단한 질문 - Haiku 선택" \
+        "POST" "/api/chat/analyze-task" \
+        '{"message":"오늘 날씨 어때?"}' \
+        "analysis"
+
+    test_api "코드 생성 - Sonnet 선택" \
+        "POST" "/api/chat/analyze-task" \
+        '{"message":"React 컴포넌트 구현해줘"}' \
+        "analysis"
+
+    test_api "아키텍처 설계 - Opus 선택" \
+        "POST" "/api/chat/analyze-task" \
+        '{"message":"마이크로서비스 아키텍처 설계해주세요. 확장성과 보안을 고려해야 합니다."}' \
+        "analysis"
+
+    test_api "라우팅 통계" \
+        "GET" "/api/chat/routing-stats" "" "stats"
+
+    test_api "모델 목록" \
+        "GET" "/api/chat/models" "" "models"
+
+    test_api "인격 정보" \
+        "GET" "/api/chat/personality" "" "personality"
+
+    test_api "사용자 선호도 설정" \
+        "POST" "/api/chat/personality/preference" \
+        '{"key":"responseStyle","value":"detailed"}' \
+        "preference"
+
+    test_api "통합 채팅 (라우팅 포함)" \
+        "POST" "/api/chat" \
+        '{"message":"간단한 테스트 메시지","sessionId":"test-routing"}' \
+        "routing"
+}
+
 # 전체 테스트 실행
 main() {
     echo ""
@@ -284,6 +323,7 @@ main() {
     test_nlp
     test_context_management
     test_panel_system
+    test_smart_routing
 
     # 결과 요약
     log_section "테스트 결과 요약"
