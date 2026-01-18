@@ -23,6 +23,7 @@ class IntentDetector {
       // UI/패널 관련
       PANEL_OPEN: 'panel_open',
       PANEL_CLOSE: 'panel_close',
+      PANEL_TOGGLE: 'panel_toggle',
       PANEL_SWITCH: 'panel_switch',
 
       // 대화방 관련
@@ -125,36 +126,52 @@ class IntentDetector {
       // 패널 열기
       panel_open: [
         {
-          pattern: /(메모리|설정|투두|todo|memory|settings?)\s*(패널|창|화면|panel)?\s*(열|show|open)/i,
+          pattern: /(메모리|설정|투두|todo|memory|settings?|터미널|terminal|검색|search|파일|file|mcp|아카이브|archive|알림|notification|컨텍스트|context)\s*(패널|창|화면|panel)?\s*(열|보여|띄워|show|open)/i,
           weight: 0.9,
-          keywords: ['패널', '창', '열', 'open', 'show'],
-          examples: ['메모리 패널 열어', 'todo show']
+          keywords: ['패널', '창', '열', 'open', 'show', '보여', '띄워'],
+          examples: ['메모리 패널 열어', 'todo show', '투두 보여줘', '터미널 띄워']
         },
         {
-          pattern: /(투두|todo|메모리|memory)\s*(보여|show)/i,
-          weight: 0.85,
-          keywords: ['투두', 'todo', '메모리', '보여'],
-          examples: ['투두 보여줘', 'show memory']
+          pattern: /(투두|todo|메모리|memory|터미널|terminal|검색|search).*(?:랑|과|와|같이|with)\s*(투두|todo|메모리|memory|터미널|terminal|검색|search)/i,
+          weight: 0.95,
+          keywords: ['랑', '같이', '분할', 'with'],
+          examples: ['투두랑 터미널 같이', 'todo with terminal']
         }
       ],
 
       // 패널 닫기
       panel_close: [
         {
-          pattern: /(패널|창|화면|panel)\s*(닫|close|hide)/i,
+          pattern: /(패널|창|화면|panel)\s*(닫|꺼|close|hide)/i,
           weight: 0.9,
-          keywords: ['닫', 'close', 'hide'],
-          examples: ['패널 닫아', 'close panel']
+          keywords: ['닫', '꺼', 'close', 'hide'],
+          examples: ['패널 닫아', 'close panel', '창 꺼']
+        },
+        {
+          pattern: /(닫아|꺼|close|hide)/i,
+          weight: 0.7,
+          keywords: ['닫아', '꺼'],
+          examples: ['닫아', '꺼줘']
+        }
+      ],
+
+      // 패널 토글 (새로 추가)
+      panel_toggle: [
+        {
+          pattern: /(투두|todo|메모리|memory|터미널|terminal)\s*(토글|toggle)/i,
+          weight: 0.95,
+          keywords: ['토글', 'toggle'],
+          examples: ['투두 토글', 'toggle terminal']
         }
       ],
 
       // 패널 전환
       panel_switch: [
         {
-          pattern: /(탭|tab|분할|split|팝업|popup)\s*(으로|모드|mode)/i,
+          pattern: /(탭|tab|분할|split|팝업|popup|가로|세로|그리드|grid)\s*(으로|로|모드|으로\s*바꿔|mode)/i,
           weight: 0.9,
-          keywords: ['탭', 'tab', '분할', 'split', '팝업', 'popup'],
-          examples: ['탭으로 바꿔', 'split mode']
+          keywords: ['탭', 'tab', '분할', 'split', '팝업', 'popup', '가로', '세로', '그리드'],
+          examples: ['탭으로 바꿔', 'split mode', '가로로', '세로 분할']
         }
       ],
 
