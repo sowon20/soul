@@ -19,6 +19,7 @@ const contextRoutes = require('../routes/context');
 const contextMgmtRoutes = require('../routes/context-management');
 const analogyRoutes = require('../routes/analogy');
 const nlpRoutes = require('../routes/nlp');
+const panelRoutes = require('../routes/panel');
 
 app.use('/api/memory', memoryRoutes);
 app.use('/api/ai-models', aiModelsRoutes);
@@ -28,6 +29,7 @@ app.use('/api/context', contextRoutes);
 app.use('/api/context-mgmt', contextMgmtRoutes);
 app.use('/api/analogy', analogyRoutes);
 app.use('/api/nlp', nlpRoutes);
+app.use('/api/panel', panelRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

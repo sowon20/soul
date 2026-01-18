@@ -222,6 +222,51 @@ test_context_management() {
         "GET" "/api/context-mgmt/config" "" "config"
 }
 
+# Phase 8: 패널 시스템 테스트
+test_panel_system() {
+    log_section "Phase 8: 패널 시스템"
+
+    test_api "패널 상태 조회" \
+        "GET" "/api/panel/state" "" "state"
+
+    test_api "패널 등록" \
+        "POST" "/api/panel/register" \
+        '{"panelId":"todo-1","type":"todo","title":"TODO"}' \
+        "panel"
+
+    test_api "패널 열기" \
+        "POST" "/api/panel/todo-1/open" \
+        '{"mode":"tab"}' \
+        "state"
+
+    test_api "패널 닫기" \
+        "POST" "/api/panel/todo-1/close" "" "state"
+
+    test_api "패널 토글" \
+        "POST" "/api/panel/todo-1/toggle" '{}' "state"
+
+    test_api "모드 변경" \
+        "POST" "/api/panel/mode" \
+        '{"mode":"split"}' \
+        "state"
+
+    test_api "자연어 명령 - 투두 보여줘" \
+        "POST" "/api/panel/natural-command" \
+        '{"message":"투두 보여줘"}' \
+        "state"
+
+    test_api "자연어 명령 - 탭으로 바꿔" \
+        "POST" "/api/panel/natural-command" \
+        '{"message":"탭으로 바꿔"}' \
+        "state"
+
+    test_api "패널 타입 목록" \
+        "GET" "/api/panel/types" "" "types"
+
+    test_api "패널 모드 목록" \
+        "GET" "/api/panel/modes" "" "modes"
+}
+
 # 전체 테스트 실행
 main() {
     echo ""
@@ -238,6 +283,7 @@ main() {
     test_analogy
     test_nlp
     test_context_management
+    test_panel_system
 
     # 결과 요약
     log_section "테스트 결과 요약"
