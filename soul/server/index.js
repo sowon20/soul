@@ -23,6 +23,7 @@ const panelRoutes = require('../routes/panel');
 const chatRoutes = require('../routes/chat');
 const memoryAdvancedRoutes = require('../routes/memory-advanced');
 const workersRoutes = require('../routes/workers');
+const notificationsRoutes = require('../routes/notifications');
 
 app.use('/api/memory', memoryRoutes);
 app.use('/api/ai-models', aiModelsRoutes);
@@ -36,6 +37,7 @@ app.use('/api/panel', panelRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/memory-advanced', memoryAdvancedRoutes);
 app.use('/api/workers', workersRoutes);
+app.use('/api/notifications', notificationsRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

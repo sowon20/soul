@@ -134,10 +134,17 @@
   - [x] API 라우트 (workers.js - 13개 엔드포인트)
   - [x] server/index.js 통합
   
-- [ ] **Proactive Messaging** (4h)
-  - [ ] 작업 완료 알림
-  - [ ] 안부 시스템
-  - [ ] 에러 알림
+- [x] **Proactive Messaging** (4h) ✅ 완료
+  - [x] 작업 완료 알림 (notification-manager.js)
+  - [x] 안부 시스템 (greeting-system.js)
+  - [x] 에러 알림 (event-listener.js)
+  - [x] API 라우트 (notifications.js - 18개 엔드포인트)
+  - [x] 이벤트 리스너 시스템
+  - [x] 알림 우선순위 관리
+  - [x] 자동 정리 기능
+  - [x] 시간대별 인사
+  - [x] 사용자 활동 패턴 학습
+  - [x] server/index.js 통합
   
 - [ ] **자연어 설정** (4h)
   - [ ] 의도 감지 고도화
