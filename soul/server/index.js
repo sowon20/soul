@@ -21,6 +21,7 @@ const analogyRoutes = require('../routes/analogy');
 const nlpRoutes = require('../routes/nlp');
 const panelRoutes = require('../routes/panel');
 const chatRoutes = require('../routes/chat');
+const memoryAdvancedRoutes = require('../routes/memory-advanced');
 
 app.use('/api/memory', memoryRoutes);
 app.use('/api/ai-models', aiModelsRoutes);
@@ -32,6 +33,7 @@ app.use('/api/analogy', analogyRoutes);
 app.use('/api/nlp', nlpRoutes);
 app.use('/api/panel', panelRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/memory-advanced', memoryAdvancedRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
