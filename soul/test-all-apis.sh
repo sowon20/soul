@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Soul Project - 통합 API 테스트 스크립트
-# 모든 구현된 API 엔드포인트를 테스트합니다.
+# 모든 구현된 API 엔드포인트를 테스트합니다. (120개)
 
 set -e
 
@@ -14,6 +14,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
+MAGENTA='\033[0;35m'
 NC='\033[0m' # No Color
 
 # 테스트 카운터
@@ -60,6 +61,8 @@ test_api() {
 
     if [ "$method" = "GET" ]; then
         response=$(curl -s "$BASE_URL$endpoint")
+    elif [ "$method" = "DELETE" ]; then
+        response=$(curl -s -X DELETE "$BASE_URL$endpoint")
     else
         response=$(curl -s -X "$method" "$BASE_URL$endpoint" \
             -H "Content-Type: application/json" \
@@ -86,7 +89,7 @@ check_server() {
         return 0
     else
         log_fail "서버 응답 없음"
-        echo -e "${YELLOW}서버를 먼저 시작하세요: node server/index.js${NC}"
+        echo -e "${YELLOW}서버를 먼저 시작하세요: cd soul && node server/index.js${NC}"
         exit 1
     fi
 }
@@ -267,9 +270,9 @@ test_panel_system() {
         "GET" "/api/panel/modes" "" "modes"
 }
 
-# 9. 스마트 라우팅 시스템 테스트
+# Phase 9: 스마트 라우팅 시스템 테스트
 test_smart_routing() {
-    log_section "9. 스마트 라우팅 시스템"
+    log_section "Phase 9: 스마트 라우팅 시스템"
 
     test_api "간단한 질문 - Haiku 선택" \
         "POST" "/api/chat/analyze-task" \
@@ -306,37 +309,276 @@ test_smart_routing() {
         "routing"
 }
 
+# Week 2-1: 메모리 고도화 테스트
+test_memory_advanced() {
+    log_section "Week 2-1: 메모리 고도화"
+
+    test_api "관계 그래프 조회" \
+        "GET" "/api/memory-advanced/graph" "" "success"
+
+    test_api "그래프 분석" \
+        "POST" "/api/memory-advanced/graph/analyze" \
+        '{"sessionId":"test-session"}' \
+        "success"
+
+    test_api "타임라인 조회" \
+        "GET" "/api/memory-advanced/timeline" "" "success"
+
+    test_api "특정 날짜 타임라인" \
+        "GET" "/api/memory-advanced/timeline/date/2026-01-18" "" "success"
+
+    test_api "활동 분석" \
+        "GET" "/api/memory-advanced/timeline/activity" "" "success"
+
+    test_api "밀도 분석" \
+        "GET" "/api/memory-advanced/timeline/density" "" "success"
+
+    test_api "패턴 분석" \
+        "GET" "/api/memory-advanced/patterns" "" "success"
+
+    test_api "태그 클라우드" \
+        "GET" "/api/memory-advanced/tags" "" "success"
+
+    test_api "태그 관계" \
+        "GET" "/api/memory-advanced/tags/relationships" "" "success"
+
+    test_api "고급 검색" \
+        "GET" "/api/memory-advanced/search?query=test" "" "success"
+}
+
+# Week 2-2: 알바 시스템 테스트
+test_worker_system() {
+    log_section "Week 2-2: 알바 시스템 (Background Workers)"
+
+    # 작업 추가
+    test_api "작업 생성" \
+        "POST" "/api/workers/jobs" \
+        '{"type":"summarization","data":{"messages":["test"]},"priority":5}' \
+        "success"
+
+    # 워커 상태
+    test_api "워커 상태 조회" \
+        "GET" "/api/workers/status" "" "success"
+
+    # 워커 시작
+    test_api "워커 시작" \
+        "POST" "/api/workers/start" '{}' \
+        "success"
+
+    # 큐 상태
+    test_api "큐 목록 조회" \
+        "GET" "/api/workers/queues" "" "success"
+
+    test_api "특정 큐 조회" \
+        "GET" "/api/workers/queues/default" "" "success"
+
+    # 전문 워커 테스트
+    test_api "요약 작업 생성" \
+        "POST" "/api/workers/jobs/summarize" \
+        '{"messages":["메시지 1","메시지 2"],"maxLength":200}' \
+        "success"
+
+    test_api "엔티티 추출 작업" \
+        "POST" "/api/workers/jobs/extract-entities" \
+        '{"text":"서울에서 김철수를 만났다"}' \
+        "success"
+
+    test_api "태그 생성 작업" \
+        "POST" "/api/workers/jobs/generate-tags" \
+        '{"text":"React 프로젝트 개발"}' \
+        "success"
+
+    # 워커 중지
+    test_api "워커 중지" \
+        "POST" "/api/workers/stop" '{}' \
+        "success"
+}
+
+# Week 2-3: Proactive Messaging 테스트
+test_notifications() {
+    log_section "Week 2-3: Proactive Messaging"
+
+    # 알림 생성
+    test_api "알림 생성" \
+        "POST" "/api/notifications" \
+        '{"type":"info","title":"테스트","message":"테스트 알림","autoSend":false}' \
+        "success"
+
+    # 알림 목록
+    test_api "알림 목록 조회" \
+        "GET" "/api/notifications?limit=10" "" "success"
+
+    # 알림 통계
+    test_api "알림 통계" \
+        "GET" "/api/notifications/stats/summary" "" "success"
+
+    # 안부 시스템
+    test_api "안부 인사 생성" \
+        "POST" "/api/notifications/greeting" \
+        '{"sessionId":"test-session","force":true}' \
+        "success"
+
+    test_api "자동 안부 전송" \
+        "POST" "/api/notifications/greeting/auto" \
+        '{"sessionId":"test-session"}' \
+        "success"
+
+    test_api "사용자 패턴 조회" \
+        "GET" "/api/notifications/greeting/pattern/test-session" "" "success"
+
+    test_api "패턴 학습" \
+        "POST" "/api/notifications/greeting/learn/test-session" '{}' \
+        "success"
+
+    test_api "안부 통계" \
+        "GET" "/api/notifications/greeting/stats/summary" "" "success"
+
+    # 이벤트 리스너
+    test_api "이벤트 리스너 시작" \
+        "POST" "/api/notifications/events/start" '{}' \
+        "success"
+
+    test_api "이벤트 통계" \
+        "GET" "/api/notifications/events/stats" "" "success"
+
+    test_api "세션 시작 트리거" \
+        "POST" "/api/notifications/events/session-start" \
+        '{"sessionId":"test-session"}' \
+        "success"
+
+    test_api "이벤트 리스너 중지" \
+        "POST" "/api/notifications/events/stop" '{}' \
+        "success"
+}
+
+# Week 2-4: 자연어 설정 고도화 테스트
+test_nlp_advanced() {
+    log_section "Week 2-4: 자연어 설정 고도화"
+
+    # 고도화된 의도 감지
+    test_api "고도화된 의도 감지" \
+        "POST" "/api/nlp-advanced/detect" \
+        '{"message":"메모리 보여줘","sessionId":"test-session","includeContext":true}' \
+        "success"
+
+    # 피드백 학습
+    test_api "피드백 학습" \
+        "POST" "/api/nlp-advanced/feedback" \
+        '{"message":"메모리 열어","sessionId":"test-session","detectedIntent":"memory_view"}' \
+        "success"
+
+    # 컨텍스트
+    test_api "컨텍스트 조회" \
+        "GET" "/api/nlp-advanced/context/test-session" "" "success"
+
+    test_api "컨텍스트 추출" \
+        "POST" "/api/nlp-advanced/context/extract" \
+        '{"message":"내일 3시에 서울역에서 만나자","sessionId":"test-session"}' \
+        "success"
+
+    test_api "대명사 해소" \
+        "POST" "/api/nlp-advanced/context/resolve" \
+        '{"reference":"그거","sessionId":"test-session"}' \
+        "success"
+
+    # 패턴
+    test_api "학습된 패턴 조회" \
+        "GET" "/api/nlp-advanced/patterns/test-session" "" "success"
+
+    test_api "패턴 적용" \
+        "POST" "/api/nlp-advanced/patterns/apply" \
+        '{"message":"메모리 보기","sessionId":"test-session"}' \
+        "success"
+
+    test_api "패턴 분석" \
+        "GET" "/api/nlp-advanced/patterns/test-session/analyze" "" "success"
+
+    test_api "학습 히스토리" \
+        "GET" "/api/nlp-advanced/patterns/test-session/history?limit=10" "" "success"
+
+    # 선호도
+    test_api "선호도 설정" \
+        "POST" "/api/nlp-advanced/preferences" \
+        '{"sessionId":"test-session","key":"preferredModel","value":"haiku"}' \
+        "success"
+
+    test_api "선호도 조회" \
+        "GET" "/api/nlp-advanced/preferences/test-session/preferredModel" "" "success"
+
+    # 단축 표현
+    test_api "단축 표현 등록" \
+        "POST" "/api/nlp-advanced/shortcuts" \
+        '{"sessionId":"test-session","shortcut":"ㅁ","fullCommand":"메모리 보여줘"}' \
+        "success"
+
+    test_api "단축 표현 해소" \
+        "POST" "/api/nlp-advanced/shortcuts/resolve" \
+        '{"sessionId":"test-session","shortcut":"ㅁ"}' \
+        "success"
+
+    # 분석
+    test_api "통합 통계" \
+        "GET" "/api/nlp-advanced/stats/test-session" "" "success"
+
+    test_api "종합 분석" \
+        "GET" "/api/nlp-advanced/analyze/test-session" "" "success"
+}
+
 # 전체 테스트 실행
 main() {
     echo ""
     echo -e "${YELLOW}╔════════════════════════════════════════════════╗${NC}"
-    echo -e "${YELLOW}║  Soul Project - 통합 API 테스트                ║${NC}"
+    echo -e "${YELLOW}║  Soul Project - 통합 API 테스트 (120개)        ║${NC}"
     echo -e "${YELLOW}╚════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "${CYAN}Base URL: ${BASE_URL}${NC}"
+    echo -e "${CYAN}Verbose: ${VERBOSE}${NC}"
     echo ""
 
     check_server
+
+    # Week 1 & Phase 1-9
     test_memory_system
     test_ai_models
     test_search_system
     test_context_detection
-    test_analogy
     test_nlp
     test_context_management
     test_panel_system
     test_smart_routing
 
+    # Week 2
+    test_memory_advanced
+    test_worker_system
+    test_notifications
+    test_nlp_advanced
+
     # 결과 요약
     log_section "테스트 결과 요약"
-    echo -e "총 테스트: ${TOTAL}"
-    echo -e "${GREEN}통과: ${PASSED}${NC}"
-    [ $FAILED -gt 0 ] && echo -e "${RED}실패: ${FAILED}${NC}"
+    echo ""
+    echo -e "${MAGENTA}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "  총 테스트: ${CYAN}${TOTAL}${NC}"
+    echo -e "  ${GREEN}✓ 통과: ${PASSED}${NC}"
+    [ $FAILED -gt 0 ] && echo -e "  ${RED}✗ 실패: ${FAILED}${NC}"
+
+    if [ $FAILED -eq 0 ]; then
+        SUCCESS_RATE="100%"
+    else
+        SUCCESS_RATE=$(awk "BEGIN {printf \"%.1f\", ($PASSED/$TOTAL)*100}")"%"
+    fi
+    echo -e "  성공률: ${CYAN}${SUCCESS_RATE}${NC}"
+    echo -e "${MAGENTA}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
 
     if [ $FAILED -eq 0 ]; then
-        echo -e "${GREEN}✓ 모든 테스트 통과!${NC}"
+        echo -e "${GREEN}╔════════════════════════════════════════╗${NC}"
+        echo -e "${GREEN}║  ✓ 모든 테스트 통과!                    ║${NC}"
+        echo -e "${GREEN}╚════════════════════════════════════════╝${NC}"
         exit 0
     else
-        echo -e "${RED}✗ 일부 테스트 실패${NC}"
+        echo -e "${RED}╔════════════════════════════════════════╗${NC}"
+        echo -e "${RED}║  ✗ 일부 테스트 실패                     ║${NC}"
+        echo -e "${RED}╚════════════════════════════════════════╝${NC}"
         exit 1
     fi
 }

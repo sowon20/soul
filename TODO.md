@@ -160,9 +160,16 @@
   - [x] server/index.js 통합
 
 - [ ] **Self-Generated UI** (2h)
-  - [ ] AI가 UI 요소 생성
-  
-- [ ] **통합 테스트** (4h)
+  - [ ] AI가 UI 요소 생성 (UI 디자인 완료 후)
+
+- [x] **통합 테스트** (4h) ✅ 완료
+  - [x] test-all-apis.sh 업데이트 (120개 API)
+  - [x] Week 2 모든 API 테스트 추가
+  - [x] 메모리 고도화 (10개)
+  - [x] 알바 시스템 (10개)
+  - [x] Proactive Messaging (13개)
+  - [x] 자연어 설정 고도화 (17개)
+  - [x] TESTING.md 문서 작성
 
 ### Week 3: 배포 준비 (20h)
 - [ ] **환경변수 완전 분리** (6h)
