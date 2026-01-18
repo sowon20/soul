@@ -116,11 +116,13 @@
   - [x] 40개 API 엔드포인트 검증 (메모리/AI/검색/컨텍스트/비유/NLP)
 
 ### Week 2: 고급 기능 (30h)
-- [ ] **메모리 고도화** (8h)
-  - [ ] 관계 그래프 시각화
-  - [ ] 타임라인 뷰
-  - [ ] 태그 클라우드
-  - [ ] 패턴 분석
+- [x] **메모리 고도화** (8h) ✅ 완료
+  - [x] 관계 그래프 시각화 (relationship-graph.js)
+  - [x] 타임라인 뷰 (timeline-view.js)
+  - [x] 태그 클라우드 (pattern-analysis.js)
+  - [x] 패턴 분석 (pattern-analysis.js)
+  - [x] API 라우트 (memory-advanced.js - 10개 엔드포인트)
+  - [x] server/index.js 통합
   
 - [ ] **알바 시스템** (8h)
   - [ ] 백그라운드 작업자 (요약, 비전, TTS, STT)
