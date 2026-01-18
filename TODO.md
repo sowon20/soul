@@ -124,10 +124,15 @@
   - [x] API 라우트 (memory-advanced.js - 10개 엔드포인트)
   - [x] server/index.js 통합
   
-- [ ] **알바 시스템** (8h)
-  - [ ] 백그라운드 작업자 (요약, 비전, TTS, STT)
-  - [ ] 작업 큐 관리
-  - [ ] 상태 추적
+- [x] **알바 시스템** (8h) ✅ 완료
+  - [x] 작업 큐 관리 (job-queue.js)
+  - [x] 백그라운드 작업자 (worker-manager.js)
+  - [x] 6개 워커 (요약, 엔티티 추출, 태그 생성, 감정 분석, 아카이빙, 정리)
+  - [x] 우선순위 기반 스케줄링
+  - [x] 재시도 로직
+  - [x] 상태 추적
+  - [x] API 라우트 (workers.js - 13개 엔드포인트)
+  - [x] server/index.js 통합
   
 - [ ] **Proactive Messaging** (4h)
   - [ ] 작업 완료 알림
