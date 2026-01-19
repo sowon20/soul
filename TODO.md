@@ -445,11 +445,12 @@
 - [x] 새로고침 후 대화 유지 확인 (loadRecentMessages 구현 완료)
 
 #### 9.7.5 메모리 통합
-- [ ] 메모리 저장소 설정 UI
-- [ ] 고정 대화방에 메모리 연결
-- [ ] 컨텍스트 압축 시 메모리 유지
-- [ ] API 연동 확인
-- [ ] 프론트 UI 확인
+- [x] 고정 대화방에 메모리 연결 (conversation-pipeline)
+- [x] API 연동 확인 (GET /api/chat/history/:sessionId)
+- [x] 메모리 자동 저장 (handleResponse)
+- [x] 프론트 API 클라이언트 업데이트 (chat-simple → /api/chat)
+- [x] 컨텍스트 압축 시 메모리 유지 (이미 구현됨)
+- [ ] 메모리 설정 UI (보류)
 
 ---
 
