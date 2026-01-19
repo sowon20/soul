@@ -14,6 +14,7 @@ const express = require('express');
 const router = express.Router();
 const { getAgentProfileManager } = require('../utils/agent-profile');
 const { getUserProfileManager } = require('../utils/user-profile');
+const UserProfileModel = require('../models/UserProfile');
 
 // ============================================
 // 에이전트 프로필 API
@@ -256,18 +257,40 @@ router.get('/user', (req, res) => {
 
 /**
  * GET /api/profile/user/:userId
- * 특정 사용자 프로필 조회
+ * 특정 사용자 프로필 조회 (MongoDB)
  */
-router.get('/user/:userId', (req, res) => {
+router.get('/user/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
 
-    const manager = getUserProfileManager();
-    const profile = manager.getProfile(userId);
+    // MongoDB에서 프로필 조회
+    let profile = await UserProfileModel.findOne({ userId });
+
+    // 없으면 생성
+    if (!profile) {
+      profile = await UserProfileModel.getOrCreateDefault(userId);
+    }
+
+    // 활동 시간 업데이트
+    await profile.updateActivity();
 
     res.json({
       success: true,
-      profile: profile.toJSON()
+      profile: {
+        userId: profile.userId,
+        name: profile.name,
+        displayName: profile.displayName,
+        email: profile.email,
+        timezone: profile.timezone,
+        language: profile.language,
+        preferences: profile.preferences,
+        context: profile.context,
+        interests: profile.interests,
+        customFields: profile.customFields,
+        lastActiveAt: profile.lastActiveAt,
+        createdAt: profile.createdAt,
+        updatedAt: profile.updatedAt
+      }
     });
   } catch (error) {
     console.error('Error getting user profile:', error);
@@ -311,19 +334,51 @@ router.post('/user', (req, res) => {
 
 /**
  * PUT /api/profile/user/:userId
- * 사용자 프로필 업데이트
+ * 사용자 프로필 업데이트 (MongoDB)
  */
-router.put('/user/:userId', (req, res) => {
+router.put('/user/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
     const updates = req.body;
 
-    const manager = getUserProfileManager();
-    const profile = manager.updateProfile(userId, updates);
+    // MongoDB에서 프로필 조회 또는 생성
+    let profile = await UserProfileModel.findOne({ userId });
+
+    if (!profile) {
+      profile = await UserProfileModel.getOrCreateDefault(userId);
+    }
+
+    // 업데이트 가능한 필드만 수정
+    const allowedFields = ['name', 'displayName', 'email', 'timezone', 'language', 'preferences', 'context', 'interests', 'customFields'];
+    allowedFields.forEach(field => {
+      if (updates[field] !== undefined) {
+        profile[field] = updates[field];
+      }
+    });
+
+    // 변경사항 저장
+    profile.markModified('preferences');
+    profile.markModified('customFields');
+    await profile.save();
+    await profile.updateActivity();
 
     res.json({
       success: true,
-      profile: profile.toJSON()
+      profile: {
+        userId: profile.userId,
+        name: profile.name,
+        displayName: profile.displayName,
+        email: profile.email,
+        timezone: profile.timezone,
+        language: profile.language,
+        preferences: profile.preferences,
+        context: profile.context,
+        interests: profile.interests,
+        customFields: profile.customFields,
+        lastActiveAt: profile.lastActiveAt,
+        createdAt: profile.createdAt,
+        updatedAt: profile.updatedAt
+      }
     });
   } catch (error) {
     console.error('Error updating user profile:', error);
@@ -449,6 +504,85 @@ router.get('/stats', (req, res) => {
     });
   } catch (error) {
     console.error('Error getting profile stats:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ============================================
+// 테마 설정 API (MongoDB 저장)
+// ============================================
+
+/**
+ * GET /api/profile/user/:userId/theme
+ * 사용자 테마 설정 조회
+ */
+router.get('/user/:userId/theme', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const profile = await UserProfileModel.findOne({ userId });
+
+    if (!profile) {
+      return res.json({
+        success: true,
+        theme: {
+          skin: 'default',
+          fontSize: 'md',
+          glassEnabled: true,
+          glassOpacity: 85,
+          glassBlur: 20,
+          backgroundImage: null,
+          backgroundOpacity: 30,
+          backgroundBlur: 5
+        }
+      });
+    }
+
+    res.json({
+      success: true,
+      theme: profile.preferences?.theme || {}
+    });
+  } catch (error) {
+    console.error('Error getting theme settings:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * PATCH /api/profile/user/:userId/theme
+ * 사용자 테마 설정 업데이트
+ */
+router.patch('/user/:userId/theme', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const themeUpdate = req.body;
+
+    // 프로필 조회 또는 생성
+    let profile = await UserProfileModel.findOne({ userId });
+
+    if (!profile) {
+      profile = await UserProfileModel.getOrCreateDefault(userId);
+    }
+
+    // 테마 설정 업데이트
+    await profile.updateTheme(themeUpdate);
+    await profile.updateActivity();
+
+    console.log(`💾 테마 설정 저장 완료 (${userId}):`, themeUpdate);
+
+    res.json({
+      success: true,
+      message: '테마 설정이 저장되었습니다',
+      theme: profile.preferences.theme
+    });
+  } catch (error) {
+    console.error('Error updating theme settings:', error);
     res.status(500).json({
       success: false,
       error: error.message

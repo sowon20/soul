@@ -8,7 +8,13 @@ const app = express();
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/soul')
-.then(() => console.log('✅ MongoDB connected'))
+.then(async () => {
+  console.log('✅ MongoDB connected');
+
+  // 기본 AI 서비스 초기화
+  const AIService = require('../models/AIService');
+  await AIService.initializeBuiltInServices();
+})
 .catch(err => console.error('❌ MongoDB connection error:', err));
 
 // Middleware
@@ -19,6 +25,7 @@ app.use(express.urlencoded({ extended: true }));
 // Routes
 const memoryRoutes = require('../routes/memory');
 const aiModelsRoutes = require('../routes/ai-models');
+const aiServicesRoutes = require('../routes/ai-services');
 const configRoutes = require('../routes/config');
 const searchRoutes = require('../routes/search');
 const contextRoutes = require('../routes/context');
@@ -36,6 +43,7 @@ const profileRoutes = require('../routes/profile');
 
 app.use('/api/memory', memoryRoutes);
 app.use('/api/ai-models', aiModelsRoutes);
+app.use('/api/ai-services', aiServicesRoutes);
 app.use('/api/config', configRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/context', contextRoutes);

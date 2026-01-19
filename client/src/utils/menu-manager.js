@@ -671,6 +671,25 @@ export class MenuManager {
           </div>
         </div>
 
+        <!-- AI 서비스 관리 -->
+        <div style="margin-bottom: 3rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+            <h3 style="font-size: 1.25rem; font-weight: 600; margin: 0; color: rgba(255, 255, 255, 0.95);">
+              🔌 AI 서비스 관리
+            </h3>
+            <button
+              id="addServiceBtn"
+              style="padding: 0.5rem 1rem; background: rgba(34, 197, 94, 0.2); border: 1px solid rgba(34, 197, 94, 0.4); border-radius: 8px; cursor: pointer; color: #ffffff; font-size: 0.875rem; font-weight: 500;"
+            >
+              + 서비스 추가
+            </button>
+          </div>
+
+          <div id="servicesContainer" style="display: grid; gap: 1rem;">
+            <!-- 서비스 카드들이 여기 렌더링됨 -->
+          </div>
+        </div>
+
         <!-- 시스템 프롬프트 -->
         <div style="margin-bottom: 3rem;">
           <h3 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 1.5rem; color: rgba(255, 255, 255, 0.95);">
@@ -931,5 +950,352 @@ export class MenuManager {
         }
       });
     }
+
+    // AI 서비스 관리
+    this.loadAIServices();
+
+    // 서비스 추가 버튼
+    const addServiceBtn = document.getElementById('addServiceBtn');
+    if (addServiceBtn) {
+      addServiceBtn.addEventListener('click', () => {
+        this.showAddServiceModal();
+      });
+    }
+  }
+
+  /**
+   * AI 서비스 목록 로드
+   */
+  async loadAIServices() {
+    const container = document.getElementById('servicesContainer');
+    if (!container) return;
+
+    try {
+      const response = await fetch('/api/ai-services');
+      const data = await response.json();
+
+      if (!data.success || !data.services) {
+        throw new Error('서비스 목록을 불러올 수 없습니다');
+      }
+
+      container.innerHTML = data.services.map(service => this.renderServiceCard(service)).join('');
+
+      // 각 서비스 카드에 이벤트 리스너 추가
+      data.services.forEach(service => {
+        this.attachServiceCardListeners(service);
+      });
+    } catch (error) {
+      container.innerHTML = `<p style="color: #ef4444; text-align: center; padding: 2rem;">❌ ${error.message}</p>`;
+    }
+  }
+
+  /**
+   * 서비스 카드 렌더링
+   */
+  renderServiceCard(service) {
+    const statusColor = service.isActive ? '#10b981' : '#6b7280';
+    const statusText = service.isActive ? '활성' : '비활성';
+    const builtInBadge = service.isBuiltIn
+      ? '<span style="padding: 0.25rem 0.5rem; background: rgba(96, 165, 250, 0.2); border: 1px solid rgba(96, 165, 250, 0.4); border-radius: 4px; font-size: 0.75rem; color: #60a5fa;">기본</span>'
+      : '';
+
+    return `
+      <div class="service-card" data-service-id="${service.id}" style="padding: 1.5rem; background: rgba(255, 255, 255, 0.05); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1);">
+        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
+          <div style="flex: 1;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+              <h4 style="margin: 0; font-size: 1rem; font-weight: 600;">${service.name}</h4>
+              ${builtInBadge}
+              <span style="padding: 0.25rem 0.5rem; background: rgba(${statusColor === '#10b981' ? '16, 185, 129' : '107, 114, 128'}, 0.2); border: 1px solid ${statusColor}; border-radius: 4px; font-size: 0.75rem; color: ${statusColor};">${statusText}</span>
+            </div>
+            <p style="margin: 0; font-size: 0.8125rem; opacity: 0.7;">${service.baseUrl}</p>
+            <p style="margin: 0.5rem 0 0 0; font-size: 0.75rem; opacity: 0.6;">
+              타입: ${service.type} |
+              API 키: ${service.hasApiKey ? '✓ 설정됨' : '✗ 미설정'} |
+              모델: ${service.modelCount}개
+            </p>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+          <button
+            class="toggle-service-btn"
+            data-service-id="${service.id}"
+            style="padding: 0.5rem 1rem; background: rgba(96, 165, 250, 0.2); border: 1px solid rgba(96, 165, 250, 0.4); border-radius: 6px; cursor: pointer; color: #ffffff; font-size: 0.8125rem;"
+          >
+            ${service.isActive ? '비활성화' : '활성화'}
+          </button>
+          <button
+            class="refresh-models-btn"
+            data-service-id="${service.id}"
+            style="padding: 0.5rem 1rem; background: rgba(168, 85, 247, 0.2); border: 1px solid rgba(168, 85, 247, 0.4); border-radius: 6px; cursor: pointer; color: #ffffff; font-size: 0.8125rem;"
+          >
+            모델 갱신
+          </button>
+          <button
+            class="test-service-btn"
+            data-service-id="${service.id}"
+            style="padding: 0.5rem 1rem; background: rgba(34, 197, 94, 0.2); border: 1px solid rgba(34, 197, 94, 0.4); border-radius: 6px; cursor: pointer; color: #ffffff; font-size: 0.8125rem;"
+          >
+            연결 테스트
+          </button>
+          ${!service.isBuiltIn ? `
+          <button
+            class="edit-service-btn"
+            data-service-id="${service.id}"
+            style="padding: 0.5rem 1rem; background: rgba(251, 191, 36, 0.2); border: 1px solid rgba(251, 191, 36, 0.4); border-radius: 6px; cursor: pointer; color: #ffffff; font-size: 0.8125rem;"
+          >
+            수정
+          </button>
+          <button
+            class="delete-service-btn"
+            data-service-id="${service.id}"
+            style="padding: 0.5rem 1rem; background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 6px; cursor: pointer; color: #ffffff; font-size: 0.8125rem;"
+          >
+            삭제
+          </button>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * 서비스 카드 이벤트 리스너
+   */
+  attachServiceCardListeners(service) {
+    // 토글 버튼
+    const toggleBtn = document.querySelector(`.toggle-service-btn[data-service-id="${service.id}"]`);
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', async () => {
+        try {
+          const response = await fetch(`/api/ai-services/${service.id}/toggle`, { method: 'POST' });
+          const data = await response.json();
+
+          if (data.success) {
+            this.loadAIServices();
+          } else {
+            alert(data.error || '토글 실패');
+          }
+        } catch (error) {
+          alert('오류: ' + error.message);
+        }
+      });
+    }
+
+    // 모델 갱신 버튼
+    const refreshBtn = document.querySelector(`.refresh-models-btn[data-service-id="${service.id}"]`);
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', async () => {
+        try {
+          refreshBtn.disabled = true;
+          refreshBtn.textContent = '갱신 중...';
+
+          const response = await fetch(`/api/ai-services/${service.id}/refresh-models`, { method: 'POST' });
+          const data = await response.json();
+
+          if (data.success) {
+            alert(`✓ ${data.message}`);
+            this.loadAIServices();
+          } else {
+            alert(data.error || '모델 갱신 실패');
+          }
+        } catch (error) {
+          alert('오류: ' + error.message);
+        } finally {
+          refreshBtn.disabled = false;
+          refreshBtn.textContent = '모델 갱신';
+        }
+      });
+    }
+
+    // 연결 테스트 버튼
+    const testBtn = document.querySelector(`.test-service-btn[data-service-id="${service.id}"]`);
+    if (testBtn) {
+      testBtn.addEventListener('click', async () => {
+        try {
+          testBtn.disabled = true;
+          testBtn.textContent = '테스트 중...';
+
+          const response = await fetch(`/api/ai-services/${service.id}/test`, { method: 'POST' });
+          const data = await response.json();
+
+          alert(data.success ? `✓ ${data.message}` : `✗ ${data.message}`);
+        } catch (error) {
+          alert('오류: ' + error.message);
+        } finally {
+          testBtn.disabled = false;
+          testBtn.textContent = '연결 테스트';
+        }
+      });
+    }
+
+    // 삭제 버튼
+    const deleteBtn = document.querySelector(`.delete-service-btn[data-service-id="${service.id}"]`);
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', async () => {
+        if (!confirm(`"${service.name}" 서비스를 삭제하시겠습니까?`)) return;
+
+        try {
+          const response = await fetch(`/api/ai-services/${service.id}`, { method: 'DELETE' });
+          const data = await response.json();
+
+          if (data.success) {
+            alert('✓ ' + data.message);
+            this.loadAIServices();
+          } else {
+            alert(data.error || '삭제 실패');
+          }
+        } catch (error) {
+          alert('오류: ' + error.message);
+        }
+      });
+    }
+  }
+
+  /**
+   * 서비스 추가 모달
+   */
+  showAddServiceModal() {
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+    `;
+
+    modal.innerHTML = `
+      <div class="modal-content" style="background: #ffffff; padding: 2rem; border-radius: 12px; width: 90%; max-width: 500px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);">
+        <h3 style="margin: 0 0 1.5rem 0; font-size: 1.25rem; color: #1a1a2e; font-weight: 600;">AI 서비스 추가</h3>
+
+        <div style="margin-bottom: 1rem;">
+          <label style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; color: #374151; font-weight: 500;">서비스 ID</label>
+          <input
+            id="modalServiceId"
+            type="text"
+            placeholder="예: my-custom-ai"
+            style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 8px; background: #ffffff; color: #1f2937; font-size: 0.875rem;"
+          />
+        </div>
+
+        <div style="margin-bottom: 1rem;">
+          <label style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; color: #374151; font-weight: 500;">서비스 이름</label>
+          <input
+            id="modalServiceName"
+            type="text"
+            placeholder="예: My Custom AI"
+            style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 8px; background: #ffffff; color: #1f2937; font-size: 0.875rem;"
+          />
+        </div>
+
+        <div style="margin-bottom: 1rem;">
+          <label style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; color: #374151; font-weight: 500;">타입</label>
+          <select
+            id="modalServiceType"
+            style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 8px; background: #ffffff; color: #1f2937; font-size: 0.875rem;"
+          >
+            <option value="openai-compatible">OpenAI 호환</option>
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+            <option value="google">Google</option>
+            <option value="ollama">Ollama</option>
+          </select>
+        </div>
+
+        <div style="margin-bottom: 1rem;">
+          <label style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; color: #374151; font-weight: 500;">Base URL</label>
+          <input
+            id="modalServiceUrl"
+            type="text"
+            placeholder="예: https://api.example.com/v1"
+            style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 8px; background: #ffffff; color: #1f2937; font-size: 0.875rem;"
+          />
+        </div>
+
+        <div style="margin-bottom: 1.5rem;">
+          <label style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; color: #374151; font-weight: 500;">API Key (선택)</label>
+          <input
+            id="modalServiceApiKey"
+            type="password"
+            placeholder="API 키가 필요한 경우 입력"
+            style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 8px; background: #ffffff; color: #1f2937; font-size: 0.875rem;"
+          />
+        </div>
+
+        <div style="display: flex; gap: 0.75rem;">
+          <button
+            id="modalCancelBtn"
+            style="flex: 1; padding: 0.75rem; background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 8px; cursor: pointer; color: #374151; font-size: 0.875rem; font-weight: 500;"
+          >
+            취소
+          </button>
+          <button
+            id="modalSaveBtn"
+            style="flex: 1; padding: 0.75rem; background: #10b981; border: none; border-radius: 8px; cursor: pointer; color: #ffffff; font-size: 0.875rem; font-weight: 600;"
+          >
+            저장
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // 모달 내용 클릭 시 이벤트 전파 중지
+    const modalContent = modal.querySelector('.modal-content');
+    modalContent.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
+
+    // 취소 버튼
+    document.getElementById('modalCancelBtn').addEventListener('click', () => {
+      modal.remove();
+    });
+
+    // 저장 버튼
+    document.getElementById('modalSaveBtn').addEventListener('click', async () => {
+      const serviceId = document.getElementById('modalServiceId').value.trim();
+      const name = document.getElementById('modalServiceName').value.trim();
+      const type = document.getElementById('modalServiceType').value;
+      const baseUrl = document.getElementById('modalServiceUrl').value.trim();
+      const apiKey = document.getElementById('modalServiceApiKey').value.trim();
+
+      if (!serviceId || !name || !baseUrl) {
+        alert('필수 항목을 모두 입력해주세요');
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/ai-services', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ serviceId, name, type, baseUrl, apiKey })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          alert('✓ ' + data.message);
+          modal.remove();
+          this.loadAIServices();
+        } else {
+          alert(data.error || '저장 실패');
+        }
+      } catch (error) {
+        alert('오류: ' + error.message);
+      }
+    });
+
+    // 배경(오버레이) 클릭 시 닫기
+    modal.addEventListener('click', () => {
+      modal.remove();
+    });
   }
 }

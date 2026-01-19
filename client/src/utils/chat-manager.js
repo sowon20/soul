@@ -3,8 +3,6 @@
  * 채팅 메시지 관리 및 렌더링 (Claude Style)
  */
 
-import { marked } from 'marked';
-
 export class ChatManager {
   constructor(apiClient) {
     this.apiClient = apiClient;
@@ -18,11 +16,13 @@ export class ChatManager {
     this.hasMoreHistory = true;
     this.oldestMessageId = null;
 
-    // Configure marked for markdown rendering
-    marked.setOptions({
-      breaks: true,
-      gfm: true,
-    });
+    // Configure marked for markdown rendering (if available)
+    if (window.marked) {
+      window.marked.setOptions({
+        breaks: true,
+        gfm: true,
+      });
+    }
 
     // Setup infinite scroll
     this.setupInfiniteScroll();
@@ -173,7 +173,7 @@ export class ChatManager {
 
       // Set content (with markdown support)
       const text = messageDiv.querySelector('.message-text');
-      text.innerHTML = marked.parse(message.content);
+      text.innerHTML = window.marked ? window.marked.parse(message.content) : this.escapeHtml(message.content);
 
       // Add event listeners for action buttons
       this.attachAssistantMessageActions(messageDiv, message);
@@ -396,6 +396,17 @@ export class ChatManager {
     const hours = d.getHours().toString().padStart(2, '0');
     const minutes = d.getMinutes().toString().padStart(2, '0');
     return `${month}/${day} ${hours}:${minutes}`;
+  }
+
+  /**
+   * HTML 이스케이프
+   * @param {string} text
+   * @returns {string}
+   */
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML.replace(/\n/g, '<br>');
   }
 
   /**

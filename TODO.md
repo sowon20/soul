@@ -1366,17 +1366,42 @@ MCP_PATH=/path/to/mcp
   - [x] updatedAt
   - [x] MongoDB 연결 (server/index.js)
   - [x] ENCRYPTION_KEY 환경변수 (.env)
-- [ ] AIServices 모델 생성 (선택적 - 추가 기능)
-  - [ ] service, name, baseUrl
-  - [ ] isActive, models[], lastRefresh
-- [ ] ModelConfig 모델 생성 (선택적 - 고급 설정)
-  - [ ] soul_model (주 모델)
-  - [ ] background_models (작업별 모델)
+- [x] AIServices 모델 생성 ✅ (완료: 2026-01-19)
+  - [x] serviceId (고유 ID)
+  - [x] name, type, baseUrl
+  - [x] isActive, isBuiltIn
+  - [x] models[] (모델 캐시)
+  - [x] lastRefresh
+  - [x] apiKeyRef (APIKey 참조)
+  - [x] 5개 기본 서비스 자동 생성 (Anthropic, OpenAI, Google, xAI, Ollama)
+  - [x] 사용자 설정 보존 로직 (서버 재시작 시 덮어쓰지 않음)
+- [x] UserProfile 모델 생성 ✅ (완료: 2026-01-19)
+  - [x] userId, name, displayName, email
+  - [x] timezone, language
+  - [x] preferences.theme (테마 설정)
+    - [x] skin, fontSize
+    - [x] glassEnabled, glassOpacity, glassBlur
+    - [x] backgroundImage, backgroundOpacity, backgroundBlur
+  - [x] preferences 일반 설정
+  - [x] context, interests, customFields
+  - [x] 활동 시간 추적 (lastActiveAt)
 
 **API 엔드포인트 (완료)**:
 - [x] POST /api/config/api-key - API 키 저장 (암호화)
 - [x] GET /api/config/api-key/:service - API 키 설정 확인
 - [x] DELETE /api/config/api-key/:service - API 키 삭제
+- [x] GET /api/ai-services - AI 서비스 목록 조회 (API 키 설정 여부 포함)
+- [x] GET /api/ai-services/:id - 서비스 상세 조회
+- [x] POST /api/ai-services - 커스텀 서비스 추가
+- [x] PATCH /api/ai-services/:id - 서비스 수정
+- [x] DELETE /api/ai-services/:id - 서비스 삭제 (기본 서비스 보호)
+- [x] POST /api/ai-services/:id/toggle - 활성화/비활성화
+- [x] POST /api/ai-services/:id/refresh-models - 모델 목록 갱신
+- [x] POST /api/ai-services/:id/test - 연결 테스트
+- [x] GET /api/profile/user/:userId - 사용자 프로필 조회 (MongoDB)
+- [x] PUT /api/profile/user/:userId - 사용자 프로필 업데이트 (MongoDB)
+- [x] GET /api/profile/user/:userId/theme - 테마 설정 조회
+- [x] PATCH /api/profile/user/:userId/theme - 테마 설정 저장
 
 **AI 서비스 통합 (완료)**:
 - [x] AIServiceFactory.createService() - MongoDB 우선, .env 폴백
@@ -1475,6 +1500,132 @@ MCP_PATH=/path/to/mcp
 - 사용자는 soul과만 대화 (단일 인격)
 - 백그라운드 작업은 자동 라우팅
 - 모델 선택은 설정에서만
+
+---
+
+### X.7 AI 서비스 관리 UI ✅ (완료: 2026-01-19)
+
+**목표**: 사용자가 GUI로 AI 서비스를 추가/관리할 수 있는 시스템
+
+**완료 내용**:
+- [x] AI 서비스 관리 UI (menu-manager.js)
+  - [x] 서비스 카드 렌더링
+    - [x] 서비스 이름, 타입, 상태 표시
+    - [x] Base URL, API 키 설정 여부 표시
+    - [x] 모델 개수 표시
+    - [x] 기본/커스텀 배지 구분
+  - [x] "+ 서비스 추가" 버튼
+    - [x] 모달 팝업으로 입력
+    - [x] 서비스 ID, 이름, 타입, Base URL, API 키
+    - [x] 5가지 타입 지원 (OpenAI 호환, OpenAI, Anthropic, Google, Ollama)
+  - [x] 서비스 카드 액션
+    - [x] 활성화/비활성화 토글
+    - [x] 모델 갱신 버튼
+    - [x] 연결 테스트 버튼
+    - [x] 수정 버튼 (커스텀 서비스만)
+    - [x] 삭제 버튼 (커스텀 서비스만)
+  - [x] 실시간 피드백
+    - [x] 로딩 상태 표시
+    - [x] 성공/실패 메시지
+    - [x] 에러 핸들링
+- [x] 백엔드 API 완성
+  - [x] CRUD 엔드포인트 (위 섹션 참조)
+  - [x] 기본 서비스 보호 (삭제 불가)
+  - [x] API 키 암호화 저장
+  - [x] MongoDB 영구 저장
+- [x] 모달 UX 개선
+  - [x] 흰색 배경 (가독성 향상)
+  - [x] 배경 클릭 시 닫기 ✅
+  - [x] 이벤트 전파 차단 (내부 클릭 시 닫히지 않음)
+  - [x] ESC 키로 닫기 (기존 구현 재사용)
+
+**해결된 문제**:
+- ✅ 모달 바깥 클릭해도 안 닫히는 문제 → `stopPropagation()` + 오버레이 클릭 이벤트 수정
+- ✅ 서버 재시작 시 사용자 설정 초기화 문제 → `initializeBuiltInServices()` 로직 수정 (존재하면 건드리지 않음)
+
+**파일**:
+- [soul/models/AIService.js](soul/models/AIService.js) - MongoDB 모델
+- [soul/routes/ai-services.js](soul/routes/ai-services.js) - REST API
+- [client/src/utils/menu-manager.js](client/src/utils/menu-manager.js#L670-L1300) - UI
+
+---
+
+### X.8 사용자 설정 영구 저장 시스템 ✅ (완료: 2026-01-19)
+
+**목표**: 모든 사용자 설정이 서버 재시작 후에도 유지되도록 MongoDB에 저장
+
+**완료 내용**:
+- [x] 테마 설정 영구 저장
+  - [x] 스킨 (skin): default, ocean, forest, sunset 등
+  - [x] 글씨 크기 (fontSize): xs, sm, md, lg, xl
+  - [x] 유리 효과 (glassEnabled, glassOpacity, glassBlur)
+  - [x] 배경 이미지 (backgroundImage, backgroundOpacity, backgroundBlur)
+- [x] 2중 저장 시스템
+  - [x] localStorage: 브라우저 로컬 저장 (즉시 복원)
+  - [x] MongoDB: 서버 영구 저장 (다른 기기에서도 동일한 테마)
+- [x] ThemeManager 개선
+  - [x] `setUserId()` - 사용자 ID 설정
+  - [x] `saveToServer()` - 서버에 테마 저장
+  - [x] 모든 테마 변경 시 자동 저장
+- [x] UserProfile API 연동
+  - [x] GET /api/profile/user/:userId/theme - 테마 조회
+  - [x] PATCH /api/profile/user/:userId/theme - 테마 저장
+  - [x] 프로필 없으면 자동 생성
+  - [x] 활동 시간 자동 업데이트
+
+**작동 방식**:
+```
+사용자가 테마 변경 (예: 글씨 크기 → lg)
+    ↓
+ThemeManager.setFontSize('lg')
+    ↓
+localStorage 즉시 저장 (브라우저 재시작 시 복원)
+    ↓
+서버에 PATCH /api/profile/user/sowon/theme 요청
+    ↓
+MongoDB UserProfile 컬렉션에 저장
+    ↓
+서버 재시작 후에도 MongoDB에서 자동 복원
+```
+
+**테스트 결과**:
+```bash
+# 테마 저장
+PATCH /api/profile/user/sowon/theme {"skin":"ocean","fontSize":"lg"}
+→ ✅ 성공
+
+# MongoDB 확인
+GET /api/profile/user/sowon
+→ ✅ theme: { "skin": "ocean", "fontSize": "lg", ... }
+
+# 서버 재시작 후 확인
+→ ✅ 설정 유지됨 (MongoDB에서 복원)
+```
+
+**파일**:
+- [soul/models/UserProfile.js](soul/models/UserProfile.js) - MongoDB 모델
+- [soul/routes/profile.js](soul/routes/profile.js#L460-L537) - 테마 API
+- [client/src/utils/theme-manager.js](client/src/utils/theme-manager.js#L242-L267) - 서버 저장 로직
+- [client/src/main.js](client/src/main.js#L80-L122) - 프로필 로드
+
+---
+
+### X.9 Claude Code 언어 설정 ✅ (완료: 2026-01-19)
+
+**문제**: Compact(요약) 후 새 세션이 시작되면 영어로 돌아가고, 권한도 다시 물어봄
+
+**해결**:
+- [x] `.claude/settings.local.json`에 `"language": "korean"` 추가
+- [x] 모든 세션(compact 후 포함)에서 한국어 유지
+- [x] 권한 설정도 영구 보존 (`permissions.allow` 배열)
+
+**파일**:
+- [.claude/settings.local.json](.claude/settings.local.json#L2) - 언어 설정
+
+**효과**:
+- ✅ Compact 후에도 계속 한국어로 대화
+- ✅ 권한 재승인 불필요 (이미 허용된 명령은 계속 허용)
+- ✅ 프로젝트별 설정으로 팀원들도 동일한 환경
 
 ---
 
