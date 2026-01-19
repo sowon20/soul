@@ -244,176 +244,27 @@ export class PanelManager {
   }
 
   async renderSettingsPanel() {
-    const currentTheme = document.documentElement.getAttribute('data-theme') || 'default';
-    const currentFontSize = document.documentElement.getAttribute('data-font-size') || 'md';
-
-    // Get current glass intensity and background image from localStorage
-    const savedGlassIntensity = window.soulApp.themeManager.getFromLocalStorage('glassIntensity', 'medium');
-    const savedBackgroundImage = window.soulApp.themeManager.getFromLocalStorage('backgroundImage', '');
-
+    // 설정은 왼쪽 메뉴에서 관리합니다 - 이 공간은 Canvas Workspace로 사용
     this.panelContent.innerHTML = `
-      <div class="settings-panel">
-        <div style="margin-bottom: 2rem;">
-          <h3 style="margin-bottom: 1rem; font-size: 1.125rem;">테마</h3>
-          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;">
-            ${['default', 'basic', 'dark', 'ocean', 'forest', 'sunset']
-              .map(
-                (theme) => `
-              <button
-                class="theme-btn"
-                data-theme="${theme}"
-                style="padding: 0.75rem; background: rgba(255, 255, 255, 0.08); border: 2px solid ${
-                  theme === currentTheme ? 'rgba(255, 255, 255, 0.4)' : 'rgba(255, 255, 255, 0.15)'
-                }; border-radius: 8px; cursor: pointer; transition: all 0.2s; color: #ffffff;"
-              >
-                ${theme}
-              </button>
-            `
-              )
-              .join('')}
-          </div>
-        </div>
-
-        <div style="margin-bottom: 2rem;">
-          <h3 style="margin-bottom: 1rem; font-size: 1.125rem;">글씨 크기</h3>
-          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem;">
-            ${['xs', 'sm', 'md', 'lg', 'xl']
-              .map(
-                (size) => `
-              <button
-                class="font-size-btn"
-                data-size="${size}"
-                style="padding: 0.75rem; background: rgba(255, 255, 255, 0.08); border: 2px solid ${
-                  size === currentFontSize ? 'rgba(255, 255, 255, 0.4)' : 'rgba(255, 255, 255, 0.15)'
-                }; border-radius: 8px; cursor: pointer; transition: all 0.2s; color: #ffffff;"
-              >
-                ${size.toUpperCase()}
-              </button>
-            `
-              )
-              .join('')}
-          </div>
-        </div>
-
-        <div style="margin-bottom: 2rem;">
-          <h3 style="margin-bottom: 1rem; font-size: 1.125rem;">유리 효과 강도</h3>
-          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem;">
-            ${['low', 'medium', 'high']
-              .map(
-                (intensity) => `
-              <button
-                class="glass-intensity-btn"
-                data-intensity="${intensity}"
-                style="padding: 0.75rem; background: rgba(255, 255, 255, 0.08); border: 2px solid ${
-                  intensity === savedGlassIntensity ? 'rgba(255, 255, 255, 0.4)' : 'rgba(255, 255, 255, 0.15)'
-                }; border-radius: 8px; cursor: pointer; transition: all 0.2s; color: #ffffff;"
-              >
-                ${intensity === 'low' ? '낮음' : intensity === 'medium' ? '중간' : '높음'}
-              </button>
-            `
-              )
-              .join('')}
-          </div>
-        </div>
-
-        <div>
-          <h3 style="margin-bottom: 1rem; font-size: 1.125rem;">배경 이미지</h3>
-          <input
-            type="text"
-            id="backgroundImageInput"
-            placeholder="이미지 URL 입력..."
-            value="${savedBackgroundImage}"
-            style="width: 100%; padding: 0.75rem; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; background: rgba(255, 255, 255, 0.08); color: #ffffff; font-size: 0.9375rem; margin-bottom: 0.75rem;"
-          >
-          <button
-            id="applyBackgroundBtn"
-            style="width: 100%; padding: 0.75rem; background: rgba(255, 255, 255, 0.15); border: none; border-radius: 8px; cursor: pointer; color: #ffffff; font-size: 0.9375rem; font-weight: 500; transition: all 0.2s;"
-          >
-            배경 적용
-          </button>
-          ${savedBackgroundImage ? `
-            <button
-              id="removeBackgroundBtn"
-              style="width: 100%; padding: 0.75rem; background: rgba(220, 104, 104, 0.2); border: none; border-radius: 8px; cursor: pointer; color: #ffffff; font-size: 0.9375rem; font-weight: 500; transition: all 0.2s; margin-top: 0.5rem;"
-            >
-              배경 제거
-            </button>
-          ` : ''}
-        </div>
+      <div class="canvas-placeholder" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 3rem; text-align: center;">
+        <div style="font-size: 4rem; margin-bottom: 1.5rem; opacity: 0.3;">⚙️</div>
+        <h3 style="font-size: 1.25rem; font-weight: 500; margin-bottom: 1rem; opacity: 0.8;">
+          설정은 왼쪽 메뉴에서
+        </h3>
+        <p style="font-size: 0.9375rem; opacity: 0.6; line-height: 1.6; max-width: 400px;">
+          모든 설정 옵션은 왼쪽 메뉴의 설정 패널에서 관리할 수 있습니다.<br>
+          이 공간은 향후 멀티 패널 작업 공간으로 사용될 예정입니다.
+        </p>
+        <button
+          onclick="window.soulApp.menuManager.open(); window.soulApp.menuManager.switchMenu('settings');"
+          style="margin-top: 2rem; padding: 0.875rem 1.5rem; background: rgba(96, 165, 250, 0.2); border: 1px solid rgba(96, 165, 250, 0.4); border-radius: 10px; cursor: pointer; color: #ffffff; font-size: 0.9375rem; font-weight: 500; transition: all 0.2s;"
+          onmouseover="this.style.background='rgba(96, 165, 250, 0.3)'"
+          onmouseout="this.style.background='rgba(96, 165, 250, 0.2)'"
+        >
+          설정 열기
+        </button>
       </div>
     `;
-
-    // Add event listeners
-    document.querySelectorAll('.theme-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const theme = btn.dataset.theme;
-        window.soulApp.themeManager.applyTheme(theme);
-
-        // Update button styles
-        document.querySelectorAll('.theme-btn').forEach((b) => {
-          b.style.borderColor = b.dataset.theme === theme ? 'rgba(255, 255, 255, 0.4)' : 'rgba(255, 255, 255, 0.15)';
-        });
-      });
-    });
-
-    document.querySelectorAll('.font-size-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const size = btn.dataset.size;
-        window.soulApp.themeManager.setFontSize(size);
-
-        // Update button styles
-        document.querySelectorAll('.font-size-btn').forEach((b) => {
-          b.style.borderColor = b.dataset.size === size ? 'rgba(255, 255, 255, 0.4)' : 'rgba(255, 255, 255, 0.15)';
-        });
-      });
-    });
-
-    document.querySelectorAll('.glass-intensity-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const intensity = btn.dataset.intensity;
-        window.soulApp.themeManager.setGlassIntensity(intensity);
-
-        // Update button styles
-        document.querySelectorAll('.glass-intensity-btn').forEach((b) => {
-          b.style.borderColor = b.dataset.intensity === intensity ? 'rgba(255, 255, 255, 0.4)' : 'rgba(255, 255, 255, 0.15)';
-        });
-      });
-    });
-
-    // Background image apply button
-    const applyBackgroundBtn = document.getElementById('applyBackgroundBtn');
-    if (applyBackgroundBtn) {
-      applyBackgroundBtn.addEventListener('click', () => {
-        const url = document.getElementById('backgroundImageInput').value.trim();
-        if (url) {
-          window.soulApp.themeManager.setBackgroundImage(url);
-          this.renderSettingsPanel(); // Re-render to show remove button
-        }
-      });
-    }
-
-    // Background image remove button
-    const removeBackgroundBtn = document.getElementById('removeBackgroundBtn');
-    if (removeBackgroundBtn) {
-      removeBackgroundBtn.addEventListener('click', () => {
-        window.soulApp.themeManager.removeBackgroundImage();
-        this.renderSettingsPanel(); // Re-render to hide remove button
-      });
-    }
-
-    // Enter key to apply background
-    const backgroundInput = document.getElementById('backgroundImageInput');
-    if (backgroundInput) {
-      backgroundInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          const url = e.target.value.trim();
-          if (url) {
-            window.soulApp.themeManager.setBackgroundImage(url);
-            this.renderSettingsPanel();
-          }
-        }
-      });
-    }
   }
 
   async renderContextPanel() {
@@ -455,6 +306,7 @@ export class PanelManager {
       </div>
     `;
   }
+
 
   async renderTerminalPanel() {
     this.panelContent.innerHTML = `

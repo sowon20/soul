@@ -1,0 +1,31 @@
+{
+  "ai": {
+    "defaultService": "anthropic",
+    "defaultModel": "claude-haiku-4-5-20251001",
+    "services": {
+      "anthropic": {
+        "enabled": false,
+        "apiKey": null
+      },
+      "openai": {
+        "enabled": false,
+        "apiKey": null
+      },
+      "google": {
+        "enabled": false,
+        "apiKey": null
+      },
+      "ollama": {
+        "enabled": true,
+        "baseUrl": "http://localhost:11434"
+      }
+    }
+  },
+  "memory": {
+    "storagePath": "./memory",
+    "autoArchive": true
+  },
+  "files": {
+    "storagePath": "./files"
+  }
+}

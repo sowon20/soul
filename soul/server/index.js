@@ -2,8 +2,14 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const mongoose = require('mongoose');
 
 const app = express();
+
+// MongoDB Connection
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/soul')
+.then(() => console.log('✅ MongoDB connected'))
+.catch(err => console.error('❌ MongoDB connection error:', err));
 
 // Middleware
 app.use(cors());
@@ -21,6 +27,7 @@ const analogyRoutes = require('../routes/analogy');
 const nlpRoutes = require('../routes/nlp');
 const panelRoutes = require('../routes/panel');
 const chatRoutes = require('../routes/chat');
+const chatSimpleRoutes = require('../routes/chat-simple');
 const memoryAdvancedRoutes = require('../routes/memory-advanced');
 const workersRoutes = require('../routes/workers');
 const notificationsRoutes = require('../routes/notifications');
@@ -36,6 +43,7 @@ app.use('/api/context-mgmt', contextMgmtRoutes);
 app.use('/api/analogy', analogyRoutes);
 app.use('/api/nlp', nlpRoutes);
 app.use('/api/panel', panelRoutes);
+app.use('/api/chat-simple', chatSimpleRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/memory-advanced', memoryAdvancedRoutes);
 app.use('/api/workers', workersRoutes);

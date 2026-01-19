@@ -11,6 +11,16 @@ class AIService {
   }
 
   /**
+   * 대화 메시지 생성 (핵심 메서드)
+   * @param {Array} messages - 메시지 배열 [{ role: 'user'|'assistant', content: '...' }]
+   * @param {Object} options - { systemPrompt, maxTokens, temperature, stream }
+   * @returns {Promise<string>} AI 응답 텍스트
+   */
+  async chat(messages, options = {}) {
+    throw new Error('chat must be implemented');
+  }
+
+  /**
    * 대화 내용 분석
    * @param {Array} messages - 분석할 메시지 배열
    * @returns {Promise<Object>} { topics, tags, category, importance }
@@ -36,6 +46,33 @@ class AnthropicService extends AIService {
     super(apiKey);
     this.client = new Anthropic({ apiKey });
     this.modelName = modelName;
+  }
+
+  async chat(messages, options = {}) {
+    const {
+      systemPrompt = null,
+      maxTokens = 4096,
+      temperature = 1.0,
+    } = options;
+
+    const apiMessages = messages.map(msg => ({
+      role: msg.role,
+      content: msg.content
+    }));
+
+    const params = {
+      model: this.modelName,
+      max_tokens: maxTokens,
+      messages: apiMessages,
+      temperature
+    };
+
+    if (systemPrompt) {
+      params.system = systemPrompt;
+    }
+
+    const response = await this.client.messages.create(params);
+    return response.content[0].text;
   }
 
   async analyzeConversation(messages) {
@@ -100,6 +137,50 @@ class OpenAIService extends AIService {
     super(apiKey);
     this.modelName = modelName;
     this.baseUrl = 'https://api.openai.com/v1';
+  }
+
+  async chat(messages, options = {}) {
+    const {
+      systemPrompt = null,
+      maxTokens = 4096,
+      temperature = 1.0,
+    } = options;
+
+    const apiMessages = [...messages];
+    if (systemPrompt) {
+      apiMessages.unshift({
+        role: 'system',
+        content: systemPrompt
+      });
+    }
+
+    const response = await fetch(`${this.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.apiKey}`
+      },
+      body: JSON.stringify({
+        model: this.modelName,
+        messages: apiMessages,
+        max_tokens: maxTokens,
+        temperature
+      })
+    });
+
+    const data = await response.json();
+
+    // 에러 응답 처리
+    if (data.error) {
+      throw new Error(data.error.message || 'OpenAI API error');
+    }
+
+    // 정상 응답 확인
+    if (!data.choices || !data.choices[0]) {
+      throw new Error('Invalid response from OpenAI API');
+    }
+
+    return data.choices[0].message.content;
   }
 
   async analyzeConversation(messages) {
@@ -170,6 +251,57 @@ class GoogleService extends AIService {
     this.baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
   }
 
+  async chat(messages, options = {}) {
+    const {
+      systemPrompt = null,
+      maxTokens = 4096,
+      temperature = 1.0,
+    } = options;
+
+    // Gemini는 contents 배열로 메시지 전달
+    const contents = messages.map(msg => ({
+      role: msg.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: msg.content }]
+    }));
+
+    const requestBody = {
+      contents,
+      generationConfig: {
+        maxOutputTokens: maxTokens,
+        temperature
+      }
+    };
+
+    if (systemPrompt) {
+      requestBody.systemInstruction = {
+        parts: [{ text: systemPrompt }]
+      };
+    }
+
+    const response = await fetch(
+      `${this.baseUrl}/models/${this.modelName}:generateContent?key=${this.apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody)
+      }
+    );
+
+    const data = await response.json();
+
+    // 에러 응답 처리
+    if (data.error) {
+      throw new Error(data.error.message || 'Google API error');
+    }
+
+    // 정상 응답 확인
+    if (!data.candidates || !data.candidates[0]) {
+      throw new Error('Invalid response from Google API');
+    }
+
+    return data.candidates[0].content.parts[0].text;
+  }
+
   async analyzeConversation(messages) {
     const conversationText = messages
       .map(msg => `${msg.sender}: ${msg.text}`)
@@ -236,6 +368,106 @@ JSON만 응답하고 다른 설명은 하지 마.`
 }
 
 /**
+ * xAI 서비스 (Grok)
+ */
+class XAIService extends AIService {
+  constructor(apiKey, modelName = 'grok-4-1-fast-non-reasoning') {
+    super(apiKey);
+    this.modelName = modelName;
+    this.baseUrl = 'https://api.x.ai/v1';
+  }
+
+  async chat(messages, options = {}) {
+    const {
+      systemPrompt = null,
+      maxTokens = 4096,
+      temperature = 1.0,
+    } = options;
+
+    const apiMessages = [...messages];
+    if (systemPrompt) {
+      apiMessages.unshift({
+        role: 'system',
+        content: systemPrompt
+      });
+    }
+
+    console.log('[XAI] Request URL:', `${this.baseUrl}/chat/completions`);
+    console.log('[XAI] Request body:', JSON.stringify({
+      model: this.modelName,
+      messages: apiMessages,
+      max_tokens: maxTokens,
+      temperature
+    }, null, 2));
+
+    const response = await fetch(`${this.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.apiKey}`
+      },
+      body: JSON.stringify({
+        model: this.modelName,
+        messages: apiMessages,
+        max_tokens: maxTokens,
+        temperature
+      })
+    });
+
+    console.log('[XAI] Response status:', response.status);
+    console.log('[XAI] Response headers:', Object.fromEntries(response.headers.entries()));
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[XAI] Error response:', errorText);
+      throw new Error(`xAI API error (${response.status}): ${errorText || 'Unknown error'}`);
+    }
+
+    const responseText = await response.text();
+    console.log('[XAI] Response text:', responseText);
+
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('[XAI] JSON parse error:', parseError);
+      throw new Error(`Failed to parse xAI response: ${responseText.substring(0, 200)}`);
+    }
+
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      console.error('[XAI] Invalid data structure:', data);
+      throw new Error('Invalid response from xAI API');
+    }
+
+    return data.choices[0].message.content;
+  }
+
+  async analyzeConversation(messages) {
+    const conversationText = messages
+      .map(msg => `${msg.sender}: ${msg.text}`)
+      .join('\n');
+
+    const response = await fetch(`${this.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.apiKey}`
+      },
+      body: JSON.stringify({
+        model: this.modelName,
+        messages: [
+          { role: 'user', content: `다음 대화를 분석해서 JSON 형식으로 결과를 반환해줘:\n\n${conversationText}\n\n형식: { topics: [], tags: [], category: "", importance: 1-10 }` }
+        ]
+      })
+    });
+
+    const data = await response.json();
+    const result = JSON.parse(data.choices[0].message.content);
+    return result;
+  }
+}
+
+/**
  * Ollama 로컬 모델 서비스
  */
 class OllamaService extends AIService {
@@ -243,6 +475,36 @@ class OllamaService extends AIService {
     super(null, { baseUrl });
     this.baseUrl = baseUrl;
     this.modelName = modelName;
+  }
+
+  async chat(messages, options = {}) {
+    const {
+      systemPrompt = null,
+      maxTokens = 4096,
+      temperature = 1.0,
+    } = options;
+
+    // Ollama는 /api/chat 엔드포인트 사용
+    const requestBody = {
+      model: this.modelName,
+      messages: systemPrompt
+        ? [{ role: 'system', content: systemPrompt }, ...messages]
+        : messages,
+      stream: false,
+      options: {
+        num_predict: maxTokens,
+        temperature
+      }
+    };
+
+    const response = await fetch(`${this.baseUrl}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody)
+    });
+
+    const data = await response.json();
+    return data.message.content;
   }
 
   async analyzeConversation(messages) {
@@ -298,49 +560,383 @@ JSON만 응답하고 다른 설명은 하지 마.`,
 
 /**
  * AI 서비스 팩토리
- * 환경변수 기반으로 적절한 AI 서비스 인스턴스 생성
+ * MongoDB에서 암호화된 API 키 로드 (Fallback: process.env)
  */
 class AIServiceFactory {
-  static createService(serviceName = null, modelName = null) {
+  static _cache = {}; // 서비스 인스턴스 캐시
+
+  /**
+   * API 키 조회 (MongoDB 우선, Fallback: process.env)
+   */
+  static async getApiKey(service) {
+    try {
+      const APIKey = require('../models/APIKey');
+      const key = await APIKey.getKey(service);
+      if (key) {
+        console.log(`[APIKey] Loaded ${service} key from MongoDB (encrypted)`);
+        return key;
+      }
+    } catch (error) {
+      console.warn(`[APIKey] Failed to load from MongoDB for ${service}:`, error.message);
+    }
+
+    // Fallback to environment variable
+    const envKey = `${service.toUpperCase()}_API_KEY`;
+    const envValue = process.env[envKey];
+    if (envValue) {
+      console.log(`[APIKey] Using ${service} key from environment variable`);
+      return envValue;
+    }
+
+    return null;
+  }
+
+  static async createService(serviceName = null, modelName = null) {
     const service = serviceName || process.env.DEFAULT_AI_SERVICE || 'anthropic';
     const model = modelName || process.env.DEFAULT_AI_MODEL;
 
+    // 캐시 키
+    const cacheKey = `${service}-${model}`;
+
+    // 캐시가 있으면 재사용 (API 키 변경 시 _cache가 초기화됨)
+    if (this._cache[cacheKey]) {
+      return this._cache[cacheKey];
+    }
+
+    let serviceInstance;
+
     switch (service.toLowerCase()) {
-      case 'anthropic':
-        if (!process.env.ANTHROPIC_API_KEY) {
-          throw new Error('ANTHROPIC_API_KEY not configured');
+      case 'anthropic': {
+        const apiKey = await this.getApiKey('anthropic');
+        if (!apiKey) {
+          throw new Error('ANTHROPIC_API_KEY not configured. Please save it in Settings.');
         }
-        return new AnthropicService(
-          process.env.ANTHROPIC_API_KEY,
+        serviceInstance = new AnthropicService(
+          apiKey,
           model || 'claude-3-haiku-20240307'
         );
+        break;
+      }
 
-      case 'openai':
-        if (!process.env.OPENAI_API_KEY) {
-          throw new Error('OPENAI_API_KEY not configured');
+      case 'openai': {
+        const apiKey = await this.getApiKey('openai');
+        if (!apiKey) {
+          throw new Error('OPENAI_API_KEY not configured. Please save it in Settings.');
         }
-        return new OpenAIService(
-          process.env.OPENAI_API_KEY,
+        serviceInstance = new OpenAIService(
+          apiKey,
           model || 'gpt-4o-mini'
         );
+        break;
+      }
 
-      case 'google':
-        if (!process.env.GOOGLE_API_KEY) {
-          throw new Error('GOOGLE_API_KEY not configured');
+      case 'google': {
+        const apiKey = await this.getApiKey('google');
+        if (!apiKey) {
+          throw new Error('GOOGLE_API_KEY not configured. Please save it in Settings.');
         }
-        return new GoogleService(
-          process.env.GOOGLE_API_KEY,
+        serviceInstance = new GoogleService(
+          apiKey,
           model || 'gemini-2.0-flash-exp'
         );
+        break;
+      }
+
+      case 'xai': {
+        const apiKey = await this.getApiKey('xai');
+        if (!apiKey) {
+          throw new Error('XAI_API_KEY not configured. Please save it in Settings.');
+        }
+        serviceInstance = new XAIService(
+          apiKey,
+          model || 'grok-4-1-fast-non-reasoning'
+        );
+        break;
+      }
 
       case 'ollama':
-        return new OllamaService(
+        serviceInstance = new OllamaService(
           process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
           model || 'llama3.2'
         );
+        break;
 
       default:
         throw new Error(`Unknown AI service: ${service}`);
+    }
+
+    // 캐시 저장
+    this._cache[cacheKey] = serviceInstance;
+    return serviceInstance;
+  }
+
+  /**
+   * API 키 검증 (모델 목록 API로 테스트 - 비용 0, 빠름)
+   */
+  static async validateApiKey(service, apiKey) {
+    try {
+      switch (service.toLowerCase()) {
+        case 'anthropic':
+          // Anthropic Models API 호출
+          const anthropicResponse = await fetch('https://api.anthropic.com/v1/models', {
+            headers: {
+              'x-api-key': apiKey,
+              'anthropic-version': '2023-06-01'
+            }
+          });
+
+          if (!anthropicResponse.ok) {
+            const errorData = await anthropicResponse.json();
+            throw new Error(errorData.error?.message || 'Anthropic API 인증 실패');
+          }
+
+          return { valid: true, message: 'API 키가 유효합니다' };
+
+        case 'openai':
+          // OpenAI Models API 호출
+          const openaiResponse = await fetch('https://api.openai.com/v1/models', {
+            headers: { 'Authorization': `Bearer ${apiKey}` }
+          });
+
+          if (!openaiResponse.ok) {
+            const errorData = await openaiResponse.json();
+            throw new Error(errorData.error?.message || 'OpenAI API 인증 실패');
+          }
+
+          return { valid: true, message: 'API 키가 유효합니다' };
+
+        case 'google':
+          // Google Models API 호출
+          const googleResponse = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
+          );
+
+          if (!googleResponse.ok) {
+            const errorData = await googleResponse.json();
+            throw new Error(errorData.error?.message || 'Google API 인증 실패');
+          }
+
+          return { valid: true, message: 'API 키가 유효합니다' };
+
+        case 'xai':
+          // xAI Models API 호출
+          const xaiResponse = await fetch('https://api.x.ai/v1/models', {
+            headers: { 'Authorization': `Bearer ${apiKey}` }
+          });
+
+          if (!xaiResponse.ok) {
+            const errorData = await xaiResponse.json();
+            throw new Error(errorData.error?.message || 'xAI API 인증 실패');
+          }
+
+          return { valid: true, message: 'API 키가 유효합니다' };
+
+        case 'ollama':
+          // Ollama는 API 키가 필요 없음
+          return { valid: true, message: 'Ollama는 API 키가 필요하지 않습니다' };
+
+        default:
+          return { valid: false, message: '지원하지 않는 서비스입니다' };
+      }
+    } catch (error) {
+      console.error(`API key validation failed for ${service}:`, error);
+      return {
+        valid: false,
+        message: `API 키가 유효하지 않습니다: ${error.message}`
+      };
+    }
+  }
+
+  /**
+   * 모델 목록 가져오기 (제공사별)
+   */
+  static async getAvailableModels(service, apiKey) {
+    try {
+      switch (service.toLowerCase()) {
+        case 'anthropic':
+          // Anthropic Models API 호출
+          const anthropicResponse = await fetch('https://api.anthropic.com/v1/models', {
+            headers: {
+              'x-api-key': apiKey,
+              'anthropic-version': '2023-06-01'
+            }
+          });
+
+          if (!anthropicResponse.ok) {
+            const errorText = await anthropicResponse.text();
+            let errorMessage = 'Anthropic API 호출 실패';
+            try {
+              const errorData = JSON.parse(errorText);
+              if (errorData.error?.message) {
+                errorMessage = `Anthropic API 오류: ${errorData.error.message}`;
+              }
+            } catch (e) {}
+
+            return {
+              success: false,
+              error: errorMessage,
+              models: []
+            };
+          }
+
+          const anthropicData = await anthropicResponse.json();
+          const anthropicModels = anthropicData.data.map(m => ({
+            id: m.id,
+            name: m.display_name || m.id,
+            description: new Date(m.created_at).toLocaleDateString()
+          }));
+          return { success: true, models: anthropicModels };
+
+        case 'openai':
+          const openaiResponse = await fetch('https://api.openai.com/v1/models', {
+            headers: { 'Authorization': `Bearer ${apiKey}` }
+          });
+
+          if (!openaiResponse.ok) {
+            const errorText = await openaiResponse.text();
+            let errorMessage = 'OpenAI API 호출 실패';
+            try {
+              const errorData = JSON.parse(errorText);
+              if (errorData.error?.message) {
+                errorMessage = `OpenAI API 오류: ${errorData.error.message}`;
+              }
+            } catch (e) {}
+
+            return {
+              success: false,
+              error: errorMessage,
+              models: []
+            };
+          }
+
+          const openaiData = await openaiResponse.json();
+          const openaiModels = openaiData.data
+            .filter(m => m.id.includes('gpt'))
+            .map(m => ({
+              id: m.id,
+              name: m.id,
+              description: m.id.includes('4o') ? '최신 모델' : ''
+            }));
+          return { success: true, models: openaiModels };
+
+        case 'google':
+          const googleResponse = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
+          );
+
+          console.log('[Google] API Response Status:', googleResponse.status);
+
+          if (!googleResponse.ok) {
+            const errorText = await googleResponse.text();
+            console.log('[Google] API Error:', errorText.substring(0, 200));
+
+            let errorMessage = 'Google API 호출 실패';
+            try {
+              const errorData = JSON.parse(errorText);
+              if (errorData.error?.message) {
+                if (errorData.error.message.includes('suspended')) {
+                  errorMessage = 'Google API 키가 정지되었습니다. API 키를 확인하세요.';
+                } else if (errorData.error.code === 403) {
+                  errorMessage = `Google API 권한 오류: ${errorData.error.message}`;
+                } else if (errorData.error.code === 401) {
+                  errorMessage = 'Google API 키가 유효하지 않습니다.';
+                } else {
+                  errorMessage = errorData.error.message;
+                }
+              }
+            } catch (e) {
+              // JSON 파싱 실패 시 기본 메시지 사용
+            }
+
+            return {
+              success: false,
+              error: errorMessage,
+              models: []
+            };
+          }
+
+          const googleData = await googleResponse.json();
+          console.log('[Google] Total models received:', googleData.models?.length);
+
+          const googleModels = googleData.models
+            .filter(m => {
+              // 'generateContent' 메서드를 지원하고 gemini를 포함하는 모델만 필터링
+              const hasGenerateContent = m.supportedGenerationMethods &&
+                                        m.supportedGenerationMethods.includes('generateContent');
+              const isGemini = m.name.includes('gemini');
+              return isGemini && hasGenerateContent;
+            })
+            .map(m => ({
+              id: m.name.replace('models/', ''),
+              name: m.displayName || m.name,
+              description: m.description ? m.description.substring(0, 100) : ''
+            }));
+
+          console.log('[Google] Filtered models:', googleModels.length);
+          return { success: true, models: googleModels };
+
+        case 'xai':
+          // xAI 모델 목록 API 호출
+          const xaiResponse = await fetch('https://api.x.ai/v1/models', {
+            headers: { 'Authorization': `Bearer ${apiKey}` }
+          });
+
+          if (!xaiResponse.ok) {
+            const errorText = await xaiResponse.text();
+            let errorMessage = 'xAI API 호출 실패';
+            try {
+              const errorData = JSON.parse(errorText);
+              if (errorData.error?.message) {
+                errorMessage = `xAI API 오류: ${errorData.error.message}`;
+              }
+            } catch (e) {}
+
+            return {
+              success: false,
+              error: errorMessage,
+              models: []
+            };
+          }
+
+          const xaiData = await xaiResponse.json();
+          const xaiModels = xaiData.data
+            .filter(m => m.id.includes('grok'))
+            .map(m => ({
+              id: m.id,
+              name: m.id,
+              description: `Created: ${new Date(m.created * 1000).toLocaleDateString()}`
+            }));
+          return { success: true, models: xaiModels };
+
+        case 'ollama':
+          const ollamaResponse = await fetch('http://localhost:11434/api/tags');
+
+          if (!ollamaResponse.ok) {
+            return {
+              success: false,
+              error: 'Ollama 서버에 연결할 수 없습니다. Ollama가 실행 중인지 확인하세요.',
+              models: []
+            };
+          }
+
+          const ollamaData = await ollamaResponse.json();
+          const ollamaModels = ollamaData.models.map(m => ({
+            id: m.name,
+            name: m.name,
+            description: `Size: ${(m.size / 1e9).toFixed(2)}GB`
+          }));
+          return { success: true, models: ollamaModels };
+
+        default:
+          return { success: false, error: '지원하지 않는 서비스입니다', models: [] };
+      }
+    } catch (error) {
+      console.error(`Failed to fetch models for ${service}:`, error);
+      return {
+        success: false,
+        error: `모델 목록을 가져오는 중 오류 발생: ${error.message}`,
+        models: []
+      };
     }
   }
 
@@ -383,6 +979,7 @@ module.exports = {
   AnthropicService,
   OpenAIService,
   GoogleService,
+  XAIService,
   OllamaService,
   AIServiceFactory
 };

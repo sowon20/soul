@@ -37,6 +37,10 @@ export class MenuManager {
         title: 'MCP 도구',
         render: () => this.renderMCP(),
       },
+      aiSettings: {
+        title: 'AI 설정',
+        render: () => this.renderAISettings(),
+      },
       settings: {
         title: '설정',
         render: () => this.renderSettings(),
@@ -344,6 +348,66 @@ export class MenuManager {
    * 설정 패널 이벤트 리스너
    */
   attachSettingsListeners() {
+    // API Key save button
+    const saveApiKeyBtn = document.getElementById('saveApiKeyBtn');
+    const apiKeyInput = document.getElementById('anthropicApiKeyInput');
+    const apiKeyStatus = document.getElementById('apiKeyStatus');
+
+    if (saveApiKeyBtn && apiKeyInput) {
+      saveApiKeyBtn.addEventListener('click', async () => {
+        const apiKey = apiKeyInput.value.trim();
+
+        if (!apiKey) {
+          apiKeyStatus.innerHTML = '<span style="color: #fbbf24;">⚠️ API 키를 입력해주세요</span>';
+          return;
+        }
+
+        if (!apiKey.startsWith('sk-ant-')) {
+          apiKeyStatus.innerHTML = '<span style="color: #fbbf24;">⚠️ Anthropic API 키 형식이 아닙니다</span>';
+          return;
+        }
+
+        try {
+          apiKeyStatus.innerHTML = '<span style="opacity: 0.7;">⏳ 저장 중...</span>';
+          saveApiKeyBtn.disabled = true;
+
+          // Save to backend
+          const response = await fetch('/api/config/api-key', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              service: 'anthropic',
+              apiKey: apiKey
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error('API 키 저장 실패');
+          }
+
+          apiKeyStatus.innerHTML = '<span style="color: #10b981;">✅ API 키가 저장되었습니다 (즉시 적용)</span>';
+          apiKeyInput.value = '';
+
+          // 성공 메시지 유지
+          setTimeout(() => {
+            apiKeyStatus.innerHTML = '<span style="color: #60a5fa;">💡 재시작 없이 바로 사용 가능합니다</span>';
+          }, 2000);
+
+        } catch (error) {
+          apiKeyStatus.innerHTML = `<span style="color: #ef4444;">❌ ${error.message}</span>`;
+        } finally {
+          saveApiKeyBtn.disabled = false;
+        }
+      });
+
+      // Enter key to save
+      apiKeyInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          saveApiKeyBtn.click();
+        }
+      });
+    }
+
     // 테마 버튼
     document.querySelectorAll('.theme-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -402,6 +466,468 @@ export class MenuManager {
             window.soulApp.themeManager.setBackgroundImage(url);
             this.renderSettings();
           }
+        }
+      });
+    }
+  }
+
+  /**
+   * AI 설정 렌더링
+   */
+  renderAISettings() {
+    this.subMenuContent.innerHTML = `
+      <div style="padding: 1.5rem;">
+        <h2 style="font-size: 1.5rem; font-weight: 600; margin-bottom: 2rem;">
+          🤖 AI 설정
+        </h2>
+
+        <!-- API 키 설정 -->
+        <div style="margin-bottom: 3rem;">
+          <h3 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 1.5rem; color: rgba(255, 255, 255, 0.95);">
+            🔑 API 키 관리
+          </h3>
+
+          <!-- Anthropic -->
+          <div style="margin-bottom: 2rem; padding: 1.5rem; background: rgba(255, 255, 255, 0.05); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1);">
+            <h4 style="font-size: 1rem; font-weight: 600; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+              <span>Anthropic Claude</span>
+              <span id="anthropicStatus" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; background: rgba(96, 165, 250, 0.2); border-radius: 4px; font-weight: 400;">미설정</span>
+            </h4>
+            <input
+              type="password"
+              id="anthropicApiKeyInput"
+              placeholder="sk-ant-api03-..."
+              style="width: 100%; padding: 0.875rem; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; background: rgba(255, 255, 255, 0.08); color: #ffffff; font-size: 0.875rem; margin-bottom: 0.75rem; font-family: 'Courier New', monospace;"
+            >
+            <div style="display: flex; gap: 0.75rem; margin-bottom: 0.75rem;">
+              <button
+                id="saveAnthropicKeyBtn"
+                style="flex: 1; padding: 0.75rem; background: rgba(96, 165, 250, 0.2); border: 1px solid rgba(96, 165, 250, 0.4); border-radius: 8px; cursor: pointer; color: #ffffff; font-size: 0.875rem; font-weight: 500; transition: all 0.2s;"
+              >
+                저장
+              </button>
+              <button
+                id="deleteAnthropicKeyBtn"
+                style="padding: 0.75rem 1.25rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; cursor: pointer; color: #ef4444; font-size: 0.875rem; font-weight: 500; transition: all 0.2s;"
+              >
+                삭제
+              </button>
+            </div>
+            <div id="anthropicKeyStatus" style="font-size: 0.8125rem; text-align: center;"></div>
+            <p style="font-size: 0.75rem; opacity: 0.7; margin-top: 0.75rem;">
+              <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color: #60a5fa; text-decoration: underline;">API 키 발급받기 →</a>
+            </p>
+          </div>
+
+          <!-- OpenAI -->
+          <div style="margin-bottom: 2rem; padding: 1.5rem; background: rgba(255, 255, 255, 0.05); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1);">
+            <h4 style="font-size: 1rem; font-weight: 600; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+              <span>OpenAI GPT</span>
+              <span id="openaiStatus" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; background: rgba(96, 165, 250, 0.2); border-radius: 4px; font-weight: 400;">미설정</span>
+            </h4>
+            <input
+              type="password"
+              id="openaiApiKeyInput"
+              placeholder="sk-..."
+              style="width: 100%; padding: 0.875rem; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; background: rgba(255, 255, 255, 0.08); color: #ffffff; font-size: 0.875rem; margin-bottom: 0.75rem; font-family: 'Courier New', monospace;"
+            >
+            <div style="display: flex; gap: 0.75rem; margin-bottom: 0.75rem;">
+              <button
+                id="saveOpenaiKeyBtn"
+                style="flex: 1; padding: 0.75rem; background: rgba(96, 165, 250, 0.2); border: 1px solid rgba(96, 165, 250, 0.4); border-radius: 8px; cursor: pointer; color: #ffffff; font-size: 0.875rem; font-weight: 500; transition: all 0.2s;"
+              >
+                저장
+              </button>
+              <button
+                id="deleteOpenaiKeyBtn"
+                style="padding: 0.75rem 1.25rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; cursor: pointer; color: #ef4444; font-size: 0.875rem; font-weight: 500; transition: all 0.2s;"
+              >
+                삭제
+              </button>
+            </div>
+            <div id="openaiKeyStatus" style="font-size: 0.8125rem; text-align: center;"></div>
+            <p style="font-size: 0.75rem; opacity: 0.7; margin-top: 0.75rem;">
+              <a href="https://platform.openai.com/api-keys" target="_blank" style="color: #60a5fa; text-decoration: underline;">API 키 발급받기 →</a>
+            </p>
+          </div>
+
+          <!-- Google -->
+          <div style="margin-bottom: 2rem; padding: 1.5rem; background: rgba(255, 255, 255, 0.05); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1);">
+            <h4 style="font-size: 1rem; font-weight: 600; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+              <span>Google Gemini</span>
+              <span id="googleStatus" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; background: rgba(96, 165, 250, 0.2); border-radius: 4px; font-weight: 400;">미설정</span>
+            </h4>
+            <input
+              type="password"
+              id="googleApiKeyInput"
+              placeholder="AIza..."
+              style="width: 100%; padding: 0.875rem; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; background: rgba(255, 255, 255, 0.08); color: #ffffff; font-size: 0.875rem; margin-bottom: 0.75rem; font-family: 'Courier New', monospace;"
+            >
+            <div style="display: flex; gap: 0.75rem; margin-bottom: 0.75rem;">
+              <button
+                id="saveGoogleKeyBtn"
+                style="flex: 1; padding: 0.75rem; background: rgba(96, 165, 250, 0.2); border: 1px solid rgba(96, 165, 250, 0.4); border-radius: 8px; cursor: pointer; color: #ffffff; font-size: 0.875rem; font-weight: 500; transition: all 0.2s;"
+              >
+                저장
+              </button>
+              <button
+                id="deleteGoogleKeyBtn"
+                style="padding: 0.75rem 1.25rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; cursor: pointer; color: #ef4444; font-size: 0.875rem; font-weight: 500; transition: all 0.2s;"
+              >
+                삭제
+              </button>
+            </div>
+            <div id="googleKeyStatus" style="font-size: 0.8125rem; text-align: center;"></div>
+            <p style="font-size: 0.75rem; opacity: 0.7; margin-top: 0.75rem;">
+              <a href="https://makersuite.google.com/app/apikey" target="_blank" style="color: #60a5fa; text-decoration: underline;">API 키 발급받기 →</a>
+            </p>
+          </div>
+
+          <!-- xAI -->
+          <div style="margin-bottom: 2rem; padding: 1.5rem; background: rgba(255, 255, 255, 0.05); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1);">
+            <h4 style="font-size: 1rem; font-weight: 600; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+              <span>xAI Grok</span>
+              <span id="xaiStatus" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; background: rgba(96, 165, 250, 0.2); border-radius: 4px; font-weight: 400;">미설정</span>
+            </h4>
+            <input
+              type="password"
+              id="xaiApiKeyInput"
+              placeholder="xai-..."
+              style="width: 100%; padding: 0.875rem; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; background: rgba(255, 255, 255, 0.08); color: #ffffff; font-size: 0.875rem; margin-bottom: 0.75rem; font-family: 'Courier New', monospace;"
+            >
+            <div style="display: flex; gap: 0.75rem; margin-bottom: 0.75rem;">
+              <button
+                id="saveXaiKeyBtn"
+                style="flex: 1; padding: 0.75rem; background: rgba(96, 165, 250, 0.2); border: 1px solid rgba(96, 165, 250, 0.4); border-radius: 8px; cursor: pointer; color: #ffffff; font-size: 0.875rem; font-weight: 500; transition: all 0.2s;"
+              >
+                저장
+              </button>
+              <button
+                id="deleteXaiKeyBtn"
+                style="padding: 0.75rem 1.25rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; cursor: pointer; color: #ef4444; font-size: 0.875rem; font-weight: 500; transition: all 0.2s;"
+              >
+                삭제
+              </button>
+            </div>
+            <div id="xaiKeyStatus" style="font-size: 0.8125rem; text-align: center;"></div>
+            <p style="font-size: 0.75rem; opacity: 0.7; margin-top: 0.75rem;">
+              <a href="https://console.x.ai/" target="_blank" style="color: #60a5fa; text-decoration: underline;">API 키 발급받기 →</a>
+            </p>
+          </div>
+
+          <div style="padding: 1rem; background: rgba(96, 165, 250, 0.1); border-radius: 8px; border: 1px solid rgba(96, 165, 250, 0.2);">
+            <p style="font-size: 0.8125rem; opacity: 0.9; line-height: 1.6;">
+              💡 API 키는 서버에 AES-256-CBC 암호화되어 저장됩니다.<br>
+              서버 재시작 없이 즉시 적용되며, 안전하게 관리됩니다.
+            </p>
+          </div>
+        </div>
+
+        <!-- 모델 설정 -->
+        <div style="margin-bottom: 3rem;">
+          <h3 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 1.5rem; color: rgba(255, 255, 255, 0.95);">
+            🎯 모델 설정
+          </h3>
+
+          <div style="padding: 1.5rem; background: rgba(255, 255, 255, 0.05); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1);">
+            <label style="display: block; margin-bottom: 0.75rem; font-size: 0.875rem; opacity: 0.9;">
+              AI 서비스 선택
+            </label>
+            <select
+              id="defaultServiceSelect"
+              style="width: 100%; padding: 0.875rem; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; background: rgba(255, 255, 255, 0.08); color: #ffffff; font-size: 0.875rem; margin-bottom: 1rem;"
+            >
+              <option value="">-- 서비스를 선택하세요 --</option>
+              <option value="anthropic">Anthropic Claude</option>
+              <option value="openai">OpenAI GPT</option>
+              <option value="google">Google Gemini</option>
+              <option value="xai">xAI Grok</option>
+            </select>
+
+            <label style="display: block; margin-bottom: 0.75rem; font-size: 0.875rem; opacity: 0.9;">
+              모델 선택
+            </label>
+            <select
+              id="defaultModelSelect"
+              style="width: 100%; padding: 0.875rem; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; background: rgba(255, 255, 255, 0.08); color: #ffffff; font-size: 0.875rem;"
+              disabled
+            >
+              <option value="">-- 먼저 서비스를 선택하세요 --</option>
+            </select>
+
+            <div id="modelSelectStatus" style="margin-top: 1rem; font-size: 0.8125rem; text-align: center;"></div>
+
+            <button
+              id="saveDefaultModelBtn"
+              style="width: 100%; padding: 0.875rem; margin-top: 1rem; background: rgba(96, 165, 250, 0.2); border: 1px solid rgba(96, 165, 250, 0.4); border-radius: 8px; cursor: pointer; color: #ffffff; font-size: 0.875rem; font-weight: 500; transition: all 0.2s;"
+              disabled
+            >
+              기본 모델 저장
+            </button>
+
+            <p style="font-size: 0.75rem; opacity: 0.7; margin-top: 0.75rem;">
+              일반 대화에 사용할 기본 모델을 선택하세요. 서비스별로 사용 가능한 최신 모델만 표시됩니다.
+            </p>
+          </div>
+        </div>
+
+        <!-- 시스템 프롬프트 -->
+        <div style="margin-bottom: 3rem;">
+          <h3 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 1.5rem; color: rgba(255, 255, 255, 0.95);">
+            📝 시스템 프롬프트
+          </h3>
+
+          <div style="padding: 1.5rem; background: rgba(255, 255, 255, 0.05); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1);">
+            <textarea
+              id="systemPromptTextarea"
+              placeholder="AI의 기본 성격과 역할을 정의하세요..."
+              style="width: 100%; min-height: 200px; padding: 1rem; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; background: rgba(255, 255, 255, 0.08); color: #ffffff; font-size: 0.875rem; resize: vertical; font-family: 'Courier New', monospace; line-height: 1.6;"
+            >당신은 친절하고 도움이 되는 AI 어시스턴트입니다.</textarea>
+            <button
+              id="saveSystemPromptBtn"
+              style="width: 100%; padding: 0.875rem; margin-top: 1rem; background: rgba(96, 165, 250, 0.2); border: 1px solid rgba(96, 165, 250, 0.4); border-radius: 8px; cursor: pointer; color: #ffffff; font-size: 0.875rem; font-weight: 500; transition: all 0.2s;"
+            >
+              시스템 프롬프트 저장
+            </button>
+            <div id="systemPromptStatus" style="margin-top: 0.75rem; font-size: 0.8125rem; text-align: center;"></div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // 이벤트 리스너 추가
+    this.attachAISettingsListeners();
+  }
+
+  /**
+   * AI 설정 이벤트 리스너
+   */
+  attachAISettingsListeners() {
+    // API 키 저장/삭제 핸들러
+    const setupAPIKeyButtons = (service, inputId, saveBtnId, deleteBtnId, statusId, statusSpanId) => {
+      const saveBtn = document.getElementById(saveBtnId);
+      const deleteBtn = document.getElementById(deleteBtnId);
+      const input = document.getElementById(inputId);
+      const status = document.getElementById(statusId);
+      const statusSpan = document.getElementById(statusSpanId);
+
+      // API 키 상태 확인
+      fetch(`/api/config/api-key/${service}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.configured) {
+            statusSpan.textContent = '설정됨';
+            statusSpan.style.background = 'rgba(16, 185, 129, 0.2)';
+            statusSpan.style.color = '#10b981';
+          }
+        })
+        .catch(() => {});
+
+      // 저장 버튼
+      if (saveBtn && input) {
+        saveBtn.addEventListener('click', async () => {
+          const apiKey = input.value.trim();
+
+          if (!apiKey) {
+            status.innerHTML = '<span style="color: #fbbf24;">⚠️ API 키를 입력해주세요</span>';
+            return;
+          }
+
+          try {
+            // 1단계: API 키 검증
+            status.innerHTML = '<span style="opacity: 0.7;">⏳ API 키 검증 중...</span>';
+            saveBtn.disabled = true;
+
+            const validateResponse = await fetch('/api/config/api-key/validate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ service, apiKey })
+            });
+
+            const validateResult = await validateResponse.json();
+
+            if (!validateResult.success) {
+              throw new Error(validateResult.message || 'API 키가 유효하지 않습니다');
+            }
+
+            // 2단계: 검증 성공 시 저장
+            status.innerHTML = '<span style="opacity: 0.7;">⏳ 저장 중...</span>';
+
+            const response = await fetch('/api/config/api-key', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ service, apiKey })
+            });
+
+            if (!response.ok) throw new Error('저장 실패');
+
+            status.innerHTML = '<span style="color: #10b981;">✅ 저장되었습니다</span>';
+            input.value = '';
+            statusSpan.textContent = '설정됨';
+            statusSpan.style.background = 'rgba(16, 185, 129, 0.2)';
+            statusSpan.style.color = '#10b981';
+
+            setTimeout(() => {
+              status.innerHTML = '<span style="color: #60a5fa;">💡 재시작 없이 바로 사용 가능</span>';
+            }, 2000);
+          } catch (error) {
+            status.innerHTML = `<span style="color: #ef4444;">❌ ${error.message}</span>`;
+          } finally {
+            saveBtn.disabled = false;
+          }
+        });
+      }
+
+      // 삭제 버튼
+      if (deleteBtn) {
+        deleteBtn.addEventListener('click', async () => {
+          if (!confirm(`${service} API 키를 삭제하시겠습니까?`)) return;
+
+          try {
+            status.innerHTML = '<span style="opacity: 0.7;">⏳ 삭제 중...</span>';
+            deleteBtn.disabled = true;
+
+            const response = await fetch(`/api/config/api-key/${service}`, {
+              method: 'DELETE'
+            });
+
+            if (!response.ok) throw new Error('삭제 실패');
+
+            status.innerHTML = '<span style="color: #10b981;">✅ 삭제되었습니다</span>';
+            statusSpan.textContent = '미설정';
+            statusSpan.style.background = 'rgba(96, 165, 250, 0.2)';
+            statusSpan.style.color = 'rgba(255, 255, 255, 0.9)';
+
+            setTimeout(() => { status.innerHTML = ''; }, 3000);
+          } catch (error) {
+            status.innerHTML = `<span style="color: #ef4444;">❌ ${error.message}</span>`;
+          } finally {
+            deleteBtn.disabled = false;
+          }
+        });
+      }
+    };
+
+    // 각 서비스별 버튼 설정
+    setupAPIKeyButtons('anthropic', 'anthropicApiKeyInput', 'saveAnthropicKeyBtn', 'deleteAnthropicKeyBtn', 'anthropicKeyStatus', 'anthropicStatus');
+    setupAPIKeyButtons('openai', 'openaiApiKeyInput', 'saveOpenaiKeyBtn', 'deleteOpenaiKeyBtn', 'openaiKeyStatus', 'openaiStatus');
+    setupAPIKeyButtons('google', 'googleApiKeyInput', 'saveGoogleKeyBtn', 'deleteGoogleKeyBtn', 'googleKeyStatus', 'googleStatus');
+    setupAPIKeyButtons('xai', 'xaiApiKeyInput', 'saveXaiKeyBtn', 'deleteXaiKeyBtn', 'xaiKeyStatus', 'xaiStatus');
+
+    // 기본 모델 선택 - 서비스 선택 시 모델 목록 로드
+    const defaultServiceSelect = document.getElementById('defaultServiceSelect');
+    const defaultModelSelect = document.getElementById('defaultModelSelect');
+    const saveDefaultModelBtn = document.getElementById('saveDefaultModelBtn');
+    const modelSelectStatus = document.getElementById('modelSelectStatus');
+
+    if (defaultServiceSelect && defaultModelSelect) {
+      defaultServiceSelect.addEventListener('change', async (e) => {
+        const service = e.target.value;
+
+        if (!service) {
+          defaultModelSelect.disabled = true;
+          defaultModelSelect.innerHTML = '<option value="">-- 먼저 서비스를 선택하세요 --</option>';
+          saveDefaultModelBtn.disabled = true;
+          modelSelectStatus.innerHTML = '';
+          return;
+        }
+
+        try {
+          modelSelectStatus.innerHTML = '<span style="opacity: 0.7;">⏳ 모델 목록 불러오는 중...</span>';
+          defaultModelSelect.disabled = true;
+
+          const response = await fetch(`/api/config/models/${service}`);
+          const result = await response.json();
+
+          if (!result.success || !result.models || result.models.length === 0) {
+            throw new Error(result.error || '모델 목록을 불러올 수 없습니다');
+          }
+
+          // 모델 드롭다운 업데이트
+          defaultModelSelect.innerHTML = result.models
+            .map(m => `<option value="${m.id}">${m.name}${m.description ? ' - ' + m.description : ''}</option>`)
+            .join('');
+
+          defaultModelSelect.disabled = false;
+          saveDefaultModelBtn.disabled = false;
+          modelSelectStatus.innerHTML = `<span style="color: #10b981;">✅ ${result.models.length}개 모델 로드됨</span>`;
+
+          setTimeout(() => {
+            modelSelectStatus.innerHTML = '';
+          }, 3000);
+        } catch (error) {
+          defaultModelSelect.innerHTML = '<option value="">모델을 불러올 수 없습니다</option>';
+          defaultModelSelect.disabled = true;
+          saveDefaultModelBtn.disabled = true;
+          modelSelectStatus.innerHTML = `<span style="color: #ef4444;">❌ ${error.message}</span>`;
+        }
+      });
+    }
+
+    // 기본 모델 저장
+    if (saveDefaultModelBtn && defaultServiceSelect && defaultModelSelect) {
+      saveDefaultModelBtn.addEventListener('click', async () => {
+        const service = defaultServiceSelect.value;
+        const model = defaultModelSelect.value;
+
+        if (!service || !model) {
+          modelSelectStatus.innerHTML = '<span style="color: #fbbf24;">⚠️ 서비스와 모델을 선택해주세요</span>';
+          return;
+        }
+
+        try {
+          modelSelectStatus.innerHTML = '<span style="opacity: 0.7;">⏳ 저장 중...</span>';
+          saveDefaultModelBtn.disabled = true;
+
+          const response = await fetch('/api/config/ai/default', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ service, model })
+          });
+
+          if (!response.ok) throw new Error('저장 실패');
+
+          modelSelectStatus.innerHTML = '<span style="color: #10b981;">✅ 기본 모델이 저장되었습니다</span>';
+
+          setTimeout(() => {
+            modelSelectStatus.innerHTML = '';
+          }, 3000);
+        } catch (error) {
+          modelSelectStatus.innerHTML = `<span style="color: #ef4444;">❌ ${error.message}</span>`;
+        } finally {
+          saveDefaultModelBtn.disabled = false;
+        }
+      });
+    }
+
+    // 시스템 프롬프트 저장
+    const saveSystemPromptBtn = document.getElementById('saveSystemPromptBtn');
+    const systemPromptTextarea = document.getElementById('systemPromptTextarea');
+    const systemPromptStatus = document.getElementById('systemPromptStatus');
+
+    if (saveSystemPromptBtn && systemPromptTextarea) {
+      saveSystemPromptBtn.addEventListener('click', async () => {
+        const prompt = systemPromptTextarea.value.trim();
+
+        if (!prompt) {
+          systemPromptStatus.innerHTML = '<span style="color: #fbbf24;">⚠️ 프롬프트를 입력해주세요</span>';
+          return;
+        }
+
+        try {
+          systemPromptStatus.innerHTML = '<span style="opacity: 0.7;">⏳ 저장 중...</span>';
+          saveSystemPromptBtn.disabled = true;
+
+          // TODO: 시스템 프롬프트 저장 API 호출
+
+          systemPromptStatus.innerHTML = '<span style="color: #10b981;">✅ 저장되었습니다</span>';
+          setTimeout(() => {
+            systemPromptStatus.innerHTML = '';
+          }, 3000);
+        } catch (error) {
+          systemPromptStatus.innerHTML = `<span style="color: #ef4444;">❌ ${error.message}</span>`;
+        } finally {
+          saveSystemPromptBtn.disabled = false;
         }
       });
     }

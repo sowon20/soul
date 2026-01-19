@@ -1342,38 +1342,98 @@ MCP_PATH=/path/to/mcp
 
 ## 🤖 Phase X: AI 모델 관리 시스템
 
-### X.1 데이터베이스 스키마
-- [ ] AIServices 모델 생성
-  - [ ] service (anthropic, openai, google, ollama, custom)
-  - [ ] name, apiKey (암호화), baseUrl
+**완료 메모 (2026-01-19)**:
+- ✅ MongoDB 기반 암호화 API 키 관리 시스템 구축
+  - [soul/models/APIKey.js](soul/models/APIKey.js) - AES-256-CBC 암호화 모델
+  - [soul/routes/config.js](soul/routes/config.js#L108-L200) - API 키 CRUD 엔드포인트
+  - [soul/utils/ai-service.js](soul/utils/ai-service.js#L309-L330) - MongoDB 우선 로드, 환경변수 폴백
+  - [soul/server/index.js](soul/server/index.js#L10-L12) - Mongoose 연결
+  - [.env](soul/../.env#L27) - ENCRYPTION_KEY 추가
+- ✅ 프론트엔드 설정 UI
+  - [client/src/utils/menu-manager.js](client/src/utils/menu-manager.js#L309-L336) - 왼쪽 패널 API 키 설정
+  - 서버 재시작 없이 즉시 적용
+  - 암호화 저장 확인
+- ✅ AI 서비스 통합
+  - Anthropic, OpenAI, Google, Ollama 지원
+  - [soul/routes/chat-simple.js](soul/routes/chat-simple.js#L26) - Claude Haiku 4.5 기본 모델
+  - 대화 테스트 완료
+
+### X.1 데이터베이스 스키마 ✅ (완료: 2026-01-19)
+- [x] APIKey 모델 생성 ✅ (완료: 2026-01-19)
+  - [x] service (anthropic, openai, google, ollama)
+  - [x] encryptedKey (AES-256-CBC)
+  - [x] iv (Initialization Vector)
+  - [x] updatedAt
+  - [x] MongoDB 연결 (server/index.js)
+  - [x] ENCRYPTION_KEY 환경변수 (.env)
+- [ ] AIServices 모델 생성 (선택적 - 추가 기능)
+  - [ ] service, name, baseUrl
   - [ ] isActive, models[], lastRefresh
-- [ ] ModelConfig 모델 생성
+- [ ] ModelConfig 모델 생성 (선택적 - 고급 설정)
   - [ ] soul_model (주 모델)
   - [ ] background_models (작업별 모델)
 
-### X.2 ModelService 클래스
-- [ ] 제공사별 API 연동
-  - [ ] getAnthropicModels() (하드코딩 + 주기 체크)
-  - [ ] getOpenAIModels() (API: /v1/models)
-  - [ ] getGoogleModels() (API 연동)
-  - [ ] getOllamaModels() (API: /api/tags)
-- [ ] 자동 갱신 로직
-  - [ ] refreshAll() - 모든 서비스
-  - [ ] refreshService(id) - 특정 서비스
-- [ ] API Key 암호화/복호화
-- [ ] 연결 테스트
+**API 엔드포인트 (완료)**:
+- [x] POST /api/config/api-key - API 키 저장 (암호화)
+- [x] GET /api/config/api-key/:service - API 키 설정 확인
+- [x] DELETE /api/config/api-key/:service - API 키 삭제
 
-### X.3 API 라우트
-- [ ] GET /api/services - 서비스 목록
+**AI 서비스 통합 (완료)**:
+- [x] AIServiceFactory.createService() - MongoDB 우선, .env 폴백
+- [x] POST /api/chat-simple - Claude Haiku 4.5 테스트 완료
+
+### X.2 동적 모델 관리 ✅ (완료: 2026-01-19)
+- [x] 제공사별 API 연동 ✅
+  - [x] getAnthropicModels() - Models API 실시간 조회
+  - [x] getOpenAIModels() - /v1/models API
+  - [x] getGoogleModels() - /v1beta/models + generateContent 필터링
+  - [x] getXAIModels() - /v1/models API
+  - [x] getOllamaModels() - /api/tags API
+- [x] API 키 검증 시스템 ✅
+  - [x] Models API로 검증 (비용 0원, 빠름)
+  - [x] 모델 의존성 제거
+  - [x] 명확한 에러 메시지
+- [x] 에러 처리 강화 ✅
+  - [x] Google: API 키 정지 감지
+  - [x] OpenAI: 잘못된 키 안내
+  - [x] 모든 서비스 chat() 메서드 응답 검증
+- [x] 2단계 드롭다운 UI ✅
+  - [x] 서비스 선택 → 모델 목록 자동 로딩
+  - [x] 실시간 상태 메시지
+
+**완료된 API 엔드포인트**:
+- [x] GET /api/config/models/:service - 모델 목록 조회
+- [x] POST /api/config/ai/default - 기본 모델 저장
+- [x] POST /api/config/api-key/validate - API 키 검증
+
+**기술 노트**:
+- xAI 서비스 추가: grok-4-1-fast-non-reasoning, grok-4-1-fast-reasoning
+- Google API: supportedGenerationMethods.includes('generateContent') 필터링
+- MongoDB upsert로 자동 키 덮어쓰기 지원
+
+### X.3 고급 서비스 관리 (보류)
+- [ ] GET /api/services - 커스텀 서비스 목록
 - [ ] POST /api/services - 서비스 추가
 - [ ] PATCH /api/services/:id - 서비스 수정
 - [ ] DELETE /api/services/:id - 서비스 삭제
-- [ ] POST /api/services/:id/test - 연결 테스트
-- [ ] POST /api/services/:id/refresh - 모델 목록 갱신
-- [ ] GET /api/model-config - 현재 모델 설정
-- [ ] PATCH /api/model-config - 모델 설정 변경
+- [ ] POST /api/services/:id/refresh - 수동 갱신
 
-### X.4 설정 UI
+### X.4 설정 UI ✅ **해결 완료 (2026-01-19)**
+
+**완료 내용**:
+- ✅ 햄버거 메뉴에 "🤖 AI 설정" 별도 항목 추가 (Option A 선택)
+  - [client/index.html](client/index.html#L75-L78) - 메뉴 버튼 추가
+  - [client/src/utils/menu-manager.js](client/src/utils/menu-manager.js#L40-L43) - 메뉴 컨텐츠 정의
+  - [client/src/utils/menu-manager.js](client/src/utils/menu-manager.js#L413-L724) - 렌더링 & 이벤트 리스너
+- ✅ panel-manager.js에서 AI 설정 코드 제거 완료 (오른쪽 패널은 제거 예정)
+
+**해결된 문제**:
+- ❌→✅ HTML에 메뉴 버튼이 없어서 UI에 표시 안 됨 → 추가 완료
+- ❌→✅ 오른쪽 패널(제거 예정)에 중복 코드 → 삭제 완료
+
+---
+
+**원래 계획 (보류 중)**:
 - [ ] 🎭 Soul 인격 설정
   - [ ] 주 모델 선택 드롭다운
   - [ ] 현재 활성 모델 표시
@@ -1383,19 +1443,24 @@ MCP_PATH=/path/to/mcp
   - [ ] 태그 생성 모델
   - [ ] OCR 후처리 모델
   - [ ] 중요 문서 분석 모델
-- [ ] 🔌 AI 서비스 관리
-  - [ ] 서비스 목록 (카드 형태)
-  - [ ] 활성/비활성 토글
-  - [ ] API Key 표시/숨김 (***xyz)
-  - [ ] 사용 가능 모델 개수 표시
-  - [ ] [수정] [삭제] 버튼
-- [ ] 서비스 추가/수정 모달
+- [x] 🔌 AI 서비스 관리 (기본 완료) ✅
+  - [x] API 키 입력/저장 (Anthropic, OpenAI, Google, xAI) ✅
+  - [x] 암호화 저장 (AES-256-CBC) ✅
+  - [x] 서버 재시작 없이 즉시 적용 ✅
+  - [x] API 키 검증 (2단계: 검증 → 저장) ✅
+  - [x] 동적 모델 목록 로딩 ✅
+  - [x] 2단계 드롭다운 (서비스 → 모델) ✅
+  - [ ] 서비스 목록 (카드 형태) - 보류
+  - [ ] 활성/비활성 토글 - 보류
+  - [ ] API Key 표시/숨김 (***xyz) - 보류
+  - [ ] 사용 가능 모델 개수 표시 - 보류
+- [ ] 서비스 추가/수정 모달 (보류)
   - [ ] 서비스 타입 선택
   - [ ] API Key 입력
   - [ ] Base URL (Ollama/Custom)
   - [ ] [연결 테스트] [취소] [저장]
 
-### X.5 Cron Job
+### X.5 자동 갱신 (보류)
 - [ ] 매일 새벽 3시 자동 갱신
 - [ ] 갱신 실패 시 알림
 - [ ] 로그 기록

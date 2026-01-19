@@ -59,8 +59,35 @@ router.post('/', async (req, res) => {
       options
     );
 
-    // 5. AI 응답 생성 (여기서는 mock, 실제 AI 호출은 향후 구현)
-    const aiResponse = `[Mock Response using ${routingResult.modelName}] Received: "${message}"`;
+    // 5. AI 응답 생성 (실제 AI 호출)
+    const { AIServiceFactory } = require('../utils/ai-service');
+
+    let aiResponse;
+    try {
+      // AI 서비스 생성 (모델 ID로 자동 판단)
+      const serviceName = routingResult.modelId.includes('claude') ? 'anthropic'
+        : routingResult.modelId.includes('gpt') ? 'openai'
+        : routingResult.modelId.includes('gemini') ? 'google'
+        : 'anthropic'; // 기본값
+
+      const aiService = await AIServiceFactory.createService(serviceName, routingResult.modelId);
+
+      // system 메시지 분리
+      const systemMessages = conversationData.messages.filter(m => m.role === 'system');
+      const chatMessages = conversationData.messages.filter(m => m.role !== 'system');
+
+      const combinedSystemPrompt = systemMessages.map(m => m.content).join('\n\n');
+
+      // AI 호출
+      aiResponse = await aiService.chat(chatMessages, {
+        systemPrompt: combinedSystemPrompt,
+        maxTokens: options.maxTokens || 4096,
+        temperature: options.temperature || 1.0
+      });
+    } catch (aiError) {
+      console.error('AI 호출 실패:', aiError);
+      aiResponse = `죄송합니다. AI 응답 생성 중 오류가 발생했습니다: ${aiError.message}`;
+    }
 
     // 6. 응답 일관성 검증
     const validation = personality.validateResponse(aiResponse, {
@@ -74,6 +101,7 @@ router.post('/', async (req, res) => {
       success: true,
       sessionId,
       message: aiResponse,
+      reply: aiResponse, // 프론트엔드 호환성
       usage: conversationData.usage,
       compressed: conversationData.compressed,
       contextData: conversationData.contextData,
