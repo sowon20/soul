@@ -1,220 +1,61 @@
-# 🌟 .soul 프로젝트 TODO
+## 항상 작업 전 확인 / 작업 후 업데이트할 것! : 체크 및 중요메모
 
-> **중요**: 이 TODO는 .soul 프로젝트 전체 계획입니다.  
-> 체크 해제 완료 - 처음부터 다시 구현하며 정리합니다.
+## ⚠️ 필수 숙지 사항
 
----
+### 📖 LIBRECHAT_CONTEXT_HANDOVER.md 반드시 읽기
+**위치**: `/workspaces/.soul/docs/LIBRECHAT_CONTEXT_HANDOVER.md`
 
-## 📋 프로젝트 정보
+📋 포함 내용
+핵심 섹션
+핵심 철학 - LibreChat이 일반 ChatGPT/Claude와 다른 이유
+레이어 아키텍처 - 7개 레이어 상세 설명
+메시지 구성 파이프라인 - 전체 흐름도 + 실제 코드
+토큰 관리 전략 - 토큰 폭발 버그 3가지 원인과 해결
+메모리 계층 시스템 - 단기/중기/장기 자동 관리
+세션 연속성 - 자동 저장, 시간 인지 재개
+에이전트 체이닝 - 순차/병렬 체인 구현
+구현 상태 - Phase 5.4, 8 완료 상태
+주요 특징
+✅ 복붙 가능한 코드 예시 - 실제 동작하는 코드
+✅ Before/After 비교 - 왜 이렇게 해야 하는지 명확히
+✅ 시각화된 흐름도 - 전체 파이프라인 이해 쉽게
+✅ 체크리스트 - 인수인계 시 확인사항
+✅ 핵심 학습 포인트 - 반드시 이해해야 할 개념
 
-**프로젝트명**: `.soul` (The Soul Project)  
-**저장소**: GitHub private repo (생성 예정)  
-**현재 위치**: `/home/sowon/librechat` (라즈베리파이)  
-**새 위치**: `/home/sowon/soul` (마이그레이션 예정)
+강조한 핵심 기술
+역순 메시지 추가 - 최신 대화 보존
+자동 맥락 감지 - "저번에" 감지 → 메모리 주입
+3단계 메모리 계층 - 단기(RAM) → 중기(파일) → 장기(DB)
+토큰 폭발 방지 - Tool 출력 제한, Vision 계산, 토큰나이저 초기화
+세션 연속성 - 1분 자동 저장, 시간 인지 재개
+단일 인격 유지 - 모델 전환해도 일관된 말투
+7개 레이어 스택 - 각 레이어의 역할과 중요성
 
-**핵심 철학**:
-- 단일 인격 AI 동반자
-- 자연어로 모든 제어
-- Anti-템플릿 (말투 고정 금지)
-- 완전 재배포 가능 (하드코딩 제로)
+**메모리 관련 작업 전 필수 숙지**:
+- 3단계 메모리 계층 (단기→중기→장기)
+- Omi 방식 점진적 밀도 증가
+- 역순 메시지 추가 기법
+- 토큰 폭발 방지 메커니즘
+- 맥락 자동 감지 파이프라인
+- 세션 연속성 시스템
 
----
-
-## 🎯 개발 환경
-
-### GitHub Codespaces (월 120 core-hours)
-- **2-core 기준**: 60시간/월
-- **4-core 실사용**: ~30시간/월 (빌드만 풀가동)
-- **용도**: 빠른 개발 + 테스트
-- **배포**: 완성본만 라즈베리파이로
-
-### 로컬 서버 (라즈베리파이)
-- **SSH**: `ssh sowon`
-- **도메인**: https://sowon.mooo.com
-- **MongoDB**: Docker 컨테이너 (chat-mongodb:27017)
-- **빌드 시간**: ~14분 (느림)
-
----
-
-## 🗂️ 폴더 구조 (재설계)
-
-```
-/home/sowon/soul/
-├── soul/               # 백엔드
-│   ├── server/
-│   ├── models/
-│   ├── routes/
-│   └── utils/
-├── client/            # 프론트엔드
-│   ├── src/
-│   └── public/
-├── memory/            # 메모리 저장소
-│   ├── raw/          # 원본 대화 (YYYY-MM-DD_HHmmss_주제.md)
-│   ├── processed/    # AI 분석 결과
-│   └── index.json    # 메타데이터
-├── files/            # 파일 저장소
-│   ├── uploads/
-│   ├── processed/
-│   └── index.json
-├── mcp/              # MCP 서버들
-│   ├── hub-server.js
-│   └── tools/
-├── .env.example      # 환경변수 템플릿
-└── install.sh        # 설치 스크립트
-```
-
-**변경사항**:
-- `soul_memories/` → `memory/`
-- `librechat` → `soul` (모든 네이밍)
-- 환경변수 완전 분리 (`.env.example`)
+**이 문서를 안 읽고 메모리 코드 건드리면**:
+- 설계 의도를 모르고 수정 → 망가짐
+- "왜 이렇게 했지?" → 컨텍스트 손실
+- 중복 구현 or 잘못된 방향
 
 ---
 
-## 📅 개발 계획 (80시간)
+**마지막 업데이트**: 2026-01-20
+**버전**: 1.0 (GitHub 배포용)
 
-### Week 1: 클린업 & 기반 (30h)
-- [x] **코드 감사** (완료)
-  - [x] 하드코딩 제거 확인 (sowon, 경로 등)
-  - [x] 환경변수 분리 확인 (.env.example 완비)
-  - [x] 네이밍 통일 확인 (soul 네이밍 적용됨)
-  - [x] install.sh 자동 설치 스크립트 작성
-  - [x] README.md 전문 문서화
 
-- [ ] **Phase 9 UI 완성** (10h)
-  - [ ] 기존 UI 통합 (6h)
-  - [ ] Claude 스타일 적용 (4h)
 
-- [x] **패널 시스템** (완료)
-  - [x] 탭/분할/팝업 모드
-  - [x] 자연어 제어 ("투두 보여줘", "탭으로 바꿔")
-  - [x] panel-manager.js 유틸리티
-  - [x] panel.js API 라우트 (15개 엔드포인트)
-  - [x] 자연어 명령 처리 (NLP 통합)
-  - [x] 10개 패널 타입 지원
-  - [x] 4개 모드/4개 레이아웃
-  - [x] 패널 히스토리 (뒤로가기)
-  - [x] 테스트 (10개 테스트)
-  - [x] 문서화 (PANEL_SYSTEM.md)
+----------------------------------------------------------------------------
 
-- [x] **MCP 정리** (완료)
-  - [x] hub-server.js 작성 (MCP 허브 서버)
-  - [x] tools/ 모듈화 (memory, context, nlp)
-  - [x] 10개 MCP 도구 구현
-  - [x] package.json 및 문서화
-  - [x] example-client.js 예제
 
-- [x] **자연어 제어 기초** (완료)
-  - [x] 의도 감지 로직 (intent-detector.js)
-  - [x] 패턴 매칭 시스템
-  - [x] 8개 API 엔드포인트
-  - [x] 14개 의도, 21개 패턴
-  - [x] 테스트 (100% 통과)
-  - [x] 문서화 (NLP_SYSTEM.md)
 
-- [x] **통합 테스트** (완료)
-  - [x] test-all-apis.sh 작성 및 테스트
-  - [x] 40개 API 엔드포인트 검증 (메모리/AI/검색/컨텍스트/비유/NLP)
-
-### Week 2: 고급 기능 (30h)
-- [x] **메모리 고도화** (8h) ✅ 완료
-  - [x] 관계 그래프 시각화 (relationship-graph.js)
-  - [x] 타임라인 뷰 (timeline-view.js)
-  - [x] 태그 클라우드 (pattern-analysis.js)
-  - [x] 패턴 분석 (pattern-analysis.js)
-  - [x] API 라우트 (memory-advanced.js - 10개 엔드포인트)
-  - [x] server/index.js 통합
-  
-- [x] **알바 시스템** (8h) ✅ 완료
-  - [x] 작업 큐 관리 (job-queue.js)
-  - [x] 백그라운드 작업자 (worker-manager.js)
-  - [x] 6개 워커 (요약, 엔티티 추출, 태그 생성, 감정 분석, 아카이빙, 정리)
-  - [x] 우선순위 기반 스케줄링
-  - [x] 재시도 로직
-  - [x] 상태 추적
-  - [x] API 라우트 (workers.js - 13개 엔드포인트)
-  - [x] server/index.js 통합
-  
-- [x] **Proactive Messaging** (4h) ✅ 완료
-  - [x] 작업 완료 알림 (notification-manager.js)
-  - [x] 안부 시스템 (greeting-system.js)
-  - [x] 에러 알림 (event-listener.js)
-  - [x] API 라우트 (notifications.js - 18개 엔드포인트)
-  - [x] 이벤트 리스너 시스템
-  - [x] 알림 우선순위 관리
-  - [x] 자동 정리 기능
-  - [x] 시간대별 인사
-  - [x] 사용자 활동 패턴 학습
-  - [x] server/index.js 통합
-  
-- [x] **자연어 설정** (4h) ✅ 완료
-  - [x] 의도 감지 고도화 (intent-detector-advanced.js)
-  - [x] 컨텍스트 추적 (context-tracker.js)
-  - [x] 패턴 학습 (pattern-learner.js)
-  - [x] 엔티티 추출 (사람/장소/시간/숫자)
-  - [x] 대명사 해소 (anaphora resolution)
-  - [x] 선호도 관리
-  - [x] 단축 표현 학습
-  - [x] 개인화된 의도 감지
-  - [x] 피드백 학습 시스템
-  - [x] API 라우트 (nlp-advanced.js - 17개 엔드포인트)
-  - [x] server/index.js 통합
-
-- [ ] **Self-Generated UI** (2h)
-  - [ ] AI가 UI 요소 생성 (UI 디자인 완료 후)
-
-- [x] **통합 테스트** (4h) ✅ 완료
-  - [x] test-all-apis.sh 업데이트 (120개 API)
-  - [x] Week 2 모든 API 테스트 추가
-  - [x] 메모리 고도화 (10개)
-  - [x] 알바 시스템 (10개)
-  - [x] Proactive Messaging (13개)
-  - [x] 자연어 설정 고도화 (17개)
-  - [x] TESTING.md 문서 작성
-
-### Week 2.5: 시스템 프롬프트 & 프로필 시스템 (4h)
-- [x] **에이전트 자아 인식 시스템** (2h) ✅ 완료
-  - [x] 에이전트 프로필 관리 (agent-profile.js)
-  - [x] 이름, 역할, 설명, 성격, 능력 정의
-  - [x] 시스템 프롬프트에 자아 정보 자동 주입
-  - [x] 다중 에이전트 프로필 지원
-  - [x] personality-core.js와 통합 가능한 구조
-
-- [x] **시간 인식 시스템** (1h) ✅ 완료
-  - [x] 현재 시간 자동 주입
-  - [x] 타임존 설정 (KST, UTC 등)
-  - [x] 시간대 감지 (아침/오후/저녁/밤)
-  - [x] 시스템 프롬프트에 시간 정보 포함
-  - [x] greeting-system.js와 통합
-
-- [x] **사용자 프로필 시스템** (1h) ✅ 완료
-  - [x] 사용자 프로필 관리 (user-profile.js)
-  - [x] 이름, 선호도, 관심사, 커스텀 필드 지원
-  - [x] 시스템 프롬프트에 사용자 정보 주입
-  - [x] 프로필 CRUD API (14개 엔드포인트)
-  - [x] 대화 컨텍스트와 통합 준비
-  - [x] server/index.js 통합
-
-### Week 3: 배포 준비 (20h)
-- [ ] **환경변수 완전 분리** (6h)
-  - [ ] .env.example 작성
-  - [ ] 검증 로직
-  - [ ] 문서화
-  
-- [ ] **설치 자동화** (6h)
-  - [ ] install.sh 스크립트
-  - [ ] Docker Compose
-  - [ ] 헬스체크
-  
-- [ ] **문서화** (8h)
-  - [ ] README.md (프로젝트 소개)
-  - [ ] INSTALL.md (설치 가이드)
-  - [ ] CONFIG.md (환경변수 설명)
-  - [ ] API.md (API 문서)
-  - [ ] LICENSE
-
----
-
-## 🏗️ Phase 1: 메모리 저장 시스템
+## 🏗️ Phase 1: 메모리 저장 시스템 ✅
 
 ### 1.1 저장소 구조
 - [x] 메타데이터 헤더 포맷 정의
@@ -232,33 +73,14 @@
 - [x] index.json 자동 업데이트
 - [x] 필드: id, date, length, participants, path, tags
 
-**완료**: 2026-01-17 ✅
-- API 테스트 완료 (POST /api/memory/archive)
-- 파일 생성 확인 (2026-01-17_192254_Phase_1_테스트.md)
-- index.json 자동 업데이트 확인
-
-**메모**:
-- 기존 `/soul_memories/raw/` → `/memory/raw/`
-- conversationId는 'main-conversation' 고정
-
 ---
 
-## 🤖 Phase 2: AI 분류 시스템
+## 🤖 Phase 2: AI 분류 시스템 ✅
 
 ### 2.1 모델 선택
 - [x] Claude/GPT/Gemini/로컬 모델 선택 가능
 - [x] 모델별 API 인터페이스
 - [x] 설정 API 구현
-
-**완료**: 2026-01-17 ✅
-- AI 서비스 클래스 구현 (Anthropic, OpenAI, Google, Ollama)
-- API 라우트: GET /api/ai-models/services, POST /api/ai-models/test
-- 설정 관리: GET/PATCH /api/config/ai
-- .env.example에 AI 서비스 설정 추가
-
-**메모**:
-- UI는 Phase 9에서 구현 예정
-- 현재는 API만 완성
 
 ### 2.2 자동 분석
 - [x] 대화 종료 시 AI 분석
@@ -267,30 +89,14 @@
 - [x] 카테고리 분류
 - [x] 중요도 점수 (1-10)
 
-**완료**: 2026-01-17 ✅
-- memory.js에 analyzeConversation() 메서드 추가
-- saveConversation()에 AI 자동 분석 통합
-- autoAnalyze 파라미터로 활성화/비활성화 제어
-- AI 분석 실패 시 기본값 반환 (fallback)
-
-**메모**:
-- API 키 필요 (Anthropic/OpenAI/Google)
-- Ollama 로컬 모델도 지원
-- 기본값: autoAnalyze=true
-
 ### 2.3 결과 저장
 - [x] index.json 업데이트
 - [x] 파일명에 주제 반영
 - [x] 검색 인덱스 등록
 
-**완료**: 2026-01-17 ✅
-- AI 분석 결과가 자동으로 메타데이터에 반영
-- 첫 번째 주제가 파일명에 포함
-- index.json에 모든 메타데이터 저장
-
 ---
 
-## 📁 Phase 2A: 파일 시스템
+## 📁 Phase 2A: 파일 시스템 (보류)
 
 ### 2A.1 저장 경로 설정
 - [ ] 설정 > 파일 저장소 UI
@@ -310,7 +116,7 @@
 
 ---
 
-## 📄 Phase 2B: 문서 처리
+## 📄 Phase 2B: 문서 처리 (보류)
 
 ### 2B.1 PDF 처리
 - [ ] pdf-parse 연동
@@ -339,7 +145,7 @@
 
 ---
 
-## 🔍 Phase 2C: AI 문서 분석
+## 🔍 Phase 2C: AI 문서 분석 (보류)
 
 ### 2C.1 유형 판단
 - [ ] 계약서/청구서/관리비 등 분류
@@ -359,15 +165,11 @@
 
 ### 2C.4 AI 모델 설정
 - [ ] 모델 선택 UI
-- [ ] 작업별 모델 분리
-  - OCR 후처리: 로컬
-  - 분류: Haiku (빠름)
-  - 요약: Sonnet (균형)
-  - 중요 문서: Opus (최고)
+- [ ] 작업별 모델 분리 (OCR 후처리, 분류, 요약, 중요 문서)
 
 ---
 
-## 📋 Phase 2D: 문서 관리
+## 📋 Phase 2D: 문서 관리 (보류)
 
 ### 2D.1 수정 API
 - [ ] POST /api/files/:id/tags
@@ -386,7 +188,7 @@
 
 ---
 
-## 🔧 Phase 2E: 문서 활용
+## 🔧 Phase 2E: 문서 활용 (보류)
 
 ### 2E.1 스케줄 추출
 - [ ] "만기되는 보험 찾아줘"
@@ -405,68 +207,22 @@
 
 ---
 
-## 🔎 Phase 3: 검색 시스템
+## 🔎 Phase 3: 검색 시스템 ✅
 
 ### 3.1 기본 검색
 - [x] GET /api/search
 - [x] 키워드 매칭
 - [x] 날짜/태그/파일 유형 필터
-
-**완료**: 2026-01-17 ✅
-- search.js 유틸리티 구현
-  - searchConversations() - 키워드 검색 + 필터링
-  - advancedSearch() - AND/OR/제외 키워드 검색
-  - getAllTags() - 태그 목록 + 사용 빈도
-  - getAllCategories() - 카테고리 목록 + 분포
-  - getStatistics() - 통계 정보
-- API 엔드포인트:
-  - GET /api/search - 기본 검색 (q, tags, category, date range, importance)
-  - POST /api/search/advanced - 고급 검색 (keywords, anyKeywords, excludeKeywords)
-  - GET /api/search/tags - 태그 목록
-  - GET /api/search/categories - 카테고리 목록
-  - GET /api/search/stats - 통계 정보
-- 기능:
-  - 주제/태그/카테고리/ID 키워드 매칭
-  - 날짜 범위 필터 (startDate, endDate)
-  - 중요도 범위 필터 (minImportance, maxImportance)
-  - 태그 다중 필터 (AND 조건)
-  - 정렬 (date/importance/relevance)
-  - 페이지네이션 (limit, offset)
-  - 관련성 점수 계산
+- [x] 페이지네이션, 정렬, 관련성 점수
 
 ### 3.2 지능형 검색
 - [x] "개떡같이" 검색어 해석
-- [x] 시간 추론 ("저번에", "최근")
+- [x] 시간 추론 ("저번에", "최근", "3일 전")
 - [x] 맥락 기반 검색
 - [x] 관련성 순위
+- [x] 오타 수정 & 동의어 확장
 
-**완료**: 2026-01-17 ✅
-- smart-search.js 유틸리티 구현
-  - parseTimeExpression() - 시간 표현 파싱
-    - 오늘, 어제, 그저께
-    - 이번주, 지난주
-    - 이번달, 지난달
-    - 최근, 요즘, 저번에, 예전에
-    - N일/주/달 전 (예: "3일 전", "2주 전")
-  - parseNaturalQuery() - 자연어 쿼리 파싱
-    - 카테고리 키워드 인식 (개발, 일상, 업무, 학습 등)
-    - 중요도 키워드 (중요한, 급한, 사소한 등)
-    - 시간 표현 추출 및 변환
-  - fuzzyCorrection() - 오타 수정 & 동의어 확장
-  - expandContext() - 최근 검색 기반 맥락 확장
-- search.js에 smartSearch() 메서드 추가
-  - 자연어 → 필터 자동 변환
-  - 맥락 기반 키워드 확장 (선택)
-- API: POST /api/search/smart
-  - Body: { query, recentSearches, useExpanded }
-  - Returns: 검색 결과 + parsedQuery 정보
-
-**예시**:
-- "최근 개발 관련 중요한 대화" → filters: { startDate: 7일전, category: 개발, minImportance: 8 }
-- "어제 테스트" → filters: { startDate: 어제 0시, endDate: 오늘 0시 }
-- "3일 전 업무" → filters: { startDate: 3일 전, category: 업무 }
-
-### 3.3 전문 검색
+### 3.3 전문 검색 (보류)
 - [ ] Elasticsearch/MeiliSearch 연동
 - [ ] OCR 텍스트 포함
 - [ ] 금액/날짜 범위 검색
@@ -476,281 +232,90 @@
 - [x] 관계 그래프
 - [x] "이것도 볼래?" 추천
 
-**완료**: 2026-01-17 ✅
-- recommendation.js 유틸리티 구현
-  - calculateSimilarity() - 유사도 계산 알고리즘
-    - 공통 주제 (가중치 10)
-    - 공통 태그 (가중치 5)
-    - 같은 카테고리 (가중치 8)
-    - 비슷한 중요도 (가중치 3)
-    - 시간적 근접성 (가중치 2)
-  - findSimilar() - 비슷한 대화 찾기
-  - buildRelationshipGraph() - 관계 그래프 생성 (nodes + edges)
-  - getRecommendations() - 추천 시스템 (recent/important/category 기반)
-  - findByTags() - 태그 기반 연관 검색 (any/all 매칭)
-- API 엔드포인트:
-  - GET /api/search/similar/:conversationId - 비슷한 대화
-  - GET /api/search/graph - 관계 그래프 데이터
-  - GET /api/search/recommendations - 추천 대화
-  - POST /api/search/by-tags - 태그 기반 검색
-
 ---
 
-## 🧠 Phase 4: 자율 기억
+## 🧠 Phase 4: 자율 기억 ✅
 
 ### 4.1 맥락 감지
 - [x] 관련 주제 자동 감지
 - [x] 트리거 조건 설정
 - [x] 자동 검색 실행
-
-**완료**: 2026-01-18 ✅
-- context-detector.js 유틸리티 구현
-  - extractKeywords() - 키워드, 엔티티, 시간 참조 추출
-  - evaluateTrigger() - 트리거 조건 평가 (신뢰도 점수)
-  - findRelatedMemories() - 관련 메모리 자동 검색
-  - detectAndRetrieve() - 전체 파이프라인
-  - generateContextPrompt() - 시스템 프롬프트 생성
-  - checkSpamPrevention() - 스팸 방지
-- API 엔드포인트 (/api/context):
-  - POST /detect - 맥락 감지 및 메모리 검색
-  - POST /extract-keywords - 키워드 추출
-  - POST /evaluate-trigger - 트리거 평가
-  - POST /find-memories - 메모리 검색
-  - POST /generate-prompt - 프롬프트 생성
-  - POST /check-spam - 스팸 방지 체크
-- 기능:
-  - 시간 참조 감지 ("저번에", "최근에", "어제" 등)
-  - 주제 참조 감지 ("그때", "아까 말한", "비슷한" 등)
-  - 엔티티 감지 (기술 키워드, 프로젝트명 등)
-  - 트리거 신뢰도 점수 (0.0~1.0)
-  - 다중 검색 전략 (시간 기반, 키워드 기반, 엔티티 기반)
-  - 관련성 점수 계산
-  - 스팸 방지 (시간당 최대 횟수, 최소 간격)
-- 테스트 결과:
-  - "저번에 얘기했던 React 프로젝트 기억나?" → 트리거 발동 (confidence: 1.0)
-  - "최근에 MongoDB 설정 어떻게 했었지?" → 트리거 발동 (confidence: 0.8)
-  - 스팸 방지 정상 작동
-
-**메모**:
-- 현재 메모리 DB가 비어있어 실제 메모리 검색은 0건
-- Phase 2 (AI 분류)로 메모리가 쌓이면 자동으로 작동
-- UI 통합은 Phase 9에서 진행 예정
+- [x] 스팸 방지
 
 ### 4.2 자연스러운 통합
 - [x] 시스템 프롬프트 주입
 - [x] "그때 애기했던..." 패턴
 - [x] 스팸 방지
 
-**완료**: 2026-01-18 ✅ (4.1과 함께 구현)
-- generateContextPrompt()로 자연스러운 프롬프트 생성
-- 과거 대화 참조 시 자동으로 관련 메모리 제공
-- 강제 주입 없이 자연스러운 언급 유도
-- 스팸 방지 내장
-
 ### 4.3 비유/연결
 - [x] 과거 대화 비유 찾기
 - [x] 선택적 활성화
-
-**완료**: 2026-01-18 ✅
-- analogy-finder.js 유틸리티 구현
-  - detectPatterns() - 문제/해결/결과 패턴 감지
-  - calculateAnalogyScore() - 비유 점수 계산 (최대 50점)
-  - findAnalogies() - 비유 검색 (문제/해결책 키워드 기반)
-  - shouldActivate() - 선택적 활성화 (패턴 매칭 기반)
-  - analyze() - 전체 파이프라인
-- API 엔드포인트 (/api/analogy):
-  - POST /analyze - 비유 분석 (전체)
-  - POST /find - 비유 검색만
-  - POST /detect-patterns - 패턴 감지
-  - POST /should-activate - 활성화 체크
-  - GET/PATCH /config - 설정 관리
-- 기능:
-  - 문제/해결/결과 패턴 자동 감지
-  - 유사도 기반 비유 점수 계산
-  - 선택적 활성화 (최소 패턴 매칭 필요)
-  - 컨텍스트 프롬프트 자동 생성
-- 비유 타입:
-  - similar_problem - 비슷한 문제
-  - similar_solution - 비슷한 해결책
-  - similar_outcome - 비슷한 결과
-  - general_context - 일반 맥락
-- 테스트 결과:
-  - 패턴 감지 정상 작동
-  - 활성화 체크 정상 작동
-  - 비유 분석 파이프라인 정상 작동
-  - 설정 관리 정상 작동
-
-**메모**:
-- 현재 메모리 DB가 비어있어 실제 비유 검색 결과는 0건
-- Phase 2 (AI 분류)로 메모리가 쌓이면 비유 검색 작동
-- UI 통합은 Phase 9에서 진행 예정
+- [x] 문제/해결/결과 패턴 감지
 
 ---
 
-## 🎛️ Phase 5: 컨텍스트 관리
+## 🎛️ Phase 5: 컨텍스트 관리 ✅
 
 ### 5.1 토큰 모니터링
 - [x] 현재 토큰 수 추적
 - [x] 80% 경고, 90% 자동 압축
 - [ ] UI 게이지 (선택)
 
-**완료**: 2026-01-18 ✅
-- token-counter.js 유틸리티 구현
-  - estimateTokens() - 텍스트 토큰 수 추정 (정확도 ~85%)
-  - countMessagesTokens() - 메시지 배열 토큰 계산
-  - analyzeUsage() - 컨텍스트 사용량 분석
-  - calculateCompressionPriority() - 압축 우선순위 계산
-  - selectMessagesForCompression() - 압축 대상 선택
-- 모델별 최대 컨텍스트 길이 지원:
-  - Claude: 200K 토큰
-  - GPT-4: 8K ~ 128K 토큰
-  - Gemini: 32K ~ 1M 토큰
-- 자동 압축 트리거:
-  - 경고: 80% 도달 시
-  - 위험: 90% 도달 시 (자동 압축)
-- 압축 우선순위 알고리즘:
-  - 최근 N개 메시지 보호
-  - 시스템 메시지 우선 보호
-  - 오래되고 긴 메시지 우선 압축
-
 ### 5.2 자동 압축
 - [x] 오래된 메시지 요약
 - [x] 핵심만 남기기
 - [x] 원본 파일 저장
-
-**완료**: 2026-01-18 ✅
-- context-compressor.js 유틸리티 구현
-  - compressMessages() - 메시지 압축 실행
-  - shouldAutoCompress() - 자동 압축 필요 여부 체크
-  - generateSessionSummary() - 세션 요약 생성
-  - saveOriginalToMemory() - 원본 메모리에 저장
-  - generateAISummary() - AI 요약 생성 (선택)
-- 압축 기능:
-  - 간단한 요약 (키워드 추출)
-  - AI 요약 지원 (선택적)
-  - 원본 자동 저장
-  - 압축 통계 제공
-- 세션 요약 기능:
-  - 키워드 추출
-  - 결정사항 추출
-  - TODO 추출
-  - 주요 주제 추출
-- API 엔드포인트 (/api/context-mgmt):
-  - POST /analyze - 컨텍스트 사용량 분석
-  - POST /estimate-tokens - 토큰 수 추정
-  - POST /compress - 메시지 압축
-  - POST /should-compress - 압축 필요 여부 체크
-  - POST /session-summary - 세션 요약
-  - GET /restore/:id - 압축된 세션 복원
-  - GET/PATCH /config - 설정 관리
-  - GET /model-limits - 모델 제한 조회
-
-**테스트 결과**:
-- 토큰 추정: 정상 작동
-- 사용량 분석: gpt-4 모델로 16 토큰 / 8192 토큰 = 0.2% 확인
-- 압축 API: 정상 작동
-- 설정 관리: 정상 작동
+- [x] AI 요약 지원 (선택)
 
 ### 5.3 세션 연속성
 - [x] 종료 시 요약 생성
 - [x] 시작 시 요약 로드
-- [ ] "이어가기" 버튼
-
-**완료**: 2026-01-18 ✅ (5.2와 함께 구현)
-- generateSessionSummary()로 세션 종료 시 자동 요약
-- restoreCompressedSession()로 압축된 세션 복원
-- UI "이어가기" 버튼은 Phase 9에서 구현 예정
+- [ ] "이어가기" 버튼 (UI)
 
 ---
 
-## 🎛️ Phase 5.4: 영속적 대화방 시스템 ⭐ (완료)
+## 🎛️ Phase 5.4: 영속적 대화방 시스템 ✅
 
-**목표**: LibreChat의 대화 처리 로직을 참고하여 무한 메모리를 가진 단일 영속 대화방 구현
+### 5.4.1 대화 처리 파이프라인
+- [x] buildConversationMessages() - 메시지 배열 구성
+- [x] getMessagesWithinTokenLimit() - 역순 메시지 추가
+- [x] handleResponse() - 응답 처리 및 저장
+- [x] 시스템 프롬프트 동적 구성
+- [x] 자동 메모리 주입
+- [x] 80% 도달시 자동 압축
 
-**핵심 철학**: 단일 인격 AI
-- ❌ 모드 분리 (기본/업무/상담) 금지
-- ✅ 하나의 복합적이고 유동적인 인격체
-- 내부 모델 전환은 사용자에게 투명
-- 다중 AI 제공사 지원 (Anthropic, Google, OpenAI, xAI)
+### 5.4.2 토큰 폭발 방지
+- [x] TokenSafeguard 클래스 - 실시간 모니터링
+- [x] emergencyCompress() - 95% 강제 압축
+- [x] truncateToolOutput() - Tool 출력 500 토큰 제한
+- [x] Vision 토큰 계산
+- [x] ManagedTokenizer - 5분/25회 자동 초기화
+- [x] 단일 메시지 10% 제한
 
-### 5.4.1 대화 처리 파이프라인 ✅
-- [x] conversation-pipeline.js 구현 (300 lines)
-  - [x] buildConversationMessages() - 메시지 배열 구성
-  - [x] getMessagesWithinTokenLimit() - 역순 메시지 추가
-  - [x] handleResponse() - 응답 처리 및 저장
-  - [x] 시스템 프롬프트 동적 구성
-  - [x] 자동 메모리 주입 (과거 대화 참조 감지시)
-  - [x] 80% 도달시 자동 압축
-- [x] POST /api/chat 엔드포인트
+### 5.4.3 에이전트 체이닝
+- [x] Agent 클래스
+- [x] SequentialChain - 순차 실행
+- [x] ParallelChain - 병렬 실행
+- [x] ToolLayer
 
-### 5.4.2 토큰 폭발 방지 ✅
-- [x] token-safeguard.js 구현 (400 lines)
-  - [x] TokenSafeguard 클래스 - 실시간 모니터링
-  - [x] emergencyCompress() - 95% 강제 압축
-  - [x] truncateToolOutput() - Tool 출력 500 토큰 제한
-  - [x] Vision 토큰 계산 (width/height 기반)
-  - [x] ManagedTokenizer - 5분/25회 자동 초기화
-  - [x] 단일 메시지 10% 제한
+### 5.4.4 메모리 계층
+- [x] ShortTermMemory - 최근 50개 메시지
+- [x] MiddleTermMemory - 세션 요약 (파일)
+- [x] LongTermMemory - 아카이브 (MongoDB)
+- [x] MemoryManager - 통합 관리
+- [x] 자동 계층 이동
 
-### 5.4.3 에이전트 체이닝 시스템 ✅
-- [x] agent-chain.js 구현 (140 lines, 간소화 버전)
-  - [x] Agent 클래스 - 단일 에이전트
-  - [x] SequentialChain - 순차 실행
-  - [x] ParallelChain - 병렬 실행
-  - [x] ToolLayer - Tool 레이어
-
-### 5.4.4 메모리 계층 통합 ✅
-- [x] memory-layers.js 구현 (690 lines)
-  - [x] ShortTermMemory - 최근 50개 메시지
-  - [x] MiddleTermMemory - 세션 요약 (파일 저장)
-  - [x] LongTermMemory - 아카이브 (MongoDB)
-  - [x] MemoryManager - 통합 관리
-  - [x] 자동 계층 이동 (단기 → 중기 → 장기)
-  - [x] 컨텍스트 수집 최적화
-
-### 5.4.5 세션 연속성 ✅
-- [x] session-continuity.js 구현 (320 lines)
-  - [x] saveSessionState() - 세션 상태 저장
-  - [x] restoreSession() - 세션 복원
-  - [x] generateResumePrompt() - 재개 프롬프트
-  - [x] 대화 중단/재개 완벽 처리
-  - [x] 시간 인지 재개 메시지 (N시간 전, N일 전)
-  - [x] 자동 저장 (1분 간격)
-  - [x] 세션 만료 관리 (30일)
-
-### API 엔드포인트 ✅
-- [x] POST /api/chat - 메시지 전송
-- [x] POST /api/chat/resume - 세션 재개
-- [x] POST /api/chat/end - 세션 종료
-- [x] GET /api/chat/sessions - 활성 세션 목록
-- [x] GET /api/chat/memory-stats - 메모리 통계
-- [x] GET /api/chat/token-status - 토큰 상태
-- [x] POST /api/chat/compress - 수동 압축
-
-**완료 달성:**
-- ✅ 무한 연속 대화 (토큰 제한 극복)
-- ✅ 자연스러운 맥락 유지
-- ✅ 토큰 폭발 방지
-- ✅ 에이전트 체이닝 지원
-- ✅ 단기/중기/장기 메모리 자동 관리
-- ✅ 세션 연속성 (저장/복원/재개)
-
-**LibreChat 분석 활용:**
-- 역순 메시지 추가 로직
-- 누적 요약 메커니즘
-- 토큰 계산 정확도
-- 에이전트 체인 구조
-- 메모리 계층 설계
-
-**참고 파일:**
-- librechat.tar.gz 분석 완료 (Agent ID: aaae15f)
-- /tmp/api/app/clients/BaseClient.js
-- /tmp/api/app/clients/AnthropicClient.js
-- /tmp/packages/api/src/agents/
+### 5.4.5 세션 연속성
+- [x] saveSessionState() - 세션 상태 저장
+- [x] restoreSession() - 세션 복원
+- [x] generateResumePrompt() - 재개 프롬프트
+- [x] 시간 인지 재개 메시지
+- [x] 자동 저장 (1분 간격)
+- [x] 세션 만료 관리 (30일)
 
 ---
 
-## 🏷️ Phase 6: 태그 진화
+## 🏷️ Phase 6: 태그 진화 (보류)
 
 ### 6.1 태그 분석
 - [ ] 주 1회 전체 분석
@@ -769,246 +334,51 @@
 
 ---
 
-## ⚡ Phase 7: 프롬프트 캐싱
+## ⚡ Phase 7: 프롬프트 캐싱 (보류)
 
 - [ ] DB 스키마: PromptCacheUsage
 - [ ] 자동 저장: recordTokenUsage()
 - [ ] Stats API: GET /api/prompt-caching/stats
 - [ ] 기본값 활성화
 
-**메모**: Anthropic API 전용
-
-**중요**: 단일 인격 철학 유지
-- 프롬프트 캐싱은 성능 최적화 목적
-- 사용자 인식 변화 없음 (투명한 내부 처리)
-- 캐시된 시스템 프롬프트 = 일관된 인격 유지
-
 ---
 
-## 🎯 Phase 8: 스마트 라우팅 (단일 인격 핵심 기능) ✅ 완료
+## 🎯 Phase 8: 스마트 라우팅 ✅
 
-**목표**: 작업에 맞는 최적 모델 자동 선택 (사용자는 모름)
+### 8.1 스마트 라우터
+- [x] SmartRouter 클래스
+- [x] analyzeTask() - 복잡도 분석 (0-10)
+- [x] detectTaskType() - 11개 태스크 유형 탐지
+- [x] selectModel() - Haiku/Sonnet/Opus 자동 선택
+- [x] 비용 추정
+- [x] 라우팅 통계
 
-- [x] **smart-router.js** - 스마트 라우터 시스템
-  - [x] SmartRouter 클래스 (태스크 분석 & 모델 선택)
-  - [x] analyzeTask() - 복잡도 분석 (0-10)
-  - [x] detectTaskType() - 11개 태스크 유형 탐지
-  - [x] selectModel() - Haiku/Sonnet/Opus 자동 선택
-  - [x] 비용 추정 (estimatedCost)
-  - [x] 라우팅 통계 (getStats)
-  - [x] 3개 모델 정보 (MODELS)
+### 8.2 단일 인격 시스템
+- [x] PersonalityCore 클래스
+- [x] PERSONALITY_PROFILE (인격 정의)
+- [x] generateSystemPrompt() - 일관된 프롬프트
+- [x] validateResponse() - 응답 일관성 검증
+- [x] handleModelSwitch() - 모델 전환 시 컨텍스트 유지
+- [x] trackTopic() - 대화 주제 추적
+- [x] setUserPreference() - 사용자 선호도
 
-- [x] **personality-core.js** - 단일 인격 시스템
-  - [x] PersonalityCore 클래스
-  - [x] PERSONALITY_PROFILE (인격 정의)
-  - [x] generateSystemPrompt() - 일관된 시스템 프롬프트 생성
-  - [x] validateResponse() - 응답 일관성 검증
-  - [x] handleModelSwitch() - 모델 전환 시 컨텍스트 유지
-  - [x] trackTopic() - 대화 주제 추적
-  - [x] setUserPreference() - 사용자 선호도 설정
-
-- [x] **API 라우트 수정**
-  - [x] POST /api/chat - 스마트 라우팅 통합
-  - [x] POST /api/chat/analyze-task - 태스크 분석만
-  - [x] GET /api/chat/routing-stats - 라우팅 통계
-  - [x] GET /api/chat/models - 모델 목록
-  - [x] GET /api/chat/personality - 인격 정보
-  - [x] POST /api/chat/personality/preference - 선호도 설정
-
-- [x] **테스트**
-  - [x] 간단한 질문 → Haiku
-  - [x] 코드 생성 → Sonnet
-  - [x] 아키텍처 설계 → Opus
-  - [x] 라우팅 통계 조회
-  - [x] 모델 목록 조회
-  - [x] 인격 정보 조회
-  - [x] 통합 채팅 테스트
-  - [x] test-all-apis.sh 업데이트 (8개 테스트)
-
-- [x] **문서화**
-  - [x] SMART_ROUTING.md (완전한 문서)
-  - [x] API 레퍼런스
-  - [x] 사용 예제
-  - [x] 모델 선택 로직
-  - [x] 비용 최적화 가이드
-
-**라우팅 로직**:
-- complexity ≥ 7 OR requiresExpertise → Opus
-- complexity ≤ 3 AND NOT requiresReasoning → Haiku
-- else → Sonnet
-
-**태스크 유형**:
-- 간단한 질문, 번역, 요약 → Haiku (1-2)
-- 코드 생성, 리뷰, 분석, 문제 해결 → Sonnet (4-6)
-- 아키텍처 설계, 복잡한 디버깅, 연구, 전문 컨설팅 → Opus (7-9)
-
-**단일 인격 철학** ✅:
-- ✅ 모델 전환해도 동일한 인격 유지
-- ✅ 시스템 프롬프트는 항상 통일된 인격 주입
-- ✅ 사용자는 모델 전환을 인식하지 못함
-- ✅ 응답 일관성 자동 검증
-
----
-
-## 🔔 Phase N: 알림 시스템
-
-- [ ] 알림 DB 테이블
-- [ ] 알림 큐 관리
-- [ ] 상태 추적 (pending/delivered/read)
-- [ ] 트리거 조건 (작업 완료, 에러, 결정 등)
-- [ ] 전달 방식
-  - 메시지로 직접 전달 (대화창)
-  - 알림창 표시 (패널 열 때만 fetch)
-  - polling 없음
-- [ ] 우선순위 관리 (1-10)
-- [ ] 맥락 인지
-- [ ] 자연어 메시지 생성
-
-**메모**: 백엔드 완료, UI 통합 필요
-
----
-
-## ⏰ Phase T: 시간 인지
-
-- [ ] 대화 이력 DB
-- [ ] 현재 시간 정보
-- [ ] 패턴 분석 (빈도, 시간대)
-- [ ] 맥락 연속성
-- [ ] 시간 기반 응답
-- [ ] 안부 시스템
-- [ ] 시스템 프롬프트 주입
-
-**메모**: 백엔드 완료
+### 8.3 API & 테스트
+- [x] POST /api/chat - 스마트 라우팅 통합
+- [x] POST /api/chat/analyze-task
+- [x] GET /api/chat/routing-stats
+- [x] GET /api/chat/models, personality
+- [x] POST /api/chat/personality/preference
+- [x] 통합 테스트 완료
+- [x] SMART_ROUTING.md 문서화
 
 ---
 
 ## 🎨 Phase 9: UI 개선
 
-### 9.0 Vanilla JS UI 기반 구축 ✅ (완료: 2026-01-19)
-**목표**: React 없이 Vanilla JS로 Claude 스타일 UI 구현
-
-#### 9.0.1 프로젝트 구조 ✅
-- [x] Vite 프로젝트 생성 (client/)
-- [x] 폴더 구조 설계
-  - [x] src/styles/ (CSS 모듈화)
-  - [x] src/utils/ (유틸리티 클래스)
-  - [x] index.html (메인 HTML)
-  - [x] main.js (앱 진입점)
-
-#### 9.0.2 레이아웃 시스템 ✅
-- [x] HTML 구조
-  - [x] Header (로고, 햄버거, 알림, 사용자, 설정)
-  - [x] 2단 슬라이딩 메뉴 (왼쪽)
-    - [x] Main Menu (72px, 아이콘 + 라벨)
-    - [x] Sub Menu (400px, 리사이징 가능)
-  - [x] Chat Container (대화창 + 입력폼)
-  - [x] Right Panel (오른쪽 패널)
-- [x] CSS 스타일링
-  - [x] themes.css (테마 변수)
-  - [x] components.css (컴포넌트 스타일)
-  - [x] animations.css (애니메이션)
-  - [x] main.css (기본 스타일)
-
-#### 9.0.3 슬라이딩 메뉴 시스템 ✅
-- [x] MenuManager 클래스 (menu-manager.js)
-  - [x] 메뉴 열기/닫기
-  - [x] 서브메뉴 전환 (채팅/검색/파일/메모리/MCP/아카이브)
-  - [x] 오버레이 처리
-- [x] 서브메뉴 리사이저
-  - [x] 마우스 드래그로 너비 조절
-  - [x] 최소/최대 너비 제한 (240px ~ 600px)
-  - [x] 리사이징 중 시각적 피드백
-
-#### 9.0.4 테마 시스템 ✅
-- [x] ThemeManager 클래스 (theme-manager.js)
-  - [x] 6개 테마 (default, basic, dark, ocean, forest, sunset)
-  - [x] 5단계 폰트 크기 (xs, sm, md, lg, xl)
-  - [x] 유리 효과 (Glass Effect)
-    - [x] 3단계 강도 (low, medium, high)
-    - [x] 동적 opacity/blur 조절
-  - [x] 배경 이미지 설정
-    - [x] URL 입력으로 배경 설정
-    - [x] opacity/blur 조절
-  - [x] localStorage 저장
-  - [x] 서버 동기화 (user-profile API)
-
-#### 9.0.5 채팅 시스템 ✅
-- [x] ChatManager 클래스 (chat-manager.js)
-  - [x] 메시지 전송/수신
-  - [x] 최근 대화 로드
-  - [x] 메시지 렌더링 (사용자/AI)
-  - [x] Markdown 지원 준비
-- [x] 입력 시스템
-  - [x] Claude 스타일 입력창
-  - [x] Textarea 자동 높이 조절 (48px ~ 200px)
-  - [x] Enter 전송, Shift+Enter 줄바꿈
-  - [x] 한글 IME 조합 처리 ✅ (완료: 2026-01-19)
-    - [x] isComposing 플래그로 조합 중 감지
-    - [x] 조합 완료 후 Enter 처리
-    - [x] 마지막 글자 남는 문제 해결
-  - [x] 중복 전송 방지 (_isSending 플래그)
-  - [x] 전송 버튼 활성화/비활성화
-- [x] 입력폼 여백 조정 ✅ (완료: 2026-01-19)
-  - [x] 텍스트 영역 좌우 여백: 1.25rem
-  - [x] 버튼 영역 좌우 여백: 1.25rem
-  - [x] 하단 여백: 0.9rem (통일)
-
-#### 9.0.6 패널 시스템 ✅
-- [x] PanelManager 클래스 (panel-manager.js)
-  - [x] 10개 패널 타입 지원
-    - [x] search (통합 검색)
-    - [x] files (파일 매니저)
-    - [x] memory (메모리 탐색)
-    - [x] mcp (MCP 관리)
-    - [x] archive (대화 아카이브)
-    - [x] notifications (알림)
-    - [x] settings (설정)
-    - [x] context (컨텍스트)
-    - [x] todo (TODO)
-    - [x] terminal (터미널)
-  - [x] 패널 열기/닫기
-  - [x] 동적 콘텐츠 렌더링
-  - [x] API 연동 (백엔드 호출)
-
-#### 9.0.7 사용자 프로필 통합 ✅
-- [x] 앱 시작 시 프로필 로드
-- [x] 테마 설정 자동 적용
-- [x] 사용자 이름 표시
-- [x] 서버 동기화 (theme-manager ↔ user-profile API)
-
-#### 9.0.8 알림 시스템 ✅
-- [x] 알림 Badge 표시
-- [x] 미읽음 개수 표시
-- [x] 알림 패널 렌더링
-
-#### 9.0.9 API 통합 ✅
-- [x] APIClient 클래스 (api-client.js)
-  - [x] 공통 fetch 래퍼
-  - [x] 에러 핸들링
-  - [x] 14개 API 메서드
-    - [x] getUserProfile / updateUserProfile
-    - [x] sendMessage / getRecentMessages
-    - [x] openPanel / closePanel
-    - [x] getNotifications
-    - [x] smartSearch
-    - [x] getTokenStatus
-    - [x] 기타 유틸리티
-
-**완료 요약**:
-- ✅ Vanilla JS 기반 Claude 스타일 UI 완성
-- ✅ 2단 슬라이딩 메뉴 (리사이징 가능)
-- ✅ 테마 시스템 (6개 테마, 유리 효과, 배경 이미지)
-- ✅ 채팅 시스템 (입력, 전송, 한글 IME 처리)
-- ✅ 10개 패널 시스템
-- ✅ 사용자 프로필 통합
-- ✅ 백엔드 API 연동
-
----
-
 ### 9.1 메모리 탐색
 - [ ] 타임라인 뷰
 - [ ] 태그 클라우드
-- [ ] 관계 그래프 시각화 ⚠️ 미완
+- [ ] 관계 그래프 시각화
 
 ### 9.2 검색 UI
 - [ ] 검색창
@@ -1027,7 +397,7 @@
 - [ ] 상세 정보
 - [ ] 추가/편집/삭제
 - [ ] 활성화/비활성화 토글
-- [ ] 대화창 MCP 버튼 연동 ⚠️ 미완
+- [ ] 대화창 MCP 버튼 연동
 
 ### 9.5 알림 센터
 - [ ] 알림 목록 (NotificationCenter)
@@ -1040,162 +410,48 @@
 ### 9.6 컨텍스트 UI
 - [ ] 토큰 게이지 (선택)
 
-### 9.7 Dynamic Layout System (AI 작업 캔버스) 🚧
-**목표**: 오른쪽 패널을 유연한 AI 작업 공간으로 확장 (점진적 구현)
+### 9.7 단일 대화방 시스템
 
-**핵심 개념**:
-- 오른쪽 패널 = AI가 통제하는 작업 캔버스
-- 대화창을 가리는 것이 아니라 작업 공간을 확장
-- 위치/크기/개수를 필요에 따라 동적으로 조정
-
-#### Phase 1: 기반 작업 (현재 진행 중)
-**목표**: 오른쪽 패널 리사이저 + 구조 정리
-
-- [ ] **오른쪽 패널 리사이저 추가** (30분)
-  - [ ] 서브메뉴와 동일한 드래그 리사이저
-  - [ ] 최소/최대 너비 제한 (300px ~ 50vw)
-  - [ ] 리사이징 중 시각적 피드백
-  - [ ] localStorage에 너비 저장
-
-- [ ] **레이아웃 상태 관리자 생성** (30분)
-  - [ ] `layout-manager.js` 유틸리티 생성
-  - [ ] 패널 상태 추적 (id, position, size, visible)
-  - [ ] 기본 API 메서드
-    - [ ] addPanel(config) - 패널 추가
-    - [ ] removePanel(id) - 패널 제거
-    - [ ] updatePanel(id, config) - 패널 업데이트
-    - [ ] getPanels() - 현재 패널 목록
-    - [ ] saveState() / loadState() - 상태 영속화
-
-#### Phase 2: 다중 패널 (다음 단계)
-**목표**: 오른쪽에 여러 패널 동시 열기
-
-- [ ] **오른쪽 패널 탭 시스템** (1h)
-  - [ ] 패널 여러 개 동시 열기 (배열 관리)
-  - [ ] 탭 헤더 UI (패널 제목 + 닫기 버튼)
-  - [ ] 탭 전환 기능
-  - [ ] 활성 탭 표시
-  - [ ] 개별 패널 닫기
-
-- [ ] **분할 모드 (오른쪽만)** (1h)
-  - [ ] 오른쪽 영역을 상하 분할
-  - [ ] 분할 리사이저 추가
-  - [ ] 예: 터미널(상) + 파일(하)
-  - [ ] 탭 모드 ↔ 분할 모드 전환
-
-#### Phase 3: 전방향 확장 (향후)
-**목표**: 상하좌우 어디든 패널 배치 가능
-
-- [ ] **HTML 구조 변경** (2h)
-  - [ ] CSS Grid 기반으로 전환
-  - [ ] 5개 영역 정의: top, left, center(chat), right, bottom
-  - [ ] Grid Template Areas 설계
-
-- [ ] **동적 Grid 생성** (2h)
-  - [ ] 패널 위치에 따라 grid-template-areas 동적 생성
-  - [ ] 모든 경계에 리사이저 추가
-  - [ ] 패널 위치 변경 기능
-
-- [ ] **입력폼 위치 조정** (1h)
-  - [ ] center 패널과 함께 이동 OR 최하단 고정
-  - [ ] 설정으로 제어 가능하게
-
-#### Phase 4: 고급 기능 (추후)
-- [ ] **Self-Generated Canvas**
-  - [ ] AI가 HTML/React 컴포넌트 동적 생성
-  - [ ] 패널에 렌더링
-  - [ ] 예: 차트, 폼, 커스텀 UI
-
-- [ ] **패널 드래그 앤 드롭**
-  - [ ] 패널을 드래그하여 위치 변경
-  - [ ] 드롭 존 시각화
-
-- [ ] **레이아웃 프리셋**
-  - [ ] 자주 쓰는 레이아웃 저장
-  - [ ] 프리셋 불러오기
-  - [ ] 예: "개발 모드", "문서 작업 모드"
-
-**사용 시나리오 예시**:
-```
-예1) "터미널 열어줘"
-→ [대화창 60%] | [터미널 40%]
-
-예2) "설정이랑 터미널 같이 보여줘"
-→ [대화창 50%] | [설정 탭] [터미널 탭] (50%)
-
-예3) "터미널, 파일, 로그 다 열어줘"
-→ [대화창 40%] | [터미널 20%] | [파일 20%] | [로그 20%]
-
-예4) "차트 가운데 띄워줘"
-┌─────────────────┐
-│   대화창         │
-├─────────────────┤
-│   차트 (중간)    │
-├─────────────────┤
-│   입력폼         │
-└─────────────────┘
-
-예5) "파일 왼쪽, 터미널 오른쪽"
-┌─────┬───────┬─────┐
-│파일 │대화창 │터미널│
-└─────┴───────┴─────┘
-```
-
----
-
-### 9.8 단일 대화방 시스템 ✅
-**목표**: 여러 대화방 → 하나의 영속적 대화
-
-#### 9.8.1 UI 정리 ⚠️ 추가 작업 필요
+#### 9.7.1 UI 정리
 - [x] Nav.tsx 간소화
 - [x] 채팅방 리스트 제거
 - [x] 새 대화 버튼 제거 (좌측 Nav)
-- [ ] 새 대화 버튼 제거 (우측 상단) ⭐
-- [ ] 대화방 제목 제거 ("New Chat" 등) ⭐
-- [ ] Header 상단 떠있는 UI 전부 제거 ⭐
 - [x] 에이전트 마켓 제거
 - [x] 검색바 제거
 - [x] 북마크 제거
+- [ ] 새 대화 버튼 제거 (우측 상단) ⭐
+- [ ] 대화방 제목 제거 ("New Chat" 등) ⭐
+- [ ] Header 상단 떠있는 UI 전부 제거 ⭐
 
-#### 9.8.2 라우팅 ✅
+#### 9.7.2 라우팅
 - [x] ChatRoute.tsx: 고정 'main-conversation'
 - [x] routes/index.tsx: index: true
 - [x] useNewConvo.ts: navigate('/')
 - [x] URL: `/` 만 사용
 
-#### 9.8.3 API ✅
+#### 9.7.3 API
 - [x] convos.js: GET /:id만 유지
 - [x] main-conversation 자동 생성
 - [x] 불필요한 라우트 제거
 
-#### 9.8.4 작동 확인 ⚠️
+#### 9.7.4 작동 확인
 - [x] URL 깔끔 (/)
 - [x] /c/new 리다이렉트 해결
 - [x] Service Worker 갱신
 - [ ] Header UI 완전 정리 ⭐
-  - [ ] 우측 상단 새 대화 버튼 제거
-  - [ ] 대화방 제목 영역 제거
-  - [ ] 모델 선택 UI 제거 (설정으로 이동)
-  - [ ] 깔끔한 헤더만 유지 ([☰] soul [🔔] [@user] [⚙️])
 - [ ] 메시지 송수신 테스트
 - [ ] 새로고침 후 대화 유지 확인
 
-#### 9.8.5 메모리 통합 ⚠️
+#### 9.7.5 메모리 통합
 - [ ] 메모리 저장소 설정 UI
 - [ ] 고정 대화방에 메모리 연결
 - [ ] 컨텍스트 압축 시 메모리 유지
 - [ ] API 연동 확인
 - [ ] 프론트 UI 확인
 
-**중요 메모**:
-- conversationId = 'main-conversation' (고정)
-- JWT 쿠키 인증 완료
-- ChatView conversationId 수정 완료
-- 빌드: index.DR7_9DDI.js
-
 ---
 
-## 🚀 Phase 10: 배포 & 최적화
+## 🚀 Phase 10: 배포 & 최적화 (보류)
 
 ### 10.1 성능
 - [ ] 검색 인덱싱 최적화
@@ -1214,7 +470,7 @@
 
 ---
 
-## 🌐 Phase 11: 네트워크
+## 🌐 Phase 11: 네트워크 (보류)
 
 ### 11.1 내부 도메인
 - [ ] DNS/hosts 설정
@@ -1234,7 +490,7 @@
 
 ---
 
-## 🔄 Phase A: 자동 업데이트
+## 🔄 Phase A: 자동 업데이트 (보류)
 
 ### A.1 버전 체크
 - [ ] GitHub Releases API
@@ -1261,392 +517,293 @@
 
 ---
 
-## 📱 UI 레이아웃 (확정)
+## 🔔 Phase N: 알림 시스템 (보류)
 
-```
-┌─────────────────────────────────────────┐
-│ [☰] soul    [🔔3] [@sowon] [🆙] [⚙️]   │ ← Header
-├─────────────────────────────────────────┤
-│                                         │
-│           대화 영역                      │
-│        (단일 대화방)                     │
-│                                         │
-├─────────────────────────────────────────┤
-│ [📎] [🎤] 메시지 입력...         [▶]   │ ← Input
-└─────────────────────────────────────────┘
-```
-
-### 햄버거 메뉴 (☰)
-- 🔍 통합 검색
-- 📁 파일 매니저
-- 🧠 메모리 탐색
-- 🔌 MCP 관리
-- 📊 대화 아카이브
-- ──────────
-- ⚙️ 설정
-
-### 설정 메뉴 (⚙️)
-- 👤 계정
-- 🎨 테마 (웹/앱)
-- 🤖 AI 모델
-- 🔔 알림
-- 🔄 업데이트
-- 💾 메모리 저장소
-- 📁 파일 저장소
-- 🔌 MCP 서버
+- [ ] 알림 DB 테이블
+- [ ] 알림 큐 관리
+- [ ] 상태 추적 (pending/delivered/read)
+- [ ] 트리거 조건 (작업 완료, 에러, 결정 등)
+- [ ] 전달 방식 (메시지 직접 전달, 알림창 표시)
+- [ ] 우선순위 관리 (1-10)
+- [ ] 맥락 인지
+- [ ] 자연어 메시지 생성
 
 ---
 
-## 📝 개발 원칙
+## ⏰ Phase T: 시간 인지 (보류)
 
-### Anti-템플릿 철학
-```javascript
-// ❌ 절대 금지
-const RESPONSES = {
-  greeting: "안녕하세요!",
-  goodbye: "좋은 하루!"
-}
-
-// ✅ 올바른 방식
-- 최소 시스템 프롬프트 (본질만)
-- 컨텍스트 기반 자연 응답
-- 관계성/상황에 따라 동적 톤
-- 사용자 말투 학습 (30% 변주)
-```
-
-### 자연어 제어
-모든 설정을 자연어로:
-- "투두 보여줘" → TODO 패널
-- "투두랑 터미널 같이" → 분할 모드
-- "탭으로 바꿔" → 탭 전환
-- "매번 물어봐" → 보안 설정
-- "덜 연락해" → Proactive 빈도
-
-### 네이밍 규칙
-```
-librechat → soul
-LibreChat → Soul
-soul_memories → memory
-```
-
-### 환경변수
-```bash
-# .env.example
-MONGODB_URI=mongodb://localhost:27017/soul
-MEMORY_PATH=/path/to/memory
-FILES_PATH=/path/to/files
-MCP_PATH=/path/to/mcp
-```
+- [ ] 대화 이력 DB
+- [ ] 현재 시간 정보
+- [ ] 패턴 분석 (빈도, 시간대)
+- [ ] 맥락 연속성
+- [ ] 시간 기반 응답
+- [ ] 안부 시스템
+- [ ] 시스템 프롬프트 주입
 
 ---
 
-## 🤖 Phase X: AI 모델 관리 시스템
+## 🤖 Phase X: AI 모델 관리 시스템 ✅
 
-**완료 메모 (2026-01-19)**:
-- ✅ MongoDB 기반 암호화 API 키 관리 시스템 구축
-  - [soul/models/APIKey.js](soul/models/APIKey.js) - AES-256-CBC 암호화 모델
-  - [soul/routes/config.js](soul/routes/config.js#L108-L200) - API 키 CRUD 엔드포인트
-  - [soul/utils/ai-service.js](soul/utils/ai-service.js#L309-L330) - MongoDB 우선 로드, 환경변수 폴백
-  - [soul/server/index.js](soul/server/index.js#L10-L12) - Mongoose 연결
-  - [.env](soul/../.env#L27) - ENCRYPTION_KEY 추가
-- ✅ 프론트엔드 설정 UI
-  - [client/src/utils/menu-manager.js](client/src/utils/menu-manager.js#L309-L336) - 왼쪽 패널 API 키 설정
-  - 서버 재시작 없이 즉시 적용
-  - 암호화 저장 확인
-- ✅ AI 서비스 통합
-  - Anthropic, OpenAI, Google, Ollama 지원
-  - [soul/routes/chat-simple.js](soul/routes/chat-simple.js#L26) - Claude Haiku 4.5 기본 모델
-  - 대화 테스트 완료
+### X.1 데이터베이스 스키마
+- [x] APIKey 모델 - AES-256-CBC 암호화
+- [x] AIServices 모델 - 5개 기본 서비스
+- [x] UserProfile 모델 - 테마, 선호도, 활동 추적
 
-### X.1 데이터베이스 스키마 ✅ (완료: 2026-01-19)
-- [x] APIKey 모델 생성 ✅ (완료: 2026-01-19)
-  - [x] service (anthropic, openai, google, ollama)
-  - [x] encryptedKey (AES-256-CBC)
-  - [x] iv (Initialization Vector)
-  - [x] updatedAt
-  - [x] MongoDB 연결 (server/index.js)
-  - [x] ENCRYPTION_KEY 환경변수 (.env)
-- [x] AIServices 모델 생성 ✅ (완료: 2026-01-19)
-  - [x] serviceId (고유 ID)
-  - [x] name, type, baseUrl
-  - [x] isActive, isBuiltIn
-  - [x] models[] (모델 캐시)
-  - [x] lastRefresh
-  - [x] apiKeyRef (APIKey 참조)
-  - [x] 5개 기본 서비스 자동 생성 (Anthropic, OpenAI, Google, xAI, Ollama)
-  - [x] 사용자 설정 보존 로직 (서버 재시작 시 덮어쓰지 않음)
-- [x] UserProfile 모델 생성 ✅ (완료: 2026-01-19)
-  - [x] userId, name, displayName, email
-  - [x] timezone, language
-  - [x] preferences.theme (테마 설정)
-    - [x] skin, fontSize
-    - [x] glassEnabled, glassOpacity, glassBlur
-    - [x] backgroundImage, backgroundOpacity, backgroundBlur
-  - [x] preferences 일반 설정
-  - [x] context, interests, customFields
-  - [x] 활동 시간 추적 (lastActiveAt)
-
-**API 엔드포인트 (완료)**:
-- [x] POST /api/config/api-key - API 키 저장 (암호화)
-- [x] GET /api/config/api-key/:service - API 키 설정 확인
-- [x] DELETE /api/config/api-key/:service - API 키 삭제
-- [x] GET /api/ai-services - AI 서비스 목록 조회 (API 키 설정 여부 포함)
-- [x] GET /api/ai-services/:id - 서비스 상세 조회
-- [x] POST /api/ai-services - 커스텀 서비스 추가
-- [x] PATCH /api/ai-services/:id - 서비스 수정
-- [x] DELETE /api/ai-services/:id - 서비스 삭제 (기본 서비스 보호)
-- [x] POST /api/ai-services/:id/toggle - 활성화/비활성화
-- [x] POST /api/ai-services/:id/refresh-models - 모델 목록 갱신
-- [x] POST /api/ai-services/:id/test - 연결 테스트
-- [x] GET /api/profile/user/:userId - 사용자 프로필 조회 (MongoDB)
-- [x] PUT /api/profile/user/:userId - 사용자 프로필 업데이트 (MongoDB)
-- [x] GET /api/profile/user/:userId/theme - 테마 설정 조회
-- [x] PATCH /api/profile/user/:userId/theme - 테마 설정 저장
-
-**AI 서비스 통합 (완료)**:
-- [x] AIServiceFactory.createService() - MongoDB 우선, .env 폴백
-- [x] POST /api/chat-simple - Claude Haiku 4.5 테스트 완료
-
-### X.2 동적 모델 관리 ✅ (완료: 2026-01-19)
-- [x] 제공사별 API 연동 ✅
-  - [x] getAnthropicModels() - Models API 실시간 조회
-  - [x] getOpenAIModels() - /v1/models API
-  - [x] getGoogleModels() - /v1beta/models + generateContent 필터링
-  - [x] getXAIModels() - /v1/models API
-  - [x] getOllamaModels() - /api/tags API
-- [x] API 키 검증 시스템 ✅
-  - [x] Models API로 검증 (비용 0원, 빠름)
-  - [x] 모델 의존성 제거
-  - [x] 명확한 에러 메시지
-- [x] 에러 처리 강화 ✅
-  - [x] Google: API 키 정지 감지
-  - [x] OpenAI: 잘못된 키 안내
-  - [x] 모든 서비스 chat() 메서드 응답 검증
-- [x] 2단계 드롭다운 UI ✅
-  - [x] 서비스 선택 → 모델 목록 자동 로딩
-  - [x] 실시간 상태 메시지
-
-**완료된 API 엔드포인트**:
-- [x] GET /api/config/models/:service - 모델 목록 조회
-- [x] POST /api/config/ai/default - 기본 모델 저장
-- [x] POST /api/config/api-key/validate - API 키 검증
-
-**기술 노트**:
-- xAI 서비스 추가: grok-4-1-fast-non-reasoning, grok-4-1-fast-reasoning
-- Google API: supportedGenerationMethods.includes('generateContent') 필터링
-- MongoDB upsert로 자동 키 덮어쓰기 지원
+### X.2 동적 모델 관리
+- [x] 제공사별 API 연동
+- [x] API 키 검증 시스템
+- [x] 에러 처리 강화
+- [x] 2단계 드롭다운 UI
 
 ### X.3 고급 서비스 관리 (보류)
-- [ ] GET /api/services - 커스텀 서비스 목록
-- [ ] POST /api/services - 서비스 추가
-- [ ] PATCH /api/services/:id - 서비스 수정
-- [ ] DELETE /api/services/:id - 서비스 삭제
-- [ ] POST /api/services/:id/refresh - 수동 갱신
+- [ ] 커스텀 서비스 CRUD
+- [ ] 수동 갱신
 
-### X.4 설정 UI ✅ **해결 완료 (2026-01-19)**
-
-**완료 내용**:
-- ✅ 햄버거 메뉴에 "🤖 AI 설정" 별도 항목 추가 (Option A 선택)
-  - [client/index.html](client/index.html#L75-L78) - 메뉴 버튼 추가
-  - [client/src/utils/menu-manager.js](client/src/utils/menu-manager.js#L40-L43) - 메뉴 컨텐츠 정의
-  - [client/src/utils/menu-manager.js](client/src/utils/menu-manager.js#L413-L724) - 렌더링 & 이벤트 리스너
-- ✅ panel-manager.js에서 AI 설정 코드 제거 완료 (오른쪽 패널은 제거 예정)
-
-**해결된 문제**:
-- ❌→✅ HTML에 메뉴 버튼이 없어서 UI에 표시 안 됨 → 추가 완료
-- ❌→✅ 오른쪽 패널(제거 예정)에 중복 코드 → 삭제 완료
-
----
-
-**원래 계획 (보류 중)**:
-- [ ] 🎭 Soul 인격 설정
-  - [ ] 주 모델 선택 드롭다운
-  - [ ] 현재 활성 모델 표시
-- [ ] 🤖 백그라운드 작업 모델
-  - [ ] 복잡도 분석 모델
-  - [ ] 문서 요약 모델
-  - [ ] 태그 생성 모델
-  - [ ] OCR 후처리 모델
-  - [ ] 중요 문서 분석 모델
-- [x] 🔌 AI 서비스 관리 (기본 완료) ✅
-  - [x] API 키 입력/저장 (Anthropic, OpenAI, Google, xAI) ✅
-  - [x] 암호화 저장 (AES-256-CBC) ✅
-  - [x] 서버 재시작 없이 즉시 적용 ✅
-  - [x] API 키 검증 (2단계: 검증 → 저장) ✅
-  - [x] 동적 모델 목록 로딩 ✅
-  - [x] 2단계 드롭다운 (서비스 → 모델) ✅
-  - [ ] 서비스 목록 (카드 형태) - 보류
-  - [ ] 활성/비활성 토글 - 보류
-  - [ ] API Key 표시/숨김 (***xyz) - 보류
-  - [ ] 사용 가능 모델 개수 표시 - 보류
-- [ ] 서비스 추가/수정 모달 (보류)
-  - [ ] 서비스 타입 선택
-  - [ ] API Key 입력
-  - [ ] Base URL (Ollama/Custom)
-  - [ ] [연결 테스트] [취소] [저장]
+### X.4 설정 UI
+- [x] 햄버거 메뉴 "🤖 AI 설정"
+- [x] API 키 입력/저장 (암호화)
+- [x] 서버 재시작 없이 즉시 적용
+- [x] API 키 검증
+- [x] 동적 모델 목록 로딩
+- [ ] Soul 인격 설정 (보류)
+- [ ] 백그라운드 작업 모델 (보류)
 
 ### X.5 자동 갱신 (보류)
 - [ ] 매일 새벽 3시 자동 갱신
 - [ ] 갱신 실패 시 알림
-- [ ] 로그 기록
 
 ### X.6 대화방 UI 정리
-- [ ] 모델 선택 UI 완전 제거
-  - [ ] Header에서 모델 선택 드롭다운 제거
-  - [ ] "Who am I talking to?" 제거
-- [ ] 깔끔한 대화 인터페이스만 유지
+- [ ] Header 모델 선택 UI 제거
+- [ ] "Who am I talking to?" 제거
 
-**메모**:
-- 사용자는 soul과만 대화 (단일 인격)
-- 백그라운드 작업은 자동 라우팅
-- 모델 선택은 설정에서만
-
----
-
-### X.7 AI 서비스 관리 UI ✅ (완료: 2026-01-19)
-
-**목표**: 사용자가 GUI로 AI 서비스를 추가/관리할 수 있는 시스템
-
-**완료 내용**:
-- [x] AI 서비스 관리 UI (menu-manager.js)
-  - [x] 서비스 카드 렌더링
-    - [x] 서비스 이름, 타입, 상태 표시
-    - [x] Base URL, API 키 설정 여부 표시
-    - [x] 모델 개수 표시
-    - [x] 기본/커스텀 배지 구분
-  - [x] "+ 서비스 추가" 버튼
-    - [x] 모달 팝업으로 입력
-    - [x] 서비스 ID, 이름, 타입, Base URL, API 키
-    - [x] 5가지 타입 지원 (OpenAI 호환, OpenAI, Anthropic, Google, Ollama)
-  - [x] 서비스 카드 액션
-    - [x] 활성화/비활성화 토글
-    - [x] 모델 갱신 버튼
-    - [x] 연결 테스트 버튼
-    - [x] 수정 버튼 (커스텀 서비스만)
-    - [x] 삭제 버튼 (커스텀 서비스만)
-  - [x] 실시간 피드백
-    - [x] 로딩 상태 표시
-    - [x] 성공/실패 메시지
-    - [x] 에러 핸들링
-- [x] 백엔드 API 완성
-  - [x] CRUD 엔드포인트 (위 섹션 참조)
-  - [x] 기본 서비스 보호 (삭제 불가)
-  - [x] API 키 암호화 저장
-  - [x] MongoDB 영구 저장
+### X.7 AI 서비스 관리 UI
+- [x] 서비스 카드 렌더링
+- [x] "+ 서비스 추가" 버튼 (모달)
+- [x] 활성화/비활성화 토글
+- [x] 모델 갱신 버튼
+- [x] 연결 테스트 버튼
+- [x] 수정/삭제 버튼 (커스텀만)
 - [x] 모달 UX 개선
-  - [x] 흰색 배경 (가독성 향상)
-  - [x] 배경 클릭 시 닫기 ✅
-  - [x] 이벤트 전파 차단 (내부 클릭 시 닫히지 않음)
-  - [x] ESC 키로 닫기 (기존 구현 재사용)
 
-**해결된 문제**:
-- ✅ 모달 바깥 클릭해도 안 닫히는 문제 → `stopPropagation()` + 오버레이 클릭 이벤트 수정
-- ✅ 서버 재시작 시 사용자 설정 초기화 문제 → `initializeBuiltInServices()` 로직 수정 (존재하면 건드리지 않음)
+### X.8 사용자 설정 영구 저장
+- [x] 테마 설정 MongoDB 저장
+- [x] 2중 저장 시스템 (localStorage + MongoDB)
+- [x] ThemeManager 서버 연동
+- [x] 프로필 자동 생성
 
-**파일**:
-- [soul/models/AIService.js](soul/models/AIService.js) - MongoDB 모델
-- [soul/routes/ai-services.js](soul/routes/ai-services.js) - REST API
-- [client/src/utils/menu-manager.js](client/src/utils/menu-manager.js#L670-L1300) - UI
+### X.9 Claude Code 언어 설정
+- [x] .claude/settings.local.json 한국어
+- [x] Compact 후에도 한국어 유지
+- [x] 권한 설정 영구 보존
 
----
 
-### X.8 사용자 설정 영구 저장 시스템 ✅ (완료: 2026-01-19)
+-----------
 
-**목표**: 모든 사용자 설정이 서버 재시작 후에도 유지되도록 MongoDB에 저장
 
-**완료 내용**:
-- [x] 테마 설정 영구 저장
-  - [x] 스킨 (skin): default, ocean, forest, sunset 등
-  - [x] 글씨 크기 (fontSize): xs, sm, md, lg, xl
-  - [x] 유리 효과 (glassEnabled, glassOpacity, glassBlur)
-  - [x] 배경 이미지 (backgroundImage, backgroundOpacity, backgroundBlur)
-- [x] 2중 저장 시스템
-  - [x] localStorage: 브라우저 로컬 저장 (즉시 복원)
-  - [x] MongoDB: 서버 영구 저장 (다른 기기에서도 동일한 테마)
-- [x] ThemeManager 개선
-  - [x] `setUserId()` - 사용자 ID 설정
-  - [x] `saveToServer()` - 서버에 테마 저장
-  - [x] 모든 테마 변경 시 자동 저장
-- [x] UserProfile API 연동
-  - [x] GET /api/profile/user/:userId/theme - 테마 조회
-  - [x] PATCH /api/profile/user/:userId/theme - 테마 저장
-  - [x] 프로필 없으면 자동 생성
-  - [x] 활동 시간 자동 업데이트
+## 📚 개발 레퍼런스 + 중요메모
 
-**작동 방식**:
+### 🗂️ 폴더 구조
 ```
-사용자가 테마 변경 (예: 글씨 크기 → lg)
-    ↓
-ThemeManager.setFontSize('lg')
-    ↓
-localStorage 즉시 저장 (브라우저 재시작 시 복원)
-    ↓
-서버에 PATCH /api/profile/user/sowon/theme 요청
-    ↓
-MongoDB UserProfile 컬렉션에 저장
-    ↓
-서버 재시작 후에도 MongoDB에서 자동 복원
+/workspaces/.soul/
+├── soul/               # 백엔드
+│   ├── server/
+│   ├── models/        # MongoDB 모델
+│   ├── routes/        # API 라우트
+│   ├── utils/         # 유틸리티
+│   ├── config/
+│   └── memory/
+├── client/            # 프론트엔드
+│   ├── src/
+│   ├── public/
+│   └── index.html
+├── memory/            # 메모리 저장소
+│   ├── raw/          # YYYY-MM-DD_HHmmss_주제.md
+│   ├── processed/
+│   └── index.json
+├── files/            # 파일 저장소
+│   ├── uploads/
+│   └── processed/
+├── mcp/              # MCP 서버들
+│   ├── hub-server.js
+│   └── tools/
+├── docs/             # 문서
+├── install.sh
+└── README.md
 ```
 
-**테스트 결과**:
+### 🔑 환경변수 (.env)
 ```bash
-# 테마 저장
-PATCH /api/profile/user/sowon/theme {"skin":"ocean","fontSize":"lg"}
-→ ✅ 성공
+# MongoDB
+MONGODB_URI=mongodb://localhost:27017/soul
 
-# MongoDB 확인
-GET /api/profile/user/sowon
-→ ✅ theme: { "skin": "ocean", "fontSize": "lg", ... }
+# 경로
+MEMORY_PATH=/path/to/memory
+FILES_PATH=/path/to/files
+MCP_PATH=/path/to/mcp
 
-# 서버 재시작 후 확인
-→ ✅ 설정 유지됨 (MongoDB에서 복원)
+# AI API Keys
+ANTHROPIC_API_KEY=
+OPENAI_API_KEY=
+GOOGLE_API_KEY=
+XAI_API_KEY=
+
+# 암호화
+ENCRYPTION_KEY=
+
+# 서버
+PORT=3000
+JWT_SECRET=
 ```
 
-**파일**:
-- [soul/models/UserProfile.js](soul/models/UserProfile.js) - MongoDB 모델
-- [soul/routes/profile.js](soul/routes/profile.js#L460-L537) - 테마 API
-- [client/src/utils/theme-manager.js](client/src/utils/theme-manager.js#L242-L267) - 서버 저장 로직
-- [client/src/main.js](client/src/main.js#L80-L122) - 프로필 로드
+### 🛣️ API 엔드포인트
 
----
+#### 메모리 (Phase 1)
+- `POST /api/memory/archive` - 대화 저장
 
-### X.9 Claude Code 언어 설정 ✅ (완료: 2026-01-19)
+#### AI 분류 (Phase 2)
+- `GET /api/ai-models/services` - AI 서비스 목록
+- `POST /api/ai-models/test` - AI 서비스 테스트
+- `GET /api/config/ai` - AI 설정 조회
+- `PATCH /api/config/ai` - AI 설정 변경
 
-**문제**: Compact(요약) 후 새 세션이 시작되면 영어로 돌아가고, 권한도 다시 물어봄
+#### 검색 (Phase 3)
+- `GET /api/search` - 기본 검색
+- `POST /api/search/advanced` - 고급 검색
+- `GET /api/search/tags` - 태그 목록
+- `GET /api/search/categories` - 카테고리 목록
+- `GET /api/search/stats` - 통계
+- `POST /api/search/smart` - 지능형 검색
+- `GET /api/search/similar/:id` - 유사 대화
+- `GET /api/search/graph` - 관계 그래프
+- `GET /api/search/recommendations` - 추천
+- `POST /api/search/by-tags` - 태그 검색
 
-**해결**:
-- [x] `.claude/settings.local.json`에 `"language": "korean"` 추가
-- [x] 모든 세션(compact 후 포함)에서 한국어 유지
-- [x] 권한 설정도 영구 보존 (`permissions.allow` 배열)
+#### 컨텍스트 (Phase 4)
+- `POST /api/context/detect` - 맥락 감지
+- `POST /api/context/extract-keywords` - 키워드 추출
+- `POST /api/context/evaluate-trigger` - 트리거 평가
+- `POST /api/context/find-memories` - 메모리 검색
+- `POST /api/context/generate-prompt` - 프롬프트 생성
+- `POST /api/context/check-spam` - 스팸 방지
 
-**파일**:
-- [.claude/settings.local.json](.claude/settings.local.json#L2) - 언어 설정
+#### 비유 (Phase 4)
+- `POST /api/analogy/analyze` - 비유 분석
+- `POST /api/analogy/find` - 비유 검색
+- `POST /api/analogy/detect-patterns` - 패턴 감지
+- `POST /api/analogy/should-activate` - 활성화 체크
+- `GET /api/analogy/config` - 설정 조회
+- `PATCH /api/analogy/config` - 설정 변경
 
-**효과**:
-- ✅ Compact 후에도 계속 한국어로 대화
-- ✅ 권한 재승인 불필요 (이미 허용된 명령은 계속 허용)
-- ✅ 프로젝트별 설정으로 팀원들도 동일한 환경
+#### 컨텍스트 관리 (Phase 5)
+- `POST /api/context-mgmt/analyze` - 토큰 분석
+- `POST /api/context-mgmt/estimate-tokens` - 토큰 추정
+- `POST /api/context-mgmt/compress` - 압축
+- `POST /api/context-mgmt/should-compress` - 압축 필요 체크
+- `POST /api/context-mgmt/session-summary` - 세션 요약
+- `GET /api/context-mgmt/restore/:id` - 세션 복원
+- `GET /api/context-mgmt/config` - 설정 조회
+- `PATCH /api/context-mgmt/config` - 설정 변경
+- `GET /api/context-mgmt/model-limits` - 모델 제한
 
----
+#### 대화 (Phase 5.4)
+- `POST /api/chat` - 메시지 전송
+- `POST /api/chat/resume` - 세션 재개
+- `POST /api/chat/end` - 세션 종료
+- `GET /api/chat/sessions` - 활성 세션
+- `GET /api/chat/memory-stats` - 메모리 통계
+- `GET /api/chat/token-status` - 토큰 상태
+- `POST /api/chat/compress` - 수동 압축
 
-## 🎯 우선순위
+#### 스마트 라우팅 (Phase 8)
+- `POST /api/chat/analyze-task` - 태스크 분석
+- `GET /api/chat/routing-stats` - 라우팅 통계
+- `GET /api/chat/models` - 모델 목록
+- `GET /api/chat/personality` - 인격 정보
+- `POST /api/chat/personality/preference` - 선호도 설정
 
-### P0 (필수)
-- Phase 9 완성
-- 환경변수 분리
-- 기본 문서화
+#### AI 서비스 (Phase X)
+- `POST /api/config/api-key` - API 키 저장
+- `GET /api/config/api-key/:service` - API 키 확인
+- `DELETE /api/config/api-key/:service` - API 키 삭제
+- `GET /api/ai-services` - 서비스 목록
+- `GET /api/ai-services/:id` - 서비스 상세
+- `POST /api/ai-services` - 서비스 추가
+- `PATCH /api/ai-services/:id` - 서비스 수정
+- `DELETE /api/ai-services/:id` - 서비스 삭제
+- `POST /api/ai-services/:id/toggle` - 활성화 토글
+- `POST /api/ai-services/:id/refresh-models` - 모델 갱신
+- `POST /api/ai-services/:id/test` - 연결 테스트
+- `GET /api/config/models/:service` - 모델 목록
+- `POST /api/config/ai/default` - 기본 모델 저장
+- `POST /api/config/api-key/validate` - API 키 검증
 
-### P1 (중요)
-- Phase 10 (배포)
-- 설치 스크립트
-- 자동 업데이트
+#### 프로필 (Phase X)
+- `GET /api/profile/user/:userId` - 프로필 조회
+- `PUT /api/profile/user/:userId` - 프로필 업데이트
+- `GET /api/profile/user/:userId/theme` - 테마 조회
+- `PATCH /api/profile/user/:userId/theme` - 테마 저장
 
-### P2 (선택)
-- Phase 11 (네트워크)
-- 고급 문서
-- Tauri 앱
+### 📦 주요 파일
 
----
+#### MongoDB 모델
+- `soul/models/APIKey.js` - API 키 암호화
+- `soul/models/AIService.js` - AI 서비스
+- `soul/models/UserProfile.js` - 사용자 프로필
 
-**마지막 업데이트**: 2026-01-18  
-**버전**: 1.0 (GitHub 배포용)
+#### 유틸리티
+- `soul/utils/ai-service.js` - AI 서비스 팩토리
+- `soul/utils/search.js` - 검색 엔진
+- `soul/utils/smart-search.js` - 지능형 검색
+- `soul/utils/recommendation.js` - 추천 시스템
+- `soul/utils/context-detector.js` - 맥락 감지
+- `soul/utils/analogy-finder.js` - 비유 찾기
+- `soul/utils/token-counter.js` - 토큰 계산
+- `soul/utils/context-compressor.js` - 컨텍스트 압축
+- `soul/utils/conversation-pipeline.js` - 대화 처리
+- `soul/utils/token-safeguard.js` - 토큰 폭발 방지
+- `soul/utils/agent-chain.js` - 에이전트 체이닝
+- `soul/utils/memory-layers.js` - 메모리 계층
+- `soul/utils/session-continuity.js` - 세션 연속성
+- `soul/utils/smart-router.js` - 스마트 라우팅
+- `soul/utils/personality-core.js` - 단일 인격
+
+#### 프론트엔드
+- `client/src/utils/menu-manager.js` - 햄버거 메뉴
+- `client/src/utils/panel-manager.js` - 패널 시스템
+- `client/src/utils/theme-manager.js` - 테마 관리
+- `client/src/main.js` - 메인 엔트리
+
+### 🔐 암호화
+- **알고리즘**: AES-256-CBC
+- **환경변수**: `ENCRYPTION_KEY`
+- **저장**: MongoDB `APIKey` 컬렉션
+
+### 🗄️ MongoDB 컬렉션
+- `apikeys` - 암호화된 API 키
+- `aiservices` - AI 서비스 설정
+- `userprofiles` - 사용자 프로필 & 테마
+- `conversations` - 대화 메타데이터
+- `memories` - 장기 메모리 (Phase 5.4)
+
+### 📝 conversationId
+- **고정값**: `'main-conversation'`
+- **용도**: 단일 영속 대화방
+
+### 🎨 테마 저장
+- **localStorage**: 즉시 복원
+- **MongoDB**: 다른 기기 동기화
+- **API**: `PATCH /api/profile/user/:userId/theme`
+
+**라우팅 로직**:
+- complexity ≥ 7 OR requiresExpertise → 고성능 모델 (예: Opus, GPT-4, Gemini Pro)
+- complexity ≤ 3 AND NOT requiresReasoning → 경량 모델 (예: Haiku, GPT-3.5, Gemini Flash)
+- else → 중간 모델 (예: Sonnet, GPT-4o, Gemini Pro)
+
+**태스크 유형별 복잡도**:
+- 경량 (1-2): 간단한 질문, 번역, 요약
+- 중간 (4-6): 코드 생성, 리뷰, 분석, 문제 해결
+- 고성능 (7-9): 아키텍처 설계, 복잡한 디버깅, 연구, 전문 컨설팅
+
+**사용자 설정**:
+- 각 복잡도 범위에 사용할 모델을 AI 설정에서 선택 가능
+- 제공사 상관없이 원하는 모델 조합으로 구성
