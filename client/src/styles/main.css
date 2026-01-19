@@ -1,0 +1,237 @@
+/* ===================================
+   Soul UI - Main Stylesheet
+   =================================== */
+
+/* Import Theme Variables */
+@import './themes.css';
+@import './components.css';
+@import './animations.css';
+
+/* ===================================
+   Fonts
+   =================================== */
+
+@font-face {
+    font-family: 'KakaoSmallFont';
+    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2503@1.0/KakaoSmallSans-Light.woff2') format('woff2');
+    font-weight: 300;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'KakaoSmallFont';
+    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2503@1.0/KakaoSmallSans-Regular.woff2') format('woff2');
+    font-weight: 400;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'KakaoSmallFont';
+    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2503@1.0/KakaoSmallSans-Bold.woff2') format('woff2');
+    font-weight: 700;
+    font-display: swap;
+}
+
+/* ===================================
+   Base & Reset
+   =================================== */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: var(--font-size-base);
+  overflow: hidden;
+  height: 100vh;
+}
+
+body {
+  font-family: 'KakaoSmallFont', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background-color: var(--background);
+  color: var(--foreground);
+  line-height: 1.6;
+  height: 100vh;
+  overflow: hidden;
+  letter-spacing: -0.02em;
+}
+
+/* Background Image Support */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: var(--background-image, none);
+  background-position: var(--background-image-position, center);
+  background-size: var(--background-image-size, cover);
+  background-repeat: no-repeat;
+  opacity: var(--background-image-opacity, 0);
+  filter: blur(var(--background-image-blur, 0));
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* ===================================
+   Custom Scrollbar (가이드 스타일)
+   =================================== */
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(97, 93, 93, 0.2);
+  border-radius: 3px;
+  transition: background 0.2s;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(97, 93, 93, 0.35);
+}
+
+/* ===================================
+   Utility Classes
+   =================================== */
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(36px) saturate(150%);
+  -webkit-backdrop-filter: blur(36px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+}
+
+/* Dark Mode Glass Effect */
+.dark .glass-panel,
+[data-theme="dark"] .glass-panel {
+  background: rgba(26, 26, 26, 0.65);
+  backdrop-filter: blur(36px) saturate(150%);
+  -webkit-backdrop-filter: blur(36px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Dark Mode - 메인 메뉴 */
+[data-theme="dark"] .main-menu {
+  background: rgba(26, 26, 26, 0.7);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Dark Mode - 서브 메뉴 */
+[data-theme="dark"] .sub-menu {
+  background: rgba(26, 26, 26, 0.65);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Dark Mode - Right Panel */
+[data-theme="dark"] .right-panel {
+  background: rgba(26, 26, 26, 0.65);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Dark Mode - Header */
+[data-theme="dark"] .header {
+  background: rgba(26, 26, 26, 0.8);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Dark Mode - Input Area */
+[data-theme="dark"] .input-area {
+  background: rgba(26, 26, 26, 0.95);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Dark Mode - 액션 버튼 */
+[data-theme="dark"] .msg-action-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.hidden {
+  display: none !important;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* ===================================
+   Responsive Design
+   =================================== */
+
+/* Desktop: 1200px+ (기본값) */
+
+/* Tablet: 768px ~ 1199px */
+@media (max-width: 1199px) {
+  .sliding-menu {
+    width: 260px;
+  }
+
+  .right-panel {
+    width: 350px;
+  }
+}
+
+/* Mobile: ~ 767px */
+@media (max-width: 767px) {
+  .header {
+    padding: 0 1rem;
+  }
+
+  .logo {
+    font-size: 1.25rem;
+  }
+
+  .sliding-menu,
+  .right-panel {
+    width: 100%;
+  }
+
+  .message-content {
+    max-width: 90% !important;
+  }
+
+  .input-area {
+    padding: 0 1rem;
+  }
+}
+
+/* ===================================
+   Print Styles
+   =================================== */
+
+@media print {
+  .header,
+  .sliding-menu,
+  .menu-overlay,
+  .right-panel,
+  .input-area {
+    display: none !important;
+  }
+
+  .chat-container {
+    height: auto !important;
+    margin: 0 !important;
+  }
+
+  .messages-area {
+    overflow: visible !important;
+  }
+}
