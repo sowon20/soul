@@ -184,6 +184,41 @@ router.post('/end', async (req, res) => {
 });
 
 /**
+ * GET /api/chat/history/:sessionId
+ * 대화 히스토리 조회
+ */
+router.get('/history/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const { limit = 50, before, after } = req.query;
+
+    const memoryManager = await getMemoryManager();
+    let messages = memoryManager.shortTerm.getAll();
+
+    // TODO: before/after 필터링 구현
+    // 현재는 최근 N개만 반환
+    messages = messages.slice(-parseInt(limit));
+
+    res.json({
+      success: true,
+      sessionId,
+      messages: messages.map(m => ({
+        role: m.role,
+        content: m.content,
+        timestamp: m.timestamp
+      })),
+      total: messages.length
+    });
+  } catch (error) {
+    console.error('Error getting conversation history:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
  * GET /api/chat/sessions
  * 활성 세션 목록
  */

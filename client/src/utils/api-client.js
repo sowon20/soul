@@ -66,10 +66,14 @@ export class APIClient {
    * 메시지 전송
    */
   async sendMessage(message, options = {}) {
-    // 임시로 chat-simple 사용 (파이프라인 이슈 우회)
-    return this.post('/chat-simple', {
+    return this.post('/chat', {
       message,
-      ...options,
+      sessionId: 'main-conversation',
+      options: {
+        maxTokens: 4096,
+        temperature: 1.0,
+        ...options,
+      },
     });
   }
 
