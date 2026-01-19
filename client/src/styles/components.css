@@ -3,7 +3,7 @@
    =================================== */
 
 /* ===================================
-   Header
+   Header (Minimal - Hamburger Only)
    =================================== */
 
 .header {
@@ -17,31 +17,13 @@
   -webkit-backdrop-filter: none;
   border-bottom: none;
   display: flex;
-  justify-content: space-between;
   align-items: center;
   padding: 0 1.5rem;
   z-index: 100;
   box-shadow: none;
 }
 
-.header-left,
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.logo {
-  font-size: var(--font-size-heading);
-  font-weight: 700;
-  color: var(--foreground);
-  user-select: none;
-}
-
-.hamburger-btn,
-.notification-btn,
-.user-btn,
-.settings-btn {
+.hamburger-btn {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -55,44 +37,17 @@
   transition: background 0.2s, transform 0.1s;
 }
 
-.hamburger-btn:hover,
-.notification-btn:hover,
-.user-btn:hover,
-.settings-btn:hover {
+.hamburger-btn:hover {
   background: var(--muted);
 }
 
-.hamburger-btn:active,
-.notification-btn:active,
-.user-btn:active,
-.settings-btn:active {
+.hamburger-btn:active {
   transform: scale(0.95);
 }
 
 .hamburger-icon {
   font-size: 1.5rem;
   line-height: 1;
-}
-
-.notification-btn {
-  position: relative;
-}
-
-.badge {
-  position: absolute;
-  top: 0;
-  right: 0;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 4px;
-  background: var(--destructive);
-  color: var(--destructive-foreground);
-  border-radius: 9px;
-  font-size: 0.625rem;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 /* ===================================
