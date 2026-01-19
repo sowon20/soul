@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Soul - AI Assistant</title>
+  <link rel="stylesheet" href="/src/styles/main.css">
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <button class="hamburger-btn" id="hamburgerBtn" aria-label="메뉴 열기">
+        <span class="hamburger-icon">☰</span>
+      </button>
+    </div>
+
+    <div class="header-right">
+      <button class="notification-btn" id="notificationBtn" aria-label="알림">
+        <span class="icon">🔔</span>
+        <span class="badge" id="notificationBadge" style="display: none;">0</span>
+      </button>
+
+      <button class="user-btn" id="userBtn" aria-label="사용자 메뉴">
+        <span class="icon">@</span>
+        <span class="user-name" id="userName">user</span>
+      </button>
+
+      <button class="settings-btn" id="settingsBtn" aria-label="설정">
+        <span class="icon">⚙️</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- 2단 슬라이딩 메뉴 (왼쪽) -->
+  <!-- 주요 메뉴 (좁은 레이어) -->
+  <aside class="main-menu" id="mainMenu">
+    <div class="main-menu-header">
+      <button class="close-btn" id="closeMenuBtn" aria-label="메뉴 닫기">✕</button>
+    </div>
+
+    <nav class="main-menu-nav">
+      <button class="main-menu-item active" data-menu="dashboard">
+        <span class="icon">🏠</span>
+        <span class="label">대시보드</span>
+      </button>
+
+      <button class="main-menu-item" data-menu="conversations">
+        <span class="icon">💬</span>
+        <span class="label">대화</span>
+      </button>
+
+      <button class="main-menu-item" data-menu="search">
+        <span class="icon">🔍</span>
+        <span class="label">검색</span>
+      </button>
+
+      <button class="main-menu-item" data-menu="memory">
+        <span class="icon">🧠</span>
+        <span class="label">메모리</span>
+      </button>
+
+      <button class="main-menu-item" data-menu="files">
+        <span class="icon">📁</span>
+        <span class="label">파일</span>
+      </button>
+
+      <button class="main-menu-item" data-menu="mcp">
+        <span class="icon">🔌</span>
+        <span class="label">MCP</span>
+      </button>
+
+      <hr class="menu-divider">
+
+      <button class="main-menu-item" data-menu="settings">
+        <span class="icon">⚙️</span>
+        <span class="label">설정</span>
+      </button>
+    </nav>
+  </aside>
+
+  <!-- 서브 레이어 (넓은 레이어, 유리 스타일) -->
+  <aside class="sub-menu" id="subMenu">
+    <div class="sub-menu-content" id="subMenuContent">
+      <!-- 동적 컨텐츠 -->
+    </div>
+    <div class="sub-menu-resizer" id="subMenuResizer"></div>
+  </aside>
+
+  <!-- Menu Overlay -->
+  <div class="menu-overlay" id="menuOverlay"></div>
+
+  <!-- Main Chat Container -->
+  <main class="chat-container" id="chatContainer">
+    <div class="messages-area custom-scrollbar" id="messagesArea">
+      <!-- 메시지가 여기에 표시됩니다 -->
+    </div>
+
+    <form class="input-area" id="chatForm">
+      <div class="input-wrapper">
+        <textarea
+          id="messageInput"
+          class="message-input"
+          placeholder="메시지를 입력하세요..."
+          rows="1"
+          autocomplete="off"
+        ></textarea>
+
+        <div class="input-actions">
+          <div class="input-actions-left">
+            <button type="button" class="input-btn attach-btn" id="attachBtn" aria-label="파일 첨부" title="파일 첨부">
+              <span class="icon">📎</span>
+            </button>
+            <button type="button" class="input-btn mcp-btn" id="mcpBtn" aria-label="MCP 도구" title="MCP 도구">
+              <span class="icon">🔌</span>
+            </button>
+          </div>
+
+          <div class="input-actions-right">
+            <button type="submit" class="input-btn send-btn" id="sendBtn" aria-label="전송" title="전송">
+              <span class="icon">▶</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 입력 안내 -->
+      <div class="input-hint">
+        <span>Enter로 전송</span>
+        <span class="separator">·</span>
+        <span>Shift + Enter로 줄바꿈</span>
+      </div>
+    </form>
+  </main>
+
+  <!-- Right Panel (오른쪽) -->
+  <aside class="right-panel" id="rightPanel">
+    <div class="panel-header">
+      <h2 id="panelTitle">패널</h2>
+      <button class="close-btn" id="closePanelBtn" aria-label="패널 닫기">✕</button>
+    </div>
+
+    <div class="panel-content custom-scrollbar" id="panelContent">
+      <!-- 동적 컨텐츠가 여기에 로드됩니다 -->
+    </div>
+  </aside>
+
+  <!-- Typing Indicator Template (AI 응답 로딩) -->
+  <template id="typingIndicatorTemplate">
+    <div class="message message-assistant">
+      <div class="message-content">
+        <div class="typing-indicator">
+          <span></span><span></span><span></span>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- User Message Template (말풍선 있음) -->
+  <template id="userMessageTemplate">
+    <div class="message message-user">
+      <div class="message-bubble">
+        <div class="message-text"></div>
+      </div>
+      <div class="message-actions">
+        <button class="msg-action-btn copy-btn" aria-label="복사" title="복사">
+          <span class="icon">📋</span>
+        </button>
+        <button class="msg-action-btn edit-btn" aria-label="수정" title="수정">
+          <span class="icon">✏️</span>
+        </button>
+        <button class="msg-action-btn delete-btn" aria-label="삭제" title="삭제">
+          <span class="icon">🗑️</span>
+        </button>
+        <span class="message-timestamp"></span>
+      </div>
+    </div>
+  </template>
+
+  <!-- Assistant Message Template (말풍선 없음) -->
+  <template id="assistantMessageTemplate">
+    <div class="message message-assistant">
+      <div class="message-content">
+        <div class="message-text"></div>
+        <div class="message-actions">
+          <button class="msg-action-btn copy-btn" aria-label="복사" title="복사">
+            <span class="icon">📋</span>
+          </button>
+          <button class="msg-action-btn like-btn" aria-label="좋아요" title="좋아요">
+            <span class="icon">👍</span>
+          </button>
+          <button class="msg-action-btn dislike-btn" aria-label="싫어요" title="싫어요">
+            <span class="icon">👎</span>
+          </button>
+          <button class="msg-action-btn bookmark-btn" aria-label="북마크" title="북마크">
+            <span class="icon">🔖</span>
+          </button>
+          <button class="msg-action-btn retry-btn" aria-label="재시도" title="재시도">
+            <span class="icon">🔄</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

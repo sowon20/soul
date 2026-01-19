@@ -1,0 +1,274 @@
+/* ===================================
+   Soul UI - Theme System
+   6 Color Schemes + Font Sizes
+   =================================== */
+
+/* ===================================
+   Default Theme (따뜻한 톤)
+   =================================== */
+
+:root {
+  /* Theme Name */
+  --theme-name: 'default';
+
+  /* Colors - 따뜻한 베이지/브라운 팔레트 */
+  --background: #e0ded7;
+  --foreground: #292929;
+  --card: #615d5d;
+  --card-foreground: #f5f5f5;
+  --popover: rgba(250, 250, 250, 0.95);
+  --popover-foreground: #292929;
+  --primary: #d4a574;
+  --primary-hover: #c9996a;
+  --primary-foreground: #292929;
+  --secondary: #8ea39d;
+  --secondary-foreground: #ffffff;
+  --muted: #ebe9e4;
+  --muted-foreground: #706c6c;
+  --accent: #c9b8a0;
+  --accent-foreground: #292929;
+  --destructive: #dc6868;
+  --destructive-foreground: #ffffff;
+  --border: rgba(97, 93, 93, 0.12);
+  --input: #ffffff;
+  --ring: #d4a574;
+  --text-primary: #292929;
+  --text-secondary: #706c6c;
+
+  /* Sidebar Colors */
+  --sidebar: #615d5d;
+  --sidebar-foreground: #e8e6e2;
+  --sidebar-primary: #d4a574;
+  --sidebar-primary-foreground: #292929;
+  --sidebar-accent: #726e6e;
+  --sidebar-accent-foreground: #e8e6e2;
+  --sidebar-border: rgba(0, 0, 0, 0.15);
+  --sidebar-ring: #d4a574;
+
+  /* Chart Colors */
+  --chart-1: #d4a574;
+  --chart-2: #8ea39d;
+  --chart-3: #c9b8a0;
+  --chart-4: #b89b7f;
+  --chart-5: #a8c5bd;
+
+  /* Border Radius */
+  --radius: 1.125rem;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* Font Sizes (Medium - 기본값) */
+  --font-size-xs: 0.75rem;      /* 12px */
+  --font-size-sm: 0.875rem;     /* 14px */
+  --font-size-base: 0.9375rem;  /* 15px */
+  --font-size-lg: 1rem;         /* 16px */
+  --font-size-xl: 1.125rem;     /* 18px */
+  --font-size-message: 1rem;    /* 메시지 텍스트 */
+  --font-size-heading: 1.5rem;  /* 제목 */
+
+  /* Glass Effect */
+  --glass-enabled: true;
+  --glass-opacity: 0.85;
+  --glass-blur: 20px;
+  --glass-border-opacity: 0.2;
+  --glass-shadow: rgba(0, 0, 0, 0.1);
+
+  /* Background Image */
+  --background-image: none;
+  --background-image-opacity: 0.3;
+  --background-image-blur: 5px;
+  --background-image-position: center;
+  --background-image-size: cover;
+}
+
+/* ===================================
+   Theme: Basic (파란색 클린)
+   =================================== */
+
+[data-theme="basic"] {
+  --theme-name: 'basic';
+  --primary: #3B82F6;
+  --primary-hover: #2563EB;
+  --background: #FFFFFF;
+  --foreground: #111827;
+  --card: #FFFFFF;
+  --card-foreground: #111827;
+  --secondary: #F3F4F6;
+  --secondary-foreground: #111827;
+  --muted: #F9FAFB;
+  --muted-foreground: #6B7280;
+  --accent: #DBEAFE;
+  --accent-foreground: #1E40AF;
+  --border: #E5E7EB;
+  --input: #F3F4F6;
+  --ring: #3B82F6;
+  --text-primary: #111827;
+  --text-secondary: #6B7280;
+}
+
+/* ===================================
+   Theme: Dark Mode
+   =================================== */
+
+[data-theme="dark"],
+.dark {
+  --theme-name: 'dark';
+  --background: #0a0a0a;
+  --foreground: #fafafa;
+  --card: #0a0a0a;
+  --card-foreground: #fafafa;
+  --popover: #0a0a0a;
+  --popover-foreground: #fafafa;
+  --primary: #fafafa;
+  --primary-hover: #e5e5e5;
+  --primary-foreground: #1a1a1a;
+  --secondary: #262626;
+  --secondary-foreground: #fafafa;
+  --muted: #262626;
+  --muted-foreground: #a3a3a3;
+  --accent: #262626;
+  --accent-foreground: #fafafa;
+  --destructive: #dc6868;
+  --destructive-foreground: #ffffff;
+  --border: #262626;
+  --input: #262626;
+  --ring: #525252;
+  --text-primary: #fafafa;
+  --text-secondary: #a3a3a3;
+
+  --sidebar: #1a1a1a;
+  --sidebar-foreground: #fafafa;
+  --sidebar-primary: #fafafa;
+  --sidebar-primary-foreground: #1a1a1a;
+  --sidebar-accent: #262626;
+  --sidebar-accent-foreground: #fafafa;
+  --sidebar-border: #262626;
+  --sidebar-ring: #525252;
+}
+
+/* ===================================
+   Theme: Ocean (시원한 파랑)
+   =================================== */
+
+[data-theme="ocean"] {
+  --theme-name: 'ocean';
+  --primary: #06B6D4;
+  --primary-hover: #0891B2;
+  --background: #F0F9FF;
+  --foreground: #0C4A6E;
+  --card: #E0F2FE;
+  --card-foreground: #0C4A6E;
+  --secondary: #BAE6FD;
+  --secondary-foreground: #075985;
+  --muted: #E0F2FE;
+  --muted-foreground: #0369A1;
+  --accent: #7DD3FC;
+  --accent-foreground: #0C4A6E;
+  --border: rgba(6, 182, 212, 0.2);
+  --input: #F0F9FF;
+  --ring: #06B6D4;
+  --text-primary: #0C4A6E;
+  --text-secondary: #075985;
+}
+
+/* ===================================
+   Theme: Forest (자연스러운 녹색)
+   =================================== */
+
+[data-theme="forest"] {
+  --theme-name: 'forest';
+  --primary: #10B981;
+  --primary-hover: #059669;
+  --background: #F0FDF4;
+  --foreground: #064E3B;
+  --card: #DCFCE7;
+  --card-foreground: #064E3B;
+  --secondary: #BBF7D0;
+  --secondary-foreground: #065F46;
+  --muted: #DCFCE7;
+  --muted-foreground: #047857;
+  --accent: #6EE7B7;
+  --accent-foreground: #064E3B;
+  --border: rgba(16, 185, 129, 0.2);
+  --input: #F0FDF4;
+  --ring: #10B981;
+  --text-primary: #064E3B;
+  --text-secondary: #065F46;
+}
+
+/* ===================================
+   Theme: Sunset (따뜻한 오렌지)
+   =================================== */
+
+[data-theme="sunset"] {
+  --theme-name: 'sunset';
+  --primary: #F59E0B;
+  --primary-hover: #D97706;
+  --background: #FFFBEB;
+  --foreground: #78350F;
+  --card: #FEF3C7;
+  --card-foreground: #78350F;
+  --secondary: #FDE68A;
+  --secondary-foreground: #92400E;
+  --muted: #FEF3C7;
+  --muted-foreground: #B45309;
+  --accent: #FCD34D;
+  --accent-foreground: #78350F;
+  --border: rgba(245, 158, 11, 0.2);
+  --input: #FFFBEB;
+  --ring: #F59E0B;
+  --text-primary: #78350F;
+  --text-secondary: #92400E;
+}
+
+/* ===================================
+   Font Size Variants
+   =================================== */
+
+/* Extra Small */
+[data-font-size="xs"] {
+  --font-size-xs: 0.625rem;     /* 10px */
+  --font-size-sm: 0.75rem;      /* 12px */
+  --font-size-base: 0.8125rem;  /* 13px */
+  --font-size-lg: 0.875rem;     /* 14px */
+  --font-size-xl: 1rem;         /* 16px */
+  --font-size-message: 0.875rem;
+  --font-size-heading: 1.25rem;
+}
+
+/* Small */
+[data-font-size="sm"] {
+  --font-size-xs: 0.6875rem;    /* 11px */
+  --font-size-sm: 0.8125rem;    /* 13px */
+  --font-size-base: 0.875rem;   /* 14px */
+  --font-size-lg: 0.9375rem;    /* 15px */
+  --font-size-xl: 1.0625rem;    /* 17px */
+  --font-size-message: 0.9375rem;
+  --font-size-heading: 1.375rem;
+}
+
+/* Medium (기본값) - 이미 :root에 정의됨 */
+
+/* Large */
+[data-font-size="lg"] {
+  --font-size-xs: 0.875rem;     /* 14px */
+  --font-size-sm: 1rem;         /* 16px */
+  --font-size-base: 1.125rem;   /* 18px */
+  --font-size-lg: 1.25rem;      /* 20px */
+  --font-size-xl: 1.5rem;       /* 24px */
+  --font-size-message: 1.1875rem;
+  --font-size-heading: 1.75rem;
+}
+
+/* Extra Large */
+[data-font-size="xl"] {
+  --font-size-xs: 1rem;         /* 16px */
+  --font-size-sm: 1.125rem;     /* 18px */
+  --font-size-base: 1.25rem;    /* 20px */
+  --font-size-lg: 1.375rem;     /* 22px */
+  --font-size-xl: 1.625rem;     /* 26px */
+  --font-size-message: 1.3125rem;
+  --font-size-heading: 2rem;
+}
