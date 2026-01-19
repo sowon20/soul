@@ -27,10 +27,6 @@ class SoulApp {
       menuOverlay: document.getElementById('menuOverlay'),
       mainMenuItems: document.querySelectorAll('.main-menu-item'),
 
-      notificationBtn: document.getElementById('notificationBtn'),
-      userBtn: document.getElementById('userBtn'),
-      settingsBtn: document.getElementById('settingsBtn'),
-
       chatForm: document.getElementById('chatForm'),
       messageInput: document.getElementById('messageInput'),
       sendBtn: document.getElementById('sendBtn'),
@@ -71,9 +67,6 @@ class SoulApp {
     // Load recent messages (마지막 대화 위치)
     await this.chatManager.loadRecentMessages();
 
-    // Check for unread notifications
-    await this.checkNotifications();
-
     console.log('✅ Soul UI 초기화 완료!');
   }
 
@@ -106,11 +99,6 @@ class SoulApp {
             blur: theme.backgroundBlur,
           });
         }
-
-        // Update user name in header
-        if (profile.name) {
-          this.elements.userBtn.querySelector('.user-name').textContent = profile.name;
-        }
       }
     } catch (error) {
       console.warn('사용자 프로필 로드 실패:', error);
@@ -118,21 +106,6 @@ class SoulApp {
       const userId = 'sowon'; // 임시
       this.themeManager.setUserId(userId);
       await this.themeManager.applyTheme('default');
-    }
-  }
-
-  async checkNotifications() {
-    try {
-      const notifications = await this.apiClient.getNotifications({ unreadOnly: true });
-      const unreadCount = notifications.filter(n => !n.read).length;
-
-      if (unreadCount > 0) {
-        const badge = this.elements.notificationBtn.querySelector('.badge');
-        badge.textContent = unreadCount;
-        badge.style.display = 'flex';
-      }
-    } catch (error) {
-      console.warn('알림 확인 실패:', error);
     }
   }
 
@@ -151,20 +124,6 @@ class SoulApp {
           this.menuManager.switchMenu(menuType);
         }
       });
-    });
-
-    // Header buttons
-    this.elements.notificationBtn.addEventListener('click', () => {
-      this.openPanel('notifications');
-    });
-
-    this.elements.userBtn.addEventListener('click', () => {
-      // TODO: User menu dropdown
-      console.log('사용자 메뉴 (구현 예정)');
-    });
-
-    this.elements.settingsBtn.addEventListener('click', () => {
-      this.openPanel('settings');
     });
 
     // Close panel button
