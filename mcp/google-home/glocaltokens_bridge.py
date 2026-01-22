@@ -45,13 +45,19 @@ def get_devices(username=None, password=None, master_token=None, android_id=None
     print(f"[glocaltokens] username: {username}", file=sys.stderr)
     print(f"[glocaltokens] master_token: {'있음' if master_token else '없음'}", file=sys.stderr)
 
-    client = GLocalAuthenticationTokens(
-        username=username,
-        password=password,
-        master_token=master_token,
-        android_id=android_id,
-        verbose=True  # 항상 verbose
-    )
+    # master_token이 있으면 password 없이 사용
+    kwargs = {
+        "username": username,
+        "master_token": master_token,
+        "verbose": True
+    }
+    # password는 master_token 없을 때만 추가
+    if password and not master_token:
+        kwargs["password"] = password
+    if android_id:
+        kwargs["android_id"] = android_id
+
+    client = GLocalAuthenticationTokens(**kwargs)
 
     print(f"[glocaltokens] 클라이언트 생성됨, 기기 검색 중...", file=sys.stderr)
 
