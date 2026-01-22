@@ -6,6 +6,21 @@ const path = require('path');
 // 서버 상태 설정 파일 경로
 const CONFIG_PATH = path.join(__dirname, '../../mcp/server-config.json');
 
+// MCP 서버 URL 설정 (환경변수로 외부 서버 지정 가능)
+const MCP_SERVERS = {
+  'google-home': process.env.MCP_GOOGLE_HOME_URL || 'http://localhost:8125',
+  'todo': process.env.MCP_TODO_URL || 'http://localhost:8124'
+};
+
+/**
+ * MCP 서버 URL 가져오기
+ * @param {string} serverId - 서버 ID
+ * @returns {string} 서버 URL
+ */
+function getMcpServerUrl(serverId) {
+  return MCP_SERVERS[serverId] || `http://localhost:${8124 + Object.keys(MCP_SERVERS).indexOf(serverId)}`;
+}
+
 /**
  * 서버 설정 로드
  */
@@ -65,11 +80,10 @@ router.get('/servers', async (req, res) => {
       try {
         const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf-8'));
 
-        // 기본 포트 매핑
-        const portMap = {
-          'google-home': 8125,
-          'todo': 8124
-        };
+        // MCP 서버 URL에서 포트 추출
+        const serverUrl = getMcpServerUrl(dir.name);
+        const urlMatch = serverUrl.match(/:(\d+)$/);
+        const port = urlMatch ? parseInt(urlMatch[1]) : null;
 
         servers.push({
           id: dir.name,
@@ -78,8 +92,9 @@ router.get('/servers', async (req, res) => {
           type: 'external',
           enabled: config.servers[dir.name]?.enabled ?? false,
           tools: [], // 외부 서버는 별도로 실행되어야 도구 조회 가능
-          port: portMap[dir.name] || null,
-          webUI: portMap[dir.name] ? `http://localhost:${portMap[dir.name]}` : null
+          url: serverUrl,
+          port: port,
+          webUI: port ? serverUrl : null
         });
       } catch (error) {
         // package.json이 없거나 읽기 실패 시 무시
@@ -343,7 +358,8 @@ router.get('/google-home/summary', async (req, res) => {
  */
 router.get('/google-home/appletv/devices', async (req, res) => {
   try {
-    const response = await fetch('http://localhost:8125/api/appletv/devices');
+    const serverUrl = getMcpServerUrl('google-home');
+    const response = await fetch(`${serverUrl}/api/appletv/devices`);
     const data = await response.json();
     res.json(data);
   } catch (error) {
@@ -357,7 +373,8 @@ router.get('/google-home/appletv/devices', async (req, res) => {
  */
 router.post('/google-home/appletv/control', async (req, res) => {
   try {
-    const response = await fetch('http://localhost:8125/api/appletv/control', {
+    const serverUrl = getMcpServerUrl('google-home');
+    const response = await fetch(`${serverUrl}/api/appletv/control`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(req.body)
@@ -377,7 +394,8 @@ router.post('/google-home/appletv/control', async (req, res) => {
  */
 router.get('/google-home/airplay/devices', async (req, res) => {
   try {
-    const response = await fetch('http://localhost:8125/api/airplay/devices');
+    const serverUrl = getMcpServerUrl('google-home');
+    const response = await fetch(`${serverUrl}/api/airplay/devices`);
     const data = await response.json();
     res.json(data);
   } catch (error) {
@@ -393,7 +411,8 @@ router.get('/google-home/airplay/devices', async (req, res) => {
  */
 router.get('/google-home/network/scan', async (req, res) => {
   try {
-    const response = await fetch('http://localhost:8125/api/network/scan');
+    const serverUrl = getMcpServerUrl('google-home');
+    const response = await fetch(`${serverUrl}/api/network/scan`);
     const data = await response.json();
     res.json(data);
   } catch (error) {
@@ -407,7 +426,8 @@ router.get('/google-home/network/scan', async (req, res) => {
  */
 router.get('/google-home/network/info', async (req, res) => {
   try {
-    const response = await fetch('http://localhost:8125/api/network/info');
+    const serverUrl = getMcpServerUrl('google-home');
+    const response = await fetch(`${serverUrl}/api/network/info`);
     const data = await response.json();
     res.json(data);
   } catch (error) {
@@ -421,7 +441,8 @@ router.get('/google-home/network/info', async (req, res) => {
  */
 router.post('/google-home/network/wol', async (req, res) => {
   try {
-    const response = await fetch('http://localhost:8125/api/network/wol', {
+    const serverUrl = getMcpServerUrl('google-home');
+    const response = await fetch(`${serverUrl}/api/network/wol`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(req.body)
