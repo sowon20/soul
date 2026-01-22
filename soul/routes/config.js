@@ -263,4 +263,98 @@ router.get('/models/:service', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/config/memory
+ * 메모리 설정 조회
+ */
+router.get('/memory', async (req, res) => {
+  try {
+    const memoryConfig = await configManager.getMemoryConfig();
+    res.json(memoryConfig);
+  } catch (error) {
+    console.error('Error reading memory config:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * PUT /api/config/memory
+ * 메모리 설정 업데이트
+ */
+router.put('/memory', async (req, res) => {
+  try {
+    const memoryConfig = await configManager.updateMemoryConfig(req.body);
+    res.json(memoryConfig);
+  } catch (error) {
+    console.error('Error updating memory config:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/config/memory/path
+ * 메모리 저장 경로 변경
+ */
+router.post('/memory/path', async (req, res) => {
+  try {
+    const { storagePath } = req.body;
+
+    if (!storagePath) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'storagePath is required'
+      });
+    }
+
+    const memoryConfig = await configManager.setMemoryPath(storagePath);
+    res.json(memoryConfig);
+  } catch (error) {
+    console.error('Error setting memory path:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/config/files
+ * 파일 설정 조회
+ */
+router.get('/files', async (req, res) => {
+  try {
+    const filesConfig = await configManager.getFilesConfig();
+    res.json(filesConfig);
+  } catch (error) {
+    console.error('Error reading files config:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * PUT /api/config/files
+ * 파일 설정 업데이트
+ */
+router.put('/files', async (req, res) => {
+  try {
+    const filesConfig = await configManager.updateFilesConfig(req.body);
+    res.json(filesConfig);
+  } catch (error) {
+    console.error('Error updating files config:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: error.message
+    });
+  }
+});
+
 module.exports = router;

@@ -20,6 +20,10 @@ export class AISettings {
       shortTermSize: 50,
       compressionThreshold: 80
     };
+    this.storageConfig = {
+      memoryPath: './memory',
+      filesPath: './files'
+    };
   }
 
   /**
@@ -43,6 +47,9 @@ export class AISettings {
 
       // 메모리 설정 로드
       await this.loadMemoryConfig();
+
+      // 스토리지 경로 설정 로드
+      await this.loadStorageConfig();
 
       // UI 렌더링
       container.innerHTML = `
@@ -68,6 +75,13 @@ export class AISettings {
             <h3 class="settings-section-title">메모리 설정</h3>
             <p class="settings-section-desc">대화 메모리 자동 저장 및 컨텍스트 관리 설정</p>
             ${this.renderMemorySettings()}
+          </section>
+
+          <!-- 저장소 경로 설정 -->
+          <section class="settings-section">
+            <h3 class="settings-section-title">저장소 경로 설정</h3>
+            <p class="settings-section-desc">메모리와 파일의 저장 위치를 지정합니다</p>
+            ${this.renderStorageSettings()}
           </section>
 
           <!-- 시스템 프롬프트 설정 -->
@@ -189,6 +203,26 @@ export class AISettings {
       }
     } catch (error) {
       console.error('Failed to load memory config:', error);
+    }
+  }
+
+  /**
+   * 스토리지 경로 설정 로드
+   */
+  async loadStorageConfig() {
+    try {
+      const memoryResponse = await this.apiClient.get('/config/memory');
+      const filesResponse = await this.apiClient.get('/config/files');
+
+      if (memoryResponse && memoryResponse.storagePath) {
+        this.storageConfig.memoryPath = memoryResponse.storagePath;
+      }
+
+      if (filesResponse && filesResponse.storagePath) {
+        this.storageConfig.filesPath = filesResponse.storagePath;
+      }
+    } catch (error) {
+      console.error('Failed to load storage config:', error);
     }
   }
 
@@ -321,6 +355,48 @@ export class AISettings {
             저장
           </button>
           <button class="settings-btn settings-btn-outline" id="resetMemoryBtn">
+            기본값으로 초기화
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * 저장소 경로 설정 렌더링
+   */
+  renderStorageSettings() {
+    return `
+      <div class="storage-settings-container">
+        <div class="storage-field">
+          <label class="storage-label">
+            <span class="label-text">메모리 저장 경로</span>
+            <span class="label-hint">대화 메모리가 저장될 디렉토리 경로 (절대 또는 상대 경로)</span>
+          </label>
+          <input type="text"
+                 class="storage-input"
+                 id="memoryPath"
+                 value="${this.storageConfig.memoryPath}"
+                 placeholder="./memory">
+        </div>
+
+        <div class="storage-field">
+          <label class="storage-label">
+            <span class="label-text">파일 저장 경로</span>
+            <span class="label-hint">업로드 파일이 저장될 디렉토리 경로 (절대 또는 상대 경로)</span>
+          </label>
+          <input type="text"
+                 class="storage-input"
+                 id="filesPath"
+                 value="${this.storageConfig.filesPath}"
+                 placeholder="./files">
+        </div>
+
+        <div class="storage-actions">
+          <button class="settings-btn settings-btn-primary" id="saveStorageBtn">
+            저장
+          </button>
+          <button class="settings-btn settings-btn-outline" id="resetStorageBtn">
             기본값으로 초기화
           </button>
         </div>
@@ -580,6 +656,18 @@ export class AISettings {
 
     if (resetPromptBtn) {
       resetPromptBtn.addEventListener('click', () => this.resetPromptSettings());
+    }
+
+    // 스토리지 설정 버튼
+    const saveStorageBtn = container.querySelector('#saveStorageBtn');
+    const resetStorageBtn = container.querySelector('#resetStorageBtn');
+
+    if (saveStorageBtn) {
+      saveStorageBtn.addEventListener('click', () => this.saveStorageSettings());
+    }
+
+    if (resetStorageBtn) {
+      resetStorageBtn.addEventListener('click', () => this.resetStorageSettings());
     }
   }
 
@@ -861,6 +949,72 @@ export class AISettings {
     } catch (error) {
       console.error('Failed to reset prompt settings:', error);
       this.showSaveStatus('프롬프트 초기화에 실패했습니다.', 'error');
+    }
+  }
+
+  /**
+   * 스토리지 경로 설정 저장
+   */
+  async saveStorageSettings() {
+    try {
+      const memoryPath = document.getElementById('memoryPath')?.value;
+      const filesPath = document.getElementById('filesPath')?.value;
+
+      if (!memoryPath || !filesPath) {
+        this.showSaveStatus('경로를 입력해주세요.', 'error');
+        return;
+      }
+
+      // 메모리 경로 저장
+      await this.apiClient.put('/config/memory', {
+        storagePath: memoryPath
+      });
+
+      // 파일 경로 저장
+      await this.apiClient.put('/config/files', {
+        storagePath: filesPath
+      });
+
+      this.storageConfig.memoryPath = memoryPath;
+      this.storageConfig.filesPath = filesPath;
+
+      this.showSaveStatus('저장소 경로 설정이 저장되었습니다.', 'success');
+    } catch (error) {
+      console.error('Failed to save storage settings:', error);
+      this.showSaveStatus('저장소 경로 설정 저장에 실패했습니다.', 'error');
+    }
+  }
+
+  /**
+   * 스토리지 경로 설정 초기화
+   */
+  async resetStorageSettings() {
+    if (!confirm('저장소 경로 설정을 기본값으로 되돌리시겠습니까?')) {
+      return;
+    }
+
+    try {
+      // 메모리 경로 초기화
+      await this.apiClient.put('/config/memory', {
+        storagePath: './memory'
+      });
+
+      // 파일 경로 초기화
+      await this.apiClient.put('/config/files', {
+        storagePath: './files'
+      });
+
+      this.storageConfig.memoryPath = './memory';
+      this.storageConfig.filesPath = './files';
+
+      this.showSaveStatus('저장소 경로 설정이 초기화되었습니다.', 'success');
+
+      // UI 새로고침
+      const container = document.querySelector('.ai-settings-panel').parentElement;
+      await this.render(container, this.apiClient);
+    } catch (error) {
+      console.error('Failed to reset storage settings:', error);
+      this.showSaveStatus('저장소 경로 설정 초기화에 실패했습니다.', 'error');
     }
   }
 

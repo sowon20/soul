@@ -46,6 +46,7 @@ const notificationsRoutes = require('../routes/notifications');
 const nlpAdvancedRoutes = require('../routes/nlp-advanced');
 const profileRoutes = require('../routes/profile');
 const rolesRoutes = require('../routes/roles');
+const mcpRoutes = require('../routes/mcp');
 
 app.use('/api/memory', memoryRoutes);
 app.use('/api/ai-models', aiModelsRoutes);
@@ -65,6 +66,7 @@ app.use('/api/notifications', notificationsRoutes);
 app.use('/api/nlp-advanced', nlpAdvancedRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/roles', rolesRoutes);
+app.use('/api/mcp', mcpRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

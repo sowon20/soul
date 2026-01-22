@@ -122,6 +122,61 @@ class ConfigManager {
     }
     return config.ai;
   }
+
+  /**
+   * 메모리 설정 가져오기
+   */
+  async getMemoryConfig() {
+    const config = await this.readConfig();
+    return config.memory || this.defaultConfig.memory;
+  }
+
+  /**
+   * 메모리 설정 업데이트
+   */
+  async updateMemoryConfig(memoryConfig) {
+    const config = await this.readConfig();
+    config.memory = {
+      ...config.memory,
+      ...memoryConfig
+    };
+    await this.writeConfig(config);
+    return config.memory;
+  }
+
+  /**
+   * 메모리 저장 경로 변경
+   */
+  async setMemoryPath(storagePath) {
+    const config = await this.readConfig();
+    if (!config.memory) {
+      config.memory = { ...this.defaultConfig.memory };
+    }
+    config.memory.storagePath = storagePath;
+    await this.writeConfig(config);
+    return config.memory;
+  }
+
+  /**
+   * 파일 설정 가져오기
+   */
+  async getFilesConfig() {
+    const config = await this.readConfig();
+    return config.files || this.defaultConfig.files;
+  }
+
+  /**
+   * 파일 설정 업데이트
+   */
+  async updateFilesConfig(filesConfig) {
+    const config = await this.readConfig();
+    config.files = {
+      ...config.files,
+      ...filesConfig
+    };
+    await this.writeConfig(config);
+    return config.files;
+  }
 }
 
 // Singleton 인스턴스

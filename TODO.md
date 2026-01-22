@@ -131,13 +131,36 @@ settings/
 
 ---
 
-## 📁 Phase 2A: 파일 시스템 (보류)
+## 📁 Phase 2A: 파일 시스템
 
-### 2A.1 저장 경로 설정
-- [ ] 설정 > 파일 저장소 UI
-- [ ] 플러그인 방식 (로컬/NAS/클라우드)
-- [ ] 경로 검증 API
-- [ ] 폴백 시스템
+### 2A.0 기본 메모리 경로 설정 ✅
+- [x] ConfigManager 메모리/파일 경로 관리 메서드
+- [x] API 엔드포인트 (GET/PUT /api/config/memory, /api/config/files)
+- [x] MemoryUtils ConfigManager 연동 (동적 경로 로드)
+- [x] 설정 UI - 메모리/파일 저장 경로 입력
+- [x] 경로 저장 및 적용
+
+### 2A.1 고급 저장소 플러그인 시스템 (보류)
+
+**아키텍처**: Storage Provider 패턴
+```
+soul/storage-providers/
+├── base-provider.js           # 추상 클래스
+├── local-provider.js          # 로컬 파일시스템 (기본)
+├── notion-provider.js         # Notion API 연동
+├── gdrive-provider.js         # Google Drive API
+├── nas-provider.js            # NAS/SMB 연동
+└── storage-manager.js         # Provider 관리
+```
+
+**기능 계획**:
+- [ ] BaseStorageProvider 추상 클래스 (save, read, list, delete 인터페이스)
+- [ ] LocalStorageProvider 구현 (현재 로직 이전)
+- [ ] StorageManager (provider 등록, 선택, fallback)
+- [ ] MCP 프로토콜 연동 (외부 서비스용)
+- [ ] 설정 UI - 저장소 유형 선택 (Local/Notion/GDrive/NAS)
+- [ ] 경로 검증 API (provider별)
+- [ ] 폴백 시스템 (1순위 실패 시 2순위로)
 
 ### 2A.2 파일 메타데이터 DB
 - [ ] 파일 정보 테이블

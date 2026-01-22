@@ -1,5 +1,6 @@
 /* Settings 스타일 임포트 */
 @import url('../settings/styles/settings.css');
+@import url('mcp.css');
 
 /* 폰트 */
 @font-face {
@@ -1238,9 +1239,7 @@ body {
   min-width: 250px;
   max-width: 500px;
   flex-shrink: 0;
-  background: rgba(78, 78, 78, 0.7);
-  backdrop-filter: blur(30px) saturate(180%) contrast(90%);
-  -webkit-backdrop-filter: blur(30px) saturate(180%) contrast(90%);
+  background: rgba(78, 78, 78, 0.9);
   display: flex;
   flex-direction: column;
   position: relative;
@@ -1469,40 +1468,41 @@ body {
   border-radius: 12px !important;
   overflow: hidden !important;
   margin: 16px 0 !important;
-  backdrop-filter: blur(10px) !important;
-  -webkit-backdrop-filter: blur(10px) !important;
   width: 100% !important;
   max-width: 100% !important;
   position: relative !important;
+}
+
+.code-block:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.15);
 }
 
 .code-copy-btn {
   position: absolute;
   top: 12px;
   right: 12px;
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
   width: 32px;
   height: 32px;
-  background: rgba(255, 255, 255, 0.1);
+  background: none !important;
   border: none;
-  border-radius: 6px;
-  color: rgba(255, 255, 255, 0.6);
+  border-radius: 0;
+  color: rgba(255, 255, 255, 0.5);
   cursor: pointer;
-  transition: all 0.2s;
   padding: 0;
-  z-index: 10;
-  opacity: 0;
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 .code-block:hover .code-copy-btn {
-  opacity: 1;
+  display: flex;
 }
 
 .code-copy-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(255, 255, 255, 1);
 }
 
 .code-copy-btn svg {

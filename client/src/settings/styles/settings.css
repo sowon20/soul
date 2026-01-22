@@ -469,7 +469,7 @@ textarea.settings-field-input {
 /* AI 서비스 그리드 */
 .ai-services-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 1rem;
   margin-top: 1rem;
 }
@@ -481,6 +481,8 @@ textarea.settings-field-input {
   border-radius: 0.75rem;
   padding: 1rem;
   transition: all 0.2s;
+  min-width: 0;
+  overflow: visible;
 }
 
 .ai-service-card:hover {
@@ -500,17 +502,27 @@ textarea.settings-field-input {
   margin-bottom: 1rem;
   padding-bottom: 0.75rem;
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-  gap: 0.75rem;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.service-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .service-title h4 {
   margin: 0 0 0.25rem 0;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 600;
   color: rgba(0, 0, 0, 0.85);
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .service-type {
@@ -518,6 +530,7 @@ textarea.settings-field-input {
   color: rgba(0, 0, 0, 0.5);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  display: block;
 }
 
 /* 토글 스위치 */
@@ -527,6 +540,7 @@ textarea.settings-field-input {
   width: 44px;
   height: 24px;
   flex-shrink: 0;
+  min-width: 44px;
 }
 
 .toggle-switch input {
@@ -640,6 +654,8 @@ textarea.settings-field-input {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
+  width: 100%;
+  min-width: 0;
 }
 
 .service-hint {
@@ -647,6 +663,18 @@ textarea.settings-field-input {
   color: rgba(0, 0, 0, 0.5);
   margin: 0;
   font-style: italic;
+  /* 강력한 텍스트 줄바꿈 */
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  /* Flex item 전체 너비 차지 */
+  flex: 1 0 100%;
+  max-width: 100%;
+  min-width: 0;
+  white-space: normal;
+  line-height: 1.4;
+  /* 명시적 block 표시 */
+  display: block;
 }
 
 /* 정보 박스 */
@@ -857,6 +885,7 @@ textarea.settings-field-input {
   border-radius: 3px;
   outline: none;
   -webkit-appearance: none;
+  appearance: none;
 }
 
 .memory-slider::-webkit-slider-thumb {
@@ -897,6 +926,51 @@ textarea.settings-field-input {
 }
 
 .memory-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+/* 저장소 경로 설정 */
+.storage-settings-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin-top: 1rem;
+}
+
+.storage-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.storage-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.storage-input {
+  width: 100%;
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  color: rgba(0, 0, 0, 0.9);
+  font-family: inherit;
+  transition: all 0.2s;
+}
+
+.storage-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1);
+}
+
+.storage-actions {
   display: flex;
   gap: 0.75rem;
   margin-top: 0.5rem;

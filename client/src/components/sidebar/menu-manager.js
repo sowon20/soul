@@ -3,6 +3,8 @@
  * 2단 슬라이딩 메뉴 관리
  */
 
+import dashboardManager from '../../utils/dashboard-manager.js';
+
 export class MenuManager {
   constructor() {
     this.mainMenu = document.getElementById('mainMenu');
@@ -117,15 +119,13 @@ export class MenuManager {
         </h2>
 
         <div class="dashboard-grid" style="display: grid; gap: 1rem;">
-          <!-- 빠른 통계 -->
+          <!-- 토큰 통계 -->
           <div class="dashboard-card" style="background: rgba(255, 255, 255, 0.08); backdrop-filter: blur(10px); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.15);">
             <h3 style="font-size: var(--font-size-lg); font-weight: 400; margin-bottom: 0.75rem;">
-              오늘의 통계
+              토큰 사용량
             </h3>
             <div style="font-size: var(--font-size-sm); line-height: 1.8; opacity: 0.9;">
-              <p>총 대화: 0개</p>
-              <p>메시지: 0개</p>
-              <p>토큰 사용: 0</p>
+              <p>현재 세션: <span id="stat-tokens">-</span></p>
             </div>
           </div>
 
@@ -156,6 +156,9 @@ export class MenuManager {
         </div>
       </div>
     `;
+
+    // 대시보드를 열 때만 토큰 통계 로드
+    dashboardManager.loadTokenStats();
   }
 
   renderConversations() {

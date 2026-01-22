@@ -12,7 +12,7 @@ class DashboardManager {
     if (this.initialized) return;
 
     try {
-      await this.loadStats();
+      await this.loadTokenStats();
       this.setupEventListeners();
       this.initialized = true;
       console.log('✅ Dashboard initialized');
@@ -21,36 +21,22 @@ class DashboardManager {
     }
   }
 
-  async loadStats() {
+  async loadTokenStats() {
     try {
-      // 토큰 상태 가져오기
+      // 토큰 상태만 가져오기
       const tokenStatus = await fetch('/api/chat/token-status').then(r => r.json()).catch(() => null);
 
-      // 메모리 통계 가져오기
-      const memoryStats = await fetch('/api/chat/memory-stats').then(r => r.json()).catch(() => null);
-
-      // 라우팅 통계 가져오기
-      const routingStats = await fetch('/api/chat/routing-stats').then(r => r.json()).catch(() => null);
-
-      // 통계 업데이트
-      this.updateStat('stat-conversations', memoryStats?.sessionCount || 0, '개');
-      this.updateStat('stat-messages', memoryStats?.messageCount || 0, '개');
+      // 토큰 통계 업데이트
       this.updateStat('stat-tokens', this.formatNumber(tokenStatus?.currentTokens || 0), '');
 
     } catch (error) {
-      console.error('Failed to load stats:', error);
-      // 실패 시 기본값 유지
-      this.updateStat('stat-conversations', 0, '개');
-      this.updateStat('stat-messages', 0, '개');
-      this.updateStat('stat-tokens', 0, '');
+      console.error('Failed to load token stats:', error);
+      this.updateStat('stat-tokens', '-', '');
     }
   }
 
   setupEventListeners() {
-    // 자동 새로고침 (30초마다)
-    setInterval(() => {
-      this.loadStats();
-    }, 30000);
+    // 자동 새로고침 제거 - 대시보드 열 때만 로드
   }
 
   updateStat(elementId, value, suffix = '') {
@@ -74,13 +60,6 @@ class DashboardManager {
 // 전역 인스턴스 생성
 const dashboardManager = new DashboardManager();
 
-// 페이지 로드 시 초기화
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    dashboardManager.init();
-  });
-} else {
-  dashboardManager.init();
-}
+// 자동 초기화 제거 - 필요할 때만 수동으로 loadStats() 호출
 
 export default dashboardManager;

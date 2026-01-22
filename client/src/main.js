@@ -188,6 +188,19 @@ class SoulApp {
       console.log('❌ 독 토글 버튼을 찾을 수 없음');
     }
 
+    // MCP button in input area
+    const mcpInputBtn = document.querySelector('.attach-btn[title="MCP"]');
+    if (mcpInputBtn) {
+      console.log('✅ 입력창 MCP 버튼 등록');
+      mcpInputBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        console.log('🖱️ 입력창 MCP 버튼 클릭');
+        await this.showMCPManager();
+      });
+    } else {
+      console.log('❌ 입력창 MCP 버튼을 찾을 수 없음');
+    }
+
     // Settings section click - 새로운 설정 프레임워크
     const profileSection = document.getElementById('profileSection');
     if (profileSection) {
@@ -611,7 +624,7 @@ class SoulApp {
     });
 
     buttons.forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         // 다른 active 버튼들 찾기
         const otherActiveButtons = [...buttons].filter(b => b !== btn && b.classList.contains('active'));
 
@@ -620,6 +633,9 @@ class SoulApp {
           btn.classList.remove('active');
           outSound.currentTime = 0;
           outSound.play().catch(() => {});
+
+          // Canvas 닫기
+          this.closeCanvasPanel();
         } else {
           // 다른 버튼들 먼저 즉시 비활성화
           otherActiveButtons.forEach(b => b.classList.remove('active'));
@@ -628,9 +644,48 @@ class SoulApp {
           btn.classList.add('active');
           inSound.currentTime = 0;
           inSound.play().catch(() => {});
+
+          // MCP 버튼인 경우 MCP 관리자 표시
+          const btnText = btn.querySelector('span')?.textContent?.trim();
+          if (btnText === 'MCP' || btn.classList.contains('neo-btn-3')) {
+            await this.showMCPManager();
+          }
         }
       });
     });
+  }
+
+  async showMCPManager() {
+    const canvasPanel = this.elements.canvasPanel;
+    if (!canvasPanel) return;
+
+    // Canvas 열기
+    canvasPanel.classList.remove('hide');
+
+    // Canvas 내용 변경
+    const canvasHeader = canvasPanel.querySelector('.canvas-header h3');
+    const canvasContent = canvasPanel.querySelector('.canvas-content');
+
+    if (canvasHeader) {
+      canvasHeader.textContent = 'MCP 서버';
+    }
+
+    if (canvasContent) {
+      // MCP 관리자 로드 및 렌더링
+      try {
+        const { MCPManager } = await import('./components/mcp/mcp-manager.js');
+        const mcpManager = new MCPManager(this.apiClient);
+        await mcpManager.render(canvasContent);
+      } catch (error) {
+        console.error('Failed to load MCP Manager:', error);
+        canvasContent.innerHTML = `
+          <div style="padding: 2rem; text-align: center; color: rgba(239, 68, 68, 0.9);">
+            <p>MCP 관리자를 불러오는데 실패했습니다.</p>
+            <p style="font-size: 0.875rem; opacity: 0.7;">${error.message}</p>
+          </div>
+        `;
+      }
+    }
   }
 
   async sendMessage() {

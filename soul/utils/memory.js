@@ -1,16 +1,45 @@
 const fs = require('fs').promises;
 const path = require('path');
 const { AIServiceFactory } = require('./ai-service');
+const configManager = require('./config');
 
 /**
  * 메모리 저장소 유틸리티
  */
 class MemoryUtils {
   constructor() {
+    // 기본 경로 (동기적 fallback)
     this.memoryPath = process.env.MEMORY_PATH || path.join(__dirname, '../../memory');
     this.rawPath = path.join(this.memoryPath, 'raw');
     this.processedPath = path.join(this.memoryPath, 'processed');
     this.indexPath = path.join(this.memoryPath, 'index.json');
+    this._configLoaded = false;
+  }
+
+  /**
+   * ConfigManager에서 메모리 경로 로드
+   * (비동기 메서드에서 자동 호출)
+   */
+  async _loadConfigPath() {
+    if (this._configLoaded) return;
+
+    try {
+      const memoryConfig = await configManager.getMemoryConfig();
+      if (memoryConfig && memoryConfig.storagePath) {
+        // 상대 경로면 절대 경로로 변환
+        this.memoryPath = path.isAbsolute(memoryConfig.storagePath)
+          ? memoryConfig.storagePath
+          : path.join(process.cwd(), memoryConfig.storagePath);
+
+        this.rawPath = path.join(this.memoryPath, 'raw');
+        this.processedPath = path.join(this.memoryPath, 'processed');
+        this.indexPath = path.join(this.memoryPath, 'index.json');
+      }
+      this._configLoaded = true;
+    } catch (error) {
+      console.error('Failed to load memory config, using default path:', error);
+      this._configLoaded = true;
+    }
   }
 
   /**
@@ -60,6 +89,8 @@ importance: ${importance}
    * index.json 읽기
    */
   async readIndex() {
+    await this._loadConfigPath();
+
     try {
       const data = await fs.readFile(this.indexPath, 'utf-8');
       return JSON.parse(data);
@@ -170,6 +201,12 @@ importance: ${importance}
    * 대화를 파일로 저장 (AI 자동 분석 포함)
    */
   async saveConversation(conversationData) {
+    // Config 경로 로드
+    await this._loadConfigPath();
+
+    // 디렉토리 존재 확인 및 생성
+    await this._ensureDirectories();
+
     const {
       id,
       messages = [],
@@ -230,6 +267,19 @@ importance: ${importance}
       metadata: indexMetadata,
       aiAnalysis: autoAnalyze ? aiAnalysis : null
     };
+  }
+
+  /**
+   * 필요한 디렉토리 생성
+   */
+  async _ensureDirectories() {
+    try {
+      await fs.mkdir(this.rawPath, { recursive: true });
+      await fs.mkdir(this.processedPath, { recursive: true });
+    } catch (error) {
+      console.error('Failed to create directories:', error);
+      throw error;
+    }
   }
 }
 
