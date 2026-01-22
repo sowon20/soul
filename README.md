@@ -36,11 +36,14 @@ Soul Project는 **장기 메모리, 컨텍스트 관리, 자율 학습**을 갖�
 - **비유/연결**: 과거 대화에서 비슷한 패턴 찾기
 - **스팸 방지**: 과도한 메모리 주입 방지
 
-### 🎛️ 컨텍스트 관리 (Phase 5)
+### 🎛️ 컨텍스트 관리 & 영속적 대화방 (Phase 5 & 5.4)
 - **토큰 모니터링**: 실시간 컨텍스트 사용량 추적
 - **자동 압축**: 80% 경고, 90% 자동 압축
-- **세션 연속성**: 대화 중단/재개 완벽 처리
+- **세션 연속성**: 대화 중단/재개 완벽 처리, 시간 인지 재개
 - **무한 메모리**: 토큰 제한 극복한 연속 대화
+- **토큰 폭발 방지**: Tool 출력 제한, Vision 토큰 계산, 단일 메시지 10% 제한
+- **메모리 계층**: 단기(RAM) → 중기(파일) → 장기(DB) 자동 관리
+- **에이전트 체이닝**: 순차/병렬 작업 실행 지원
 
 ### 🗣️ 자연어 제어 (Week 1)
 - **의도 감지**: 14가지 의도 자동 인식
@@ -49,10 +52,34 @@ Soul Project는 **장기 메모리, 컨텍스트 관리, 자율 학습**을 갖�
 - **액션 제안**: 감지된 의도에 따른 액션 자동 제안
 - **신뢰도 기반 실행**: 70% 이상 신뢰도에서 자동 실행
 
-### 🤖 스마트 라우팅 (Planned)
-- **자동 모델 선택**: 작업에 맞는 최적 모델 자동 선택
+### 🤖 스마트 라우팅 & 단일 인격 시스템 (Phase 8)
+- **자동 모델 선택**: 작업 복잡도(0-10) 분석 후 최적 모델 자동 선택
+- **태스크 유형 감지**: 11가지 태스크 유형 자동 탐지
 - **다중 AI 제공사**: Anthropic, OpenAI, Google, Ollama 지원
-- **Fallback 체인**: 1순위 실패 시 2순위 자동 시도
+- **비용 최적화**: 경량 작업은 Haiku, 복잡한 작업은 Opus
+- **단일 인격 유지**: 모델 전환 시에도 일관된 말투와 성격 유지
+- **대화 주제 추적**: 컨텍스트 기반 대화 흐름 관리
+
+### 👤 프로필 시스템 (Phase P)
+- **동적 필드 관리**: 자유롭게 추가/수정/삭제 가능한 프로필 필드
+- **세밀한 권한 제어**: 필드별 소울 접근 권한 설정 (full/limited/minimal)
+- **자동 컨텍스트 주입**: 대화 시작 시 프로필 요약 자동 포함
+- **키워드 감지**: 개인 정보 관련 키워드 감지 시 상세 필드 로드
+- **Inline 편집**: 드래그 앤 드롭 정렬, 실시간 자동 저장
+
+### 🎨 모듈화된 프론트엔드 (Phase 9.7-9.8)
+- **단일 대화방**: 고정된 영속적 대화방 시스템
+- **깔끔한 UI**: 불필요한 요소 제거, 햄버거 메뉴 중심 설계
+- **모듈화 구조**: CSS/JS 컴포넌트별 분리로 유지보수성 향상
+- **컴포넌트 기반**: chat/sidebar/canvas/shared 폴더 구조
+- **설정 프레임워크**: 동적 모듈 로딩, 탭 네비게이션
+
+### ⚙️ AI 서비스 관리 (Phase X)
+- **통합 관리 UI**: 모든 AI 서비스를 한 곳에서 관리
+- **API 키 관리**: 서비스별 API 키 설정/변경/삭제
+- **연결 테스트**: 실시간 서비스 연결 상태 확인
+- **활성화 토글**: 서비스별 활성화/비활성화
+- **동적 모델 관리**: 제공사별 사용 가능 모델 자동 갱신
 
 ---
 
@@ -106,6 +133,7 @@ PORT=3080
 
 ### 서버 시작
 
+#### 백엔드 서버
 ```bash
 # 개발 모드
 cd soul
@@ -113,6 +141,23 @@ node server/index.js
 
 # 또는 pm2로 프로덕션 실행
 pm2 start soul/server/index.js --name soul-server
+```
+
+#### 프론트엔드 개발 서버
+```bash
+cd client
+npm install
+npm run dev
+# http://localhost:8000 에서 접속
+```
+
+#### 전체 시스템 실행
+```bash
+# 터미널 1: 백엔드 (포트 3000)
+cd soul && node server/index.js
+
+# 터미널 2: 프론트엔드 (포트 8000)
+cd client && npm run dev
 ```
 
 ---
@@ -171,8 +216,18 @@ curl -X POST http://localhost:3080/api/context/detect \
 soul/
 ├── soul/                   # 백엔드
 │   ├── server/            # Express 서버
-│   ├── routes/            # API 라우트 (40개 엔드포인트)
-│   └── utils/             # 유틸리티
+│   ├── routes/            # API 라우트 (120+ 엔드포인트)
+│   ├── models/            # MongoDB 모델 (Profile, AIService, Memory 등)
+│   └── utils/             # 유틸리티 (conversation-pipeline, smart-router 등)
+├── client/                # 프론트엔드 (모듈화)
+│   ├── src/
+│   │   ├── components/   # 컴포넌트 (chat, sidebar, canvas, shared)
+│   │   ├── settings/     # 설정 프레임워크 (프로필, AI, 테마)
+│   │   ├── styles/       # CSS (core, components, pages)
+│   │   ├── utils/        # 유틸리티
+│   │   └── main.js       # 앱 진입점
+│   ├── index.html        # 메인 HTML
+│   └── vite.config.js    # Vite 설정
 ├── mcp/                   # MCP 서버
 │   ├── hub-server.js      # MCP 허브 서버
 │   ├── tools/             # MCP 도구 (10개)
@@ -181,6 +236,8 @@ soul/
 │   ├── raw/              # 원본 대화 (Markdown)
 │   └── index.json        # 메타데이터 인덱스
 ├── files/                # 파일 저장소
+├── scripts/              # 유틸리티 스크립트
+├── docs/                 # 문서 (LIBRECHAT_CONTEXT_HANDOVER.md 등)
 ├── .env.example          # 환경변수 템플릿
 ├── install.sh            # 설치 스크립트
 └── README.md             # 이 파일
@@ -190,36 +247,57 @@ soul/
 
 ## 📚 문서
 
-- [API Reference](soul/API_REFERENCE.md) - 40개 API 엔드포인트 문서
+### 핵심 문서
+- [LibreChat Context Handover](docs/LIBRECHAT_CONTEXT_HANDOVER.md) - **필독!** 메모리 시스템 핵심 아키텍처
+- [TODO](TODO.md) - 개발 계획 및 진행 상황 (Phase 1-9.8 완료)
+
+### 기술 문서
+- [API Reference](soul/API_REFERENCE.md) - 120+ API 엔드포인트 문서
 - [Context Detection](soul/CONTEXT_DETECTION.md) - 맥락 감지 시스템
 - [Analogy System](soul/ANALOGY_SYSTEM.md) - 비유/연결 시스템
 - [NLP System](soul/NLP_SYSTEM.md) - 자연어 제어 시스템
+- [Smart Routing](soul/SMART_ROUTING.md) - 스마트 라우팅 & 단일 인격 시스템
 - [MCP Server](mcp/README.md) - Model Context Protocol 서버 (10개 도구)
-- [TODO](TODO.md) - 개발 계획 및 진행 상황
+
+### 프론트엔드
+- [Client README](client/README.md) - 모듈화된 프론트엔드 구조
 
 ---
 
 ## 🎯 로드맵
 
-### ✅ 완료 (Phase 1-5, Week 1)
-- [x] 메모리 저장 시스템
-- [x] AI 자동 분류
-- [x] 검색 시스템 (기본/스마트/관계)
-- [x] 맥락 감지 & 비유/연결
-- [x] 컨텍스트 관리 & 자동 압축
-- [x] 자연어 제어 (14개 의도, 21개 패턴)
-- [x] MCP 서버 (10개 도구)
-- [x] 코드 감사 & 클린업
-- [x] 설치 자동화 (install.sh)
+### ✅ 완료 (Phase 1-9.8)
+- [x] **Phase 1-3**: 메모리 저장 & 검색 시스템
+  - 대화 자동 저장, AI 분류, 스마트 검색, 관계 그래프
+- [x] **Phase 4**: 자율 기억 시스템
+  - 맥락 감지, 자동 메모리 주입, 비유/연결
+- [x] **Phase 5 & 5.4**: 컨텍스트 관리 & 영속적 대화방
+  - 토큰 모니터링, 자동 압축, 세션 연속성
+  - 메모리 계층, 토큰 폭발 방지, 에이전트 체이닝
+- [x] **Phase 8**: 스마트 라우팅 & 단일 인격
+  - 자동 모델 선택, 태스크 분석, 비용 최적화
+  - 모델 전환 시에도 일관된 인격 유지
+- [x] **Phase 9.7-9.8**: 프론트엔드 완성
+  - 단일 영속 대화방, 깔끔한 UI
+  - 모듈화 구조 (CSS/JS 컴포넌트 분리)
+  - 설정 프레임워크 (프로필, AI, 테마)
+- [x] **Phase P**: 프로필 시스템
+  - 동적 필드 관리, 권한 제어
+  - 자동 컨텍스트 주입, 키워드 감지
+- [x] **Phase X**: AI 서비스 관리
+  - 통합 관리 UI, API 키 관리
+  - 연결 테스트, 동적 모델 관리
+- [x] **기타**: MCP 서버, 자연어 제어, 설치 자동화
 
-### 🚧 진행 중 (Week 1)
-- [ ] UI 통합 (Phase 9)
-- [ ] 패널 시스템
+### 🚧 진행 중
+- [ ] 파일 시스템 (Phase 2A-2E) - 보류
+- [ ] 메모리 UI 개선 (Phase 9.1-9.6)
 
-### 📅 예정 (Week 2-3)
-- [ ] 메모리 고도화
-- [ ] Proactive Messaging
-- [ ] 배포 준비
+### 📅 예정
+- [ ] Phase 10: 배포 & 최적화
+- [ ] Phase A: 자동 업데이트
+- [ ] Phase N: 알림 시스템
+- [ ] Phase T: 시간 인지 시스템
 
 자세한 로드맵은 [TODO.md](TODO.md)를 참고하세요.
 
@@ -227,10 +305,23 @@ soul/
 
 ## 🛠️ 기술 스택
 
-- **Node.js** + Express
-- **MongoDB** + Mongoose
-- **AI Services**: Anthropic, OpenAI, Google, Ollama
-- **Features**: 토큰 카운팅, 컨텍스트 압축, 맥락 감지, 비유 검색
+### 백엔드
+- **Node.js** 18+ + Express
+- **MongoDB** 4.4+ + Mongoose
+- **AI Services**: Anthropic (Claude), OpenAI (GPT), Google (Gemini), Ollama
+
+### 프론트엔드
+- **Vite** 5 - 빠른 빌드 도구
+- **Vanilla JavaScript** (ES6+) - 프레임워크 없는 순수 JS
+- **CSS Modules** - 컴포넌트 기반 스타일링
+- **모듈화 구조** - 명확한 책임 분리
+
+### 핵심 기능
+- 토큰 카운팅 & 폭발 방지
+- 컨텍스트 압축 & 메모리 계층
+- 맥락 감지 & 비유 검색
+- 스마트 라우팅 & 단일 인격
+- 에이전트 체이닝 (순차/병렬)
 
 ---
 
@@ -250,6 +341,25 @@ docker run -d --name soul-mongodb -p 27017:27017 mongo:7
 **Q: 로컬 모델만 사용 가능한가요?**
 네, Ollama를 설치하고 `.env`에서 설정하세요.
 
+**Q: 프론트엔드 개발 서버는 어떻게 실행하나요?**
+```bash
+cd client
+npm install
+npm run dev
+# 브라우저에서 http://localhost:8000 접속
+```
+
+**Q: 백엔드와 프론트엔드를 동시에 실행하려면?**
+```bash
+# 터미널 1: 백엔드
+cd soul
+node server/index.js
+
+# 터미널 2: 프론트엔드
+cd client
+npm run dev
+```
+
 ---
 
 ## 📄 라이선스
@@ -268,5 +378,19 @@ MIT License - 자유롭게 사용, 수정, 배포 가능
 
 **Made with ❤️ for AI companions**
 
-**Version**: 1.0.0
-**Last Updated**: 2026-01-18
+**Version**: 1.5.0
+**Last Updated**: 2026-01-22
+
+## 📝 최근 업데이트 (2026-01-22)
+
+### Phase 9.8: 프론트엔드 모듈화 ✅
+- CSS 모듈 분리 (core/components/pages)
+- JS 컴포넌트 재구조화 (기능별 폴더)
+- 명확한 책임 분리 및 독립성 향상
+- 팀 협업 용이성 증대
+
+### 주요 개선사항
+- **설정 페이지 프레임워크**: 컴포넌트 기반, 동적 로딩
+- **프로필 시스템**: 실용적 필드, 권한 제어
+- **AI 서비스 관리**: 리팩토링으로 코드 50% 감소
+- **단일 대화방**: 영속적 메모리 연동 완료
