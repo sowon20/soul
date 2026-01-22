@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Soul Todo</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, sans-serif; background: #2b2a27; color: #e8e4dc; line-height: 1.4; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 15px; }
+
+        .header { background: #3d3c37; border: 1px solid #4a4940; border-radius: 16px; padding: 20px; }
+        .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+        .tab-btn { padding: 6px 14px; border-radius: 8px; border: 1px solid #4a4940; background: #2b2a27; color: #a39e93; cursor: pointer; font-size: 13px; transition: 0.2s; }
+        .tab-btn.active { background: #f5a862; color: #1a1918; font-weight: 600; border-color: #f5a862; }
+
+        .progress-bar { width: 100%; height: 8px; background: #4a4940; border-radius: 4px; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #f5a862, #ff8c00); width: 0%; transition: 0.5s; }
+        #prog-text { color: #f5a862; font-weight: 900; font-size: 20px; }
+
+        .phase-card { background: #3d3c37; border: 1px solid #4a4940; border-radius: 12px; margin-bottom: 12px; overflow: hidden; }
+        .phase-header { padding: 12px 18px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: #44433d; }
+        .phase-info { display: flex; align-items: center; gap: 10px; flex: 1; }
+
+        .status-badge { font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 800; }
+        .status-todo { background: #5a5850; color: #a39e93; }
+        .status-doing { background: #f5a862; color: #1a1918; }
+        .status-done { background: #4ade80; color: #1a1918; }
+
+        .phase-body { padding: 8px 18px 15px; display: none; flex-direction: column; }
+        .phase-body.open { display: flex; }
+
+        .item-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 0 !important;
+            margin: 0 !important;
+            border-bottom: 1px solid rgba(68, 67, 61, 0.1);
+            min-height: 18px;
+        }
+        .memo-row {
+            border-bottom: none !important;
+            margin-top: -1px !important;
+            margin-bottom: -1px !important;
+            opacity: 0.7;
+            font-size: 13px;
+        }
+        .memo-bullet {
+            margin-left: 24px;
+            color: #a39e93;
+            font-size: 8px;
+            display: flex;
+            align-items: center;
+        }
+        .checkbox { width: 16px; height: 16px; border: 2px solid #5a5850; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 10px; flex-shrink: 0; }
+        .checkbox.done { background: #4ade80; border-color: #4ade80; color: #1a1918; }
+
+        .editable {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #e8e4dc;
+            font-size: 13px;
+            outline: none;
+            padding: 0 !important;
+            line-height: 1.2;
+            height: 18px;
+        }
+        .sub-title-row { display: flex; align-items: center; margin: 12px 0 2px 0; }
+        .sub-title { color: #f5a862; font-weight: 800; font-size: 14px; flex: 1; border: none; background: transparent; outline: none; }
+
+        .btn-del { cursor: pointer; opacity: 0; font-size: 18px; transition: 0.2s; padding: 0 8px; color: #ff5f56; }
+        .item-row:hover .btn-del, .phase-header:hover .btn-del, .sub-title-row:hover .btn-del { opacity: 0.5; }
+        .btn-del:hover { opacity: 1 !important; }
+
+        .add-btn { background: #4a4940; color: #a39e93; border: none; padding: 6px 12px; border-radius: 6px; margin-top: 8px; cursor: pointer; font-size: 11px; }
+        .server-editor { width: 100%; min-height: 150px; background: #1e1e1e; color: #bdbaba; border: 1px solid #4a4940; border-radius: 12px; padding: 20px; font-family: monospace; outline: none; resize: none; }
+
+        ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(245, 168, 98, 0.3);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(245, 168, 98, 0.6);
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(245, 168, 98, 0.3) transparent;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-top">
+                <div class="tabs" id="tabs-area"></div>
+                <div style="display: flex; align-items: center; gap: 6px 14px; ">
+                    <button onclick="forceUpdate(event)" class="tab-btn" style="background: #4ade80; color: #1a1918; border: none; font-weight: bold; cursor: pointer; font-size: 13px; ">저장</button>
+                    <span id="prog-text">0%</span>
+                </div>
+            </div>
+            <div class="progress-bar"><div class="progress-fill" id="prog-fill"></div></div>
+        </div>
+        <div id="content-area"></div>
+    </div>
+    <script src="ui.js"></script>
+</body>
+</html>
