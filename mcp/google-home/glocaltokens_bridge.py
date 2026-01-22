@@ -7,9 +7,17 @@ glocaltokens bridge for Node.js integration
 import json
 import sys
 import os
+import logging
+
+# 디버그 모드 설정
+DEBUG = os.environ.get("GLOCAL_DEBUG", "").lower() in ("1", "true", "yes")
+if DEBUG:
+    logging.basicConfig(level=logging.DEBUG)
 
 try:
     from glocaltokens.client import GLocalAuthenticationTokens
+    import glocaltokens
+    GLOCALTOKENS_VERSION = getattr(glocaltokens, '__version__', 'unknown')
 except ImportError:
     print(json.dumps({
         "error": "glocaltokens 패키지가 설치되지 않았습니다. pip install glocaltokens 를 실행하세요."
@@ -22,18 +30,28 @@ def get_master_token(username, password, android_id=None):
     client = GLocalAuthenticationTokens(
         username=username,
         password=password,
-        android_id=android_id
+        android_id=android_id,
+        verbose=DEBUG
     )
     return client.get_master_token()
 
 
 def get_devices(username=None, password=None, master_token=None, android_id=None):
-    """Google Home 기기 목록과 로컬 토큰 조회"""
+    """Google Home 기기 목록과 로컬 토큰 조회
+
+    참고: master_token을 사용할 때도 username이 필요할 수 있습니다.
+    """
+    # master_token만 있고 username이 없는 경우 경고
+    if master_token and not username:
+        if DEBUG:
+            print(f"DEBUG: master_token 제공됨, username 없음 - 일부 기능이 작동하지 않을 수 있습니다", file=sys.stderr)
+
     client = GLocalAuthenticationTokens(
         username=username,
         password=password,
         master_token=master_token,
-        android_id=android_id
+        android_id=android_id,
+        verbose=DEBUG
     )
 
     # get_google_devices_json()은 JSON 문자열을 반환하므로 파싱 필요
@@ -87,10 +105,12 @@ def main():
             }))
 
         elif command == "test":
-            # 연결 테스트
+            # 연결 테스트 및 버전 정보
             print(json.dumps({
                 "success": True,
-                "message": "glocaltokens bridge가 정상 작동합니다."
+                "message": "glocaltokens bridge가 정상 작동합니다.",
+                "glocaltokens_version": GLOCALTOKENS_VERSION,
+                "python_version": sys.version
             }))
 
         else:
