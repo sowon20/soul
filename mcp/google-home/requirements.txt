@@ -1,0 +1,17 @@
+# Google Home MCP Server - Python Dependencies
+
+# Google Home / glocaltokens (기존)
+glocaltokens>=0.7.0
+google-auth>=2.0.0
+google-auth-oauthlib>=1.0.0
+grpcio>=1.50.0
+
+# Apple TV Control
+pyatv>=0.14.0
+
+# Network Discovery & Wake-on-LAN
+zeroconf>=0.131.0
+wakeonlan>=3.1.0
+
+# Network Scanning (ARP)
+scapy>=2.5.0

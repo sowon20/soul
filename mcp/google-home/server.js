@@ -391,6 +391,100 @@ function callGlocalBridge(command, env = {}) {
   });
 }
 
+// Apple TV Bridge 호출
+function callAppleTVBridge(command, env = {}) {
+  return new Promise((resolve, reject) => {
+    let pythonPath = "python3";
+    const envPython = process.env.PYTHON_PATH;
+
+    if (envPython && fs.existsSync(path.join(envPython, "bin/python3"))) {
+      pythonPath = path.join(envPython, "bin/python3");
+    } else if (fs.existsSync(path.join(__dirname, "glocaltokens_env/bin/python3"))) {
+      pythonPath = path.join(__dirname, "glocaltokens_env/bin/python3");
+    } else if (fs.existsSync(path.join(process.env.HOME || "", "glocaltokens_env/bin/python3"))) {
+      pythonPath = path.join(process.env.HOME, "glocaltokens_env/bin/python3");
+    } else if (fs.existsSync("/home/codespace/.python/current/bin/python3")) {
+      pythonPath = "/home/codespace/.python/current/bin/python3";
+    }
+
+    const scriptPath = path.join(__dirname, "appletv_bridge.py");
+    console.log(`🍎 Apple TV Bridge: ${command}`);
+
+    const proc = spawn(pythonPath, [scriptPath, command], {
+      env: { ...process.env, ...env },
+      cwd: __dirname
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    proc.stdout.on("data", (data) => { stdout += data.toString(); });
+    proc.stderr.on("data", (data) => { stderr += data.toString(); });
+
+    proc.on("close", (code) => {
+      if (stderr) console.error("appletv stderr:", stderr);
+      try {
+        const result = JSON.parse(stdout);
+        if (result.error) reject(new Error(result.error));
+        else resolve(result);
+      } catch (e) {
+        reject(new Error(`Python 출력 파싱 실패: ${stdout || stderr}`));
+      }
+    });
+
+    proc.on("error", (err) => {
+      reject(new Error(`Python 실행 실패: ${err.message}`));
+    });
+  });
+}
+
+// Network Bridge 호출
+function callNetworkBridge(command, env = {}) {
+  return new Promise((resolve, reject) => {
+    let pythonPath = "python3";
+    const envPython = process.env.PYTHON_PATH;
+
+    if (envPython && fs.existsSync(path.join(envPython, "bin/python3"))) {
+      pythonPath = path.join(envPython, "bin/python3");
+    } else if (fs.existsSync(path.join(__dirname, "glocaltokens_env/bin/python3"))) {
+      pythonPath = path.join(__dirname, "glocaltokens_env/bin/python3");
+    } else if (fs.existsSync(path.join(process.env.HOME || "", "glocaltokens_env/bin/python3"))) {
+      pythonPath = path.join(process.env.HOME, "glocaltokens_env/bin/python3");
+    } else if (fs.existsSync("/home/codespace/.python/current/bin/python3")) {
+      pythonPath = "/home/codespace/.python/current/bin/python3";
+    }
+
+    const scriptPath = path.join(__dirname, "network_bridge.py");
+    console.log(`🌐 Network Bridge: ${command}`);
+
+    const proc = spawn(pythonPath, [scriptPath, command], {
+      env: { ...process.env, ...env },
+      cwd: __dirname
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    proc.stdout.on("data", (data) => { stdout += data.toString(); });
+    proc.stderr.on("data", (data) => { stderr += data.toString(); });
+
+    proc.on("close", (code) => {
+      if (stderr) console.error("network stderr:", stderr);
+      try {
+        const result = JSON.parse(stdout);
+        if (result.error) reject(new Error(result.error));
+        else resolve(result);
+      } catch (e) {
+        reject(new Error(`Python 출력 파싱 실패: ${stdout || stderr}`));
+      }
+    });
+
+    proc.on("error", (err) => {
+      reject(new Error(`Python 실행 실패: ${err.message}`));
+    });
+  });
+}
+
 // 사용자 Google 계정으로 인증
 async function authenticateUser(username, password, androidId = null) {
   console.log("🔑 사용자 Google 계정 인증 중...");
@@ -660,6 +754,111 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         },
         required: ["deviceName", "action"]
       }
+    },
+    // ========== Apple TV 도구 ==========
+    {
+      name: "discover_apple_tvs",
+      description: "네트워크에서 Apple TV 기기를 검색합니다.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          timeout: { type: "number", description: "검색 시간(초)", default: 5 }
+        }
+      }
+    },
+    {
+      name: "control_apple_tv",
+      description: "Apple TV를 제어합니다 (재생, 일시정지, 전원 등)",
+      inputSchema: {
+        type: "object",
+        properties: {
+          device_id: { type: "string", description: "Apple TV 식별자" },
+          command: { type: "string", enum: ["play", "pause", "play_pause", "stop", "power_on", "power_off"], description: "제어 명령" }
+        },
+        required: ["device_id", "command"]
+      }
+    },
+    {
+      name: "apple_tv_remote",
+      description: "Apple TV 리모컨 명령을 전송합니다.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          device_id: { type: "string", description: "Apple TV 식별자" },
+          button: { type: "string", enum: ["up", "down", "left", "right", "select", "menu", "home", "play_pause", "volume_up", "volume_down"], description: "버튼" }
+        },
+        required: ["device_id", "button"]
+      }
+    },
+    {
+      name: "apple_tv_now_playing",
+      description: "Apple TV에서 현재 재생 중인 미디어 정보를 가져옵니다.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          device_id: { type: "string", description: "Apple TV 식별자" }
+        },
+        required: ["device_id"]
+      }
+    },
+    // ========== AirPlay 도구 ==========
+    {
+      name: "list_airplay_devices",
+      description: "네트워크의 AirPlay 기기 목록을 가져옵니다.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          timeout: { type: "number", description: "검색 시간(초)", default: 5 }
+        }
+      }
+    },
+    {
+      name: "airplay_stream",
+      description: "AirPlay로 미디어를 스트리밍합니다.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          device_id: { type: "string", description: "Apple TV/AirPlay 기기 식별자" },
+          url: { type: "string", description: "스트리밍할 미디어 URL" }
+        },
+        required: ["device_id", "url"]
+      }
+    },
+    // ========== 네트워크 도구 ==========
+    {
+      name: "scan_network_devices",
+      description: "로컬 네트워크의 스마트홈 기기를 스캔합니다.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          service_types: {
+            type: "array",
+            items: { type: "string" },
+            description: "스캔할 서비스 타입 (예: _airplay._tcp, _googlecast._tcp). 비우면 모든 스마트홈 서비스 스캔"
+          },
+          timeout: { type: "number", description: "검색 시간(초)", default: 5 }
+        }
+      }
+    },
+    {
+      name: "wake_on_lan",
+      description: "Wake-on-LAN 패킷을 전송하여 기기를 깨웁니다.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          mac_address: { type: "string", description: "MAC 주소 (예: AA:BB:CC:DD:EE:FF)" },
+          broadcast_ip: { type: "string", description: "브로드캐스트 IP (기본: 255.255.255.255)" }
+        },
+        required: ["mac_address"]
+      }
+    },
+    {
+      name: "get_network_info",
+      description: "현재 네트워크 정보를 가져옵니다.",
+      inputSchema: {
+        type: "object",
+        properties: {}
+      }
     }
   ]
 }));
@@ -760,6 +959,99 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
           content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
         };
       }
+
+      // ========== Apple TV 도구 핸들러 ==========
+      case "discover_apple_tvs": {
+        const env = { APPLETV_TIMEOUT: String(args.timeout || 5) };
+        const result = await callAppleTVBridge("discover", env);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+        };
+      }
+      case "control_apple_tv": {
+        const env = {
+          APPLETV_IDENTIFIER: args.device_id,
+          APPLETV_BUTTON: args.command === "play_pause" ? "play_pause" : args.command,
+        };
+        if (args.command === "power_on" || args.command === "power_off") {
+          env.APPLETV_POWER_CMD = args.command.replace("power_", "");
+          const result = await callAppleTVBridge("power", env);
+          return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+        }
+        const result = await callAppleTVBridge("remote", env);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+        };
+      }
+      case "apple_tv_remote": {
+        const env = {
+          APPLETV_IDENTIFIER: args.device_id,
+          APPLETV_BUTTON: args.button,
+        };
+        const result = await callAppleTVBridge("remote", env);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+        };
+      }
+      case "apple_tv_now_playing": {
+        const env = { APPLETV_IDENTIFIER: args.device_id };
+        const result = await callAppleTVBridge("now_playing", env);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+        };
+      }
+
+      // ========== AirPlay 도구 핸들러 ==========
+      case "list_airplay_devices": {
+        const env = { NETWORK_TIMEOUT: String(args.timeout || 5) };
+        const result = await callNetworkBridge("scan_airplay", env);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+        };
+      }
+      case "airplay_stream": {
+        const env = {
+          APPLETV_IDENTIFIER: args.device_id,
+          APPLETV_URL: args.url,
+        };
+        const result = await callAppleTVBridge("stream", env);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+        };
+      }
+
+      // ========== 네트워크 도구 핸들러 ==========
+      case "scan_network_devices": {
+        const env = {
+          NETWORK_TIMEOUT: String(args.timeout || 5),
+        };
+        if (args.service_types && args.service_types.length > 0) {
+          env.SERVICE_TYPES = args.service_types.join(",");
+        }
+        const result = await callNetworkBridge("scan_mdns", env);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+        };
+      }
+      case "wake_on_lan": {
+        const env = {
+          WOL_MAC: args.mac_address,
+        };
+        if (args.broadcast_ip) {
+          env.WOL_BROADCAST = args.broadcast_ip;
+        }
+        const result = await callNetworkBridge("wol", env);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+        };
+      }
+      case "get_network_info": {
+        const result = await callNetworkBridge("info", {});
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+        };
+      }
+
       default:
         return { isError: true, content: [{ type: "text", text: "알 수 없는 명령" }] };
     }
@@ -1149,6 +1441,180 @@ app.delete("/api/devices/:id", (req, res) => {
     devices.splice(idx, 1);
     saveDevices(devices);
     res.json({ success: true });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// ========== Apple TV API ==========
+
+// Apple TV 기기 목록
+app.get("/api/appletv/devices", async (req, res) => {
+  try {
+    const timeout = req.query.timeout || "5";
+    const result = await callAppleTVBridge("discover", { APPLETV_TIMEOUT: timeout });
+    res.json(result);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Apple TV 페어링 시작
+app.post("/api/appletv/pair/start", async (req, res) => {
+  try {
+    const { identifier, protocol } = req.body;
+    if (!identifier) {
+      return res.status(400).json({ error: "identifier가 필요합니다." });
+    }
+    const env = {
+      APPLETV_IDENTIFIER: identifier,
+      APPLETV_PROTOCOL: protocol || "MRP"
+    };
+    const result = await callAppleTVBridge("pair_start", env);
+    res.json(result);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Apple TV 페어링 완료
+app.post("/api/appletv/pair/finish", async (req, res) => {
+  try {
+    const { identifier, pin, protocol } = req.body;
+    if (!identifier || !pin) {
+      return res.status(400).json({ error: "identifier와 pin이 필요합니다." });
+    }
+    const env = {
+      APPLETV_IDENTIFIER: identifier,
+      APPLETV_PIN: String(pin),
+      APPLETV_PROTOCOL: protocol || "MRP"
+    };
+    const result = await callAppleTVBridge("pair_finish", env);
+    res.json(result);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Apple TV 제어
+app.post("/api/appletv/control", async (req, res) => {
+  try {
+    const { identifier, command } = req.body;
+    if (!identifier || !command) {
+      return res.status(400).json({ error: "identifier와 command가 필요합니다." });
+    }
+    const env = { APPLETV_IDENTIFIER: identifier };
+
+    if (command === "power_on" || command === "power_off") {
+      env.APPLETV_POWER_CMD = command.replace("power_", "");
+      const result = await callAppleTVBridge("power", env);
+      return res.json(result);
+    }
+
+    env.APPLETV_BUTTON = command;
+    const result = await callAppleTVBridge("remote", env);
+    res.json(result);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Apple TV 현재 재생 정보
+app.get("/api/appletv/now-playing/:identifier", async (req, res) => {
+  try {
+    const { identifier } = req.params;
+    const env = { APPLETV_IDENTIFIER: identifier };
+    const result = await callAppleTVBridge("now_playing", env);
+    res.json(result);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Apple TV 전원 상태
+app.get("/api/appletv/power/:identifier", async (req, res) => {
+  try {
+    const { identifier } = req.params;
+    const env = { APPLETV_IDENTIFIER: identifier };
+    const result = await callAppleTVBridge("power", env);
+    res.json(result);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// ========== AirPlay API ==========
+
+// AirPlay 기기 목록
+app.get("/api/airplay/devices", async (req, res) => {
+  try {
+    const timeout = req.query.timeout || "5";
+    const result = await callNetworkBridge("scan_airplay", { NETWORK_TIMEOUT: timeout });
+    res.json(result);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// AirPlay 스트리밍
+app.post("/api/airplay/stream", async (req, res) => {
+  try {
+    const { identifier, url } = req.body;
+    if (!identifier || !url) {
+      return res.status(400).json({ error: "identifier와 url이 필요합니다." });
+    }
+    const env = {
+      APPLETV_IDENTIFIER: identifier,
+      APPLETV_URL: url
+    };
+    const result = await callAppleTVBridge("stream", env);
+    res.json(result);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// ========== Network API ==========
+
+// 네트워크 스캔
+app.get("/api/network/scan", async (req, res) => {
+  try {
+    const timeout = req.query.timeout || "5";
+    const serviceTypes = req.query.services; // comma-separated
+    const env = { NETWORK_TIMEOUT: timeout };
+    if (serviceTypes) {
+      env.SERVICE_TYPES = serviceTypes;
+    }
+    const result = await callNetworkBridge("scan_mdns", env);
+    res.json(result);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// 네트워크 정보
+app.get("/api/network/info", async (req, res) => {
+  try {
+    const result = await callNetworkBridge("info", {});
+    res.json(result);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Wake-on-LAN
+app.post("/api/network/wol", async (req, res) => {
+  try {
+    const { mac, broadcast } = req.body;
+    if (!mac) {
+      return res.status(400).json({ error: "mac 주소가 필요합니다." });
+    }
+    const env = { WOL_MAC: mac };
+    if (broadcast) {
+      env.WOL_BROADCAST = broadcast;
+    }
+    const result = await callNetworkBridge("wol", env);
+    res.json(result);
   } catch (e) {
     res.status(400).json({ error: e.message });
   }

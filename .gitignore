@@ -38,7 +38,7 @@ build/
 !.env.example
 !.env.sample
 
-# Google Home sensitive files
+# Smart Home MCP sensitive files
 mcp/google-home/assistant-token.json
 mcp/google-home/HomeApp.json
 mcp/google-home/devices.json
@@ -48,6 +48,7 @@ mcp/google-home/glocal-cache.json
 mcp/google-home/token-cache.json
 mcp/google-home/user-auth.json
 mcp/google-home/service-account.json
+mcp/google-home/appletv-credentials.json
 
 # IDE settings
 .vscode/
