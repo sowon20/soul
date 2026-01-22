@@ -41,22 +41,27 @@ def get_devices(username=None, password=None, master_token=None, android_id=None
 
     참고: master_token을 사용할 때도 username이 필요할 수 있습니다.
     """
-    # master_token만 있고 username이 없는 경우 경고
-    if master_token and not username:
-        if DEBUG:
-            print(f"DEBUG: master_token 제공됨, username 없음 - 일부 기능이 작동하지 않을 수 있습니다", file=sys.stderr)
+    print(f"[glocaltokens] 기기 검색 시작...", file=sys.stderr)
+    print(f"[glocaltokens] username: {username}", file=sys.stderr)
+    print(f"[glocaltokens] master_token: {'있음' if master_token else '없음'}", file=sys.stderr)
 
     client = GLocalAuthenticationTokens(
         username=username,
         password=password,
         master_token=master_token,
         android_id=android_id,
-        verbose=DEBUG
+        verbose=True  # 항상 verbose
     )
+
+    print(f"[glocaltokens] 클라이언트 생성됨, 기기 검색 중...", file=sys.stderr)
 
     # get_google_devices_json()은 JSON 문자열을 반환하므로 파싱 필요
     devices_json = client.get_google_devices_json()
     devices = json.loads(devices_json) if devices_json else []
+
+    print(f"[glocaltokens] 검색 완료: {len(devices)}개 기기 발견", file=sys.stderr)
+    for d in devices:
+        print(f"  - {d.get('device_name', 'unknown')}: {d.get('local_auth_token', 'no token')[:20]}...", file=sys.stderr)
 
     return {
         "master_token": client.get_master_token(),
