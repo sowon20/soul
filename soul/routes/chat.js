@@ -16,6 +16,7 @@ const { getSmartRouter } = require('../utils/smart-router');
 const { getPersonalityCore } = require('../utils/personality-core');
 const Role = require('../models/Role');
 const { getRoleSelector } = require('../utils/role-selector');
+const { loadMCPTools, executeMCPTool } = require('../utils/mcp-tools');
 
 /**
  * POST /api/chat
@@ -182,11 +183,16 @@ router.post('/', async (req, res) => {
 
       const combinedSystemPrompt = systemMessages.map(m => m.content).join('\n\n');
 
-      // AI 호출
+      // MCP 도구 로드 (스마트홈 등)
+      const mcpTools = loadMCPTools();
+
+      // AI 호출 (도구 포함)
       aiResponse = await aiService.chat(chatMessages, {
         systemPrompt: combinedSystemPrompt,
         maxTokens: options.maxTokens || 4096,
-        temperature: options.temperature || 1.0
+        temperature: options.temperature || 1.0,
+        tools: mcpTools.length > 0 ? mcpTools : null,
+        toolExecutor: mcpTools.length > 0 ? executeMCPTool : null
       });
     } catch (aiError) {
       console.error('AI 호출 실패:', aiError);

@@ -53,6 +53,8 @@ class AnthropicService extends AIService {
       systemPrompt = null,
       maxTokens = 4096,
       temperature = 1.0,
+      tools = null,
+      toolExecutor = null, // 도구 실행 함수
     } = options;
 
     const apiMessages = messages.map(msg => ({
@@ -71,8 +73,46 @@ class AnthropicService extends AIService {
       params.system = systemPrompt;
     }
 
-    const response = await this.client.messages.create(params);
-    return response.content[0].text;
+    if (tools && tools.length > 0) {
+      params.tools = tools;
+    }
+
+    let response = await this.client.messages.create(params);
+
+    // 도구 호출 루프 처리
+    while (response.stop_reason === 'tool_use' && toolExecutor) {
+      const toolUseBlocks = response.content.filter(block => block.type === 'tool_use');
+
+      // 도구 실행 결과 수집
+      const toolResults = [];
+      for (const toolUse of toolUseBlocks) {
+        console.log(`[Tool] Executing: ${toolUse.name}`, toolUse.input);
+        const result = await toolExecutor(toolUse.name, toolUse.input);
+        toolResults.push({
+          type: 'tool_result',
+          tool_use_id: toolUse.id,
+          content: typeof result === 'string' ? result : JSON.stringify(result, null, 2)
+        });
+      }
+
+      // 메시지에 assistant 응답과 tool_result 추가
+      apiMessages.push({
+        role: 'assistant',
+        content: response.content
+      });
+      apiMessages.push({
+        role: 'user',
+        content: toolResults
+      });
+
+      // 다시 API 호출
+      params.messages = apiMessages;
+      response = await this.client.messages.create(params);
+    }
+
+    // 최종 텍스트 응답 추출
+    const textBlock = response.content.find(block => block.type === 'text');
+    return textBlock ? textBlock.text : '';
   }
 
   async analyzeConversation(messages) {

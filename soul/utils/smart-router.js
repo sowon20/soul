@@ -18,18 +18,18 @@ const { estimateTokens } = require('./token-counter');
  */
 const MODELS = {
   HAIKU: {
-    id: 'claude-3-5-haiku-20241022',
-    name: 'Claude 3.5 Haiku',
+    id: 'claude-3-haiku-20240307',
+    name: 'Claude 3 Haiku',
     tier: 'fast',
-    costPerMToken: 1.0, // $1 per million tokens (input)
-    costPerMTokenOutput: 5.0, // $5 per million tokens (output)
+    costPerMToken: 0.25, // $0.25 per million tokens (input)
+    costPerMTokenOutput: 1.25, // $1.25 per million tokens (output)
     strengths: ['speed', 'simple_tasks', 'cost_effective'],
     maxTokens: 200000,
     description: '빠르고 효율적인 응답, 간단한 작업에 최적'
   },
   SONNET: {
-    id: 'claude-3-5-sonnet-20241022',
-    name: 'Claude 3.5 Sonnet',
+    id: 'claude-sonnet-4-20250514',
+    name: 'Claude Sonnet 4',
     tier: 'balanced',
     costPerMToken: 3.0,
     costPerMTokenOutput: 15.0,
