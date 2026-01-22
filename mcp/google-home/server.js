@@ -581,7 +581,7 @@ function callAssistantBridge(command, args = []) {
 
     const scriptPath = path.join(__dirname, "assistant_bridge.py");
     const proc = spawn(pythonPath, [scriptPath, command, ...args], {
-      env: process.env,
+      env: { ...process.env, PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION: "python" },
       cwd: __dirname
     });
 
