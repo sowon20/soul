@@ -37,3 +37,4 @@ build/
 .env.*
 !.env.example
 !.env.sample
+mcp/google-home/assistant-token.json

@@ -37,6 +37,7 @@ const TOKEN_CACHE_PATH = path.join(__dirname, "token-cache.json");
 const DEVICES_PATH = path.join(__dirname, "devices.json");
 const USER_AUTH_PATH = path.join(__dirname, "user-auth.json");
 const GLOCAL_CACHE_PATH = path.join(__dirname, "glocal-cache.json");
+const ASSISTANT_TOKEN_PATH = path.join(__dirname, "assistant-token.json");
 
 let transport = null;
 let cachedToken = null;
@@ -454,6 +455,124 @@ async function fetchGoogleDevices() {
   throw new Error("기기 조회 실패");
 }
 
+// ========== Google Assistant API ==========
+
+function loadAssistantToken() {
+  try {
+    if (fs.existsSync(ASSISTANT_TOKEN_PATH)) {
+      return JSON.parse(fs.readFileSync(ASSISTANT_TOKEN_PATH, "utf-8"));
+    }
+  } catch (e) {
+    console.error("Assistant 토큰 로드 실패:", e.message);
+  }
+  return null;
+}
+
+function saveAssistantToken(data) {
+  fs.writeFileSync(ASSISTANT_TOKEN_PATH, JSON.stringify(data, null, 2));
+}
+
+// Assistant bridge 호출
+function callAssistantBridge(command, args = []) {
+  return new Promise((resolve, reject) => {
+    let pythonPath = "python3";
+
+    if (fs.existsSync(path.join(__dirname, "glocaltokens_env/bin/python3"))) {
+      pythonPath = path.join(__dirname, "glocaltokens_env/bin/python3");
+    } else if (fs.existsSync(path.join(process.env.HOME || "", "glocaltokens_env/bin/python3"))) {
+      pythonPath = path.join(process.env.HOME, "glocaltokens_env/bin/python3");
+    } else if (fs.existsSync("/home/codespace/.python/current/bin/python3")) {
+      pythonPath = "/home/codespace/.python/current/bin/python3";
+    }
+
+    const scriptPath = path.join(__dirname, "assistant_bridge.py");
+    const proc = spawn(pythonPath, [scriptPath, command, ...args], {
+      env: process.env,
+      cwd: __dirname
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    proc.stdout.on("data", (data) => { stdout += data.toString(); });
+    proc.stderr.on("data", (data) => { stderr += data.toString(); });
+
+    proc.on("close", (code) => {
+      if (stderr) console.error("assistant_bridge stderr:", stderr);
+      try {
+        const result = JSON.parse(stdout);
+        if (result.error && !result.success) {
+          reject(new Error(result.error));
+        } else {
+          resolve(result);
+        }
+      } catch (e) {
+        reject(new Error(`Python 출력 파싱 실패: ${stdout || stderr}`));
+      }
+    });
+
+    proc.on("error", (err) => {
+      reject(new Error(`Python 실행 실패: ${err.message}`));
+    });
+  });
+}
+
+// Google Assistant 텍스트 명령 (REST API 직접 호출)
+async function sendAssistantCommand(query) {
+  const tokenData = loadAssistantToken();
+  if (!tokenData || !tokenData.access_token) {
+    throw new Error("Google Assistant 토큰이 없습니다. OAuth 인증이 필요합니다.");
+  }
+
+  console.log(`🎤 Assistant 명령: "${query}"`);
+
+  // 먼저 Python bridge 시도
+  try {
+    const result = await callAssistantBridge("query", [query]);
+    return result;
+  } catch (e) {
+    console.log("Python bridge 실패, REST 대안 시도:", e.message);
+  }
+
+  // REST API 대안 (Dialogflow CX 또는 직접 구현)
+  // Google Assistant Embedded API는 gRPC만 지원하므로,
+  // 여기서는 에러 반환하고 사용자에게 grpc 설치 안내
+  return {
+    success: false,
+    query,
+    error: "gRPC 패키지 설치 필요. 라즈베리파이에서: pip install grpcio google-assistant-grpc"
+  };
+}
+
+// Assistant 토큰 갱신
+async function refreshAssistantToken() {
+  const tokenData = loadAssistantToken();
+  if (!tokenData || !tokenData.refresh_token) {
+    throw new Error("refresh_token이 없습니다. 재인증 필요.");
+  }
+
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: tokenData.client_id,
+      client_secret: tokenData.client_secret,
+      refresh_token: tokenData.refresh_token,
+      grant_type: "refresh_token"
+    })
+  });
+
+  const result = await response.json();
+  if (result.access_token) {
+    tokenData.access_token = result.access_token;
+    saveAssistantToken(tokenData);
+    console.log("✅ Assistant 토큰 갱신됨");
+    return result.access_token;
+  }
+
+  throw new Error(`토큰 갱신 실패: ${result.error || "unknown"}`);
+}
+
 // ========== MCP 서버 ==========
 const server = new Server({
   name: "soul-google-home",
@@ -517,6 +636,29 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           deviceStates: { type: "object", description: "기기별 상태 객체" }
         },
         required: ["agentUserId", "deviceStates"]
+      }
+    },
+    {
+      name: "assistant_command",
+      description: "Google Assistant에 텍스트 명령을 보냅니다. 스마트홈 기기 제어, 질문 등 모든 Assistant 기능 사용 가능.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Assistant에 보낼 텍스트 명령 (예: '거실 불 켜줘', '현관 조명 끄기')" }
+        },
+        required: ["query"]
+      }
+    },
+    {
+      name: "control_smart_device",
+      description: "스마트홈 기기를 제어합니다. (Assistant 명령 사용)",
+      inputSchema: {
+        type: "object",
+        properties: {
+          deviceName: { type: "string", description: "기기 이름 (예: '거실 조명', '침실 에어컨')" },
+          action: { type: "string", description: "동작: on, off, brightness:50, color:빨강 등" }
+        },
+        required: ["deviceName", "action"]
       }
     }
   ]
@@ -586,6 +728,34 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       }
       case "report_state": {
         const result = await reportState(args.agentUserId, args.deviceStates);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+        };
+      }
+      case "assistant_command": {
+        const result = await sendAssistantCommand(args.query);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+        };
+      }
+      case "control_smart_device": {
+        // action을 한국어 명령으로 변환
+        let query;
+        const { deviceName, action } = args;
+        if (action === "on") {
+          query = `${deviceName} 켜줘`;
+        } else if (action === "off") {
+          query = `${deviceName} 꺼줘`;
+        } else if (action.startsWith("brightness:")) {
+          const level = action.split(":")[1];
+          query = `${deviceName} 밝기 ${level}퍼센트로 설정해줘`;
+        } else if (action.startsWith("color:")) {
+          const color = action.split(":")[1];
+          query = `${deviceName} ${color}색으로 바꿔줘`;
+        } else {
+          query = `${deviceName} ${action}`;
+        }
+        const result = await sendAssistantCommand(query);
         return {
           content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
         };
@@ -836,6 +1006,86 @@ app.get("/api/google-devices/cached", (req, res) => {
 app.get("/api/glocaltokens/test", async (req, res) => {
   try {
     const result = await callGlocalBridge("test", {});
+    res.json(result);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// ========== Google Assistant API ==========
+
+// Assistant 토큰 상태 확인
+app.get("/api/assistant/status", (req, res) => {
+  const tokenData = loadAssistantToken();
+  if (!tokenData) {
+    return res.json({ configured: false });
+  }
+  res.json({
+    configured: true,
+    hasAccessToken: !!tokenData.access_token,
+    hasRefreshToken: !!tokenData.refresh_token,
+    scope: tokenData.scope
+  });
+});
+
+// Assistant 텍스트 명령 전송
+app.post("/api/assistant/command", async (req, res) => {
+  try {
+    const { query } = req.body;
+    if (!query) {
+      return res.status(400).json({ error: "query가 필요합니다." });
+    }
+    const result = await sendAssistantCommand(query);
+    res.json(result);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// 스마트 기기 제어
+app.post("/api/assistant/control", async (req, res) => {
+  try {
+    const { deviceName, action } = req.body;
+    if (!deviceName || !action) {
+      return res.status(400).json({ error: "deviceName과 action이 필요합니다." });
+    }
+
+    let query;
+    if (action === "on") {
+      query = `${deviceName} 켜줘`;
+    } else if (action === "off") {
+      query = `${deviceName} 꺼줘`;
+    } else if (action.startsWith("brightness:")) {
+      const level = action.split(":")[1];
+      query = `${deviceName} 밝기 ${level}퍼센트로 설정해줘`;
+    } else if (action.startsWith("color:")) {
+      const color = action.split(":")[1];
+      query = `${deviceName} ${color}색으로 바꿔줘`;
+    } else {
+      query = `${deviceName} ${action}`;
+    }
+
+    const result = await sendAssistantCommand(query);
+    res.json(result);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Assistant 토큰 갱신
+app.post("/api/assistant/refresh-token", async (req, res) => {
+  try {
+    const newToken = await refreshAssistantToken();
+    res.json({ success: true, message: "토큰 갱신 완료" });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Assistant bridge 테스트
+app.get("/api/assistant/test", async (req, res) => {
+  try {
+    const result = await callAssistantBridge("test", []);
     res.json(result);
   } catch (e) {
     res.status(400).json({ error: e.message });
