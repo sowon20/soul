@@ -81,7 +81,10 @@ def discover_devices_mdns(timeout=5):
 
 
 def get_devices(username=None, password=None, master_token=None, android_id=None):
-    """Google Home 기기 목록과 로컬 토큰 조회"""
+    """Google Home 기기 목록과 로컬 토큰 조회 (패치된 버전)"""
+    import gpsoauth
+    from datetime import datetime
+
     print(f"[glocaltokens] 기기 검색 시작...", file=sys.stderr)
     print(f"[glocaltokens] username: {username}", file=sys.stderr)
     print(f"[glocaltokens] master_token: {'있음' if master_token else '없음'}", file=sys.stderr)
@@ -91,39 +94,60 @@ def get_devices(username=None, password=None, master_token=None, android_id=None
     if mdns_devices:
         print(f"[mDNS] {len(mdns_devices)}개 기기를 mDNS로 발견", file=sys.stderr)
 
-    # glocaltokens로 로컬 토큰 획득 시도
-    kwargs = {
-        "username": username,
-        "master_token": master_token,
-        "verbose": True
-    }
-    if password and not master_token:
-        kwargs["password"] = password
-    if android_id:
-        kwargs["android_id"] = android_id
+    # master_token이 있으면 패치된 방식으로 시도
+    if master_token and username:
+        try:
+            # android_id 기본값 설정
+            if not android_id:
+                android_id = 'abcdef1234567890'
 
-    try:
-        client = GLocalAuthenticationTokens(**kwargs)
-        print(f"[glocaltokens] 클라이언트 생성됨, 토큰 조회 중...", file=sys.stderr)
+            # 라이브러리 메서드 패치
+            def patched_get_master(self):
+                return master_token
 
-        devices_json = client.get_google_devices_json()
-        glocal_devices = json.loads(devices_json) if devices_json else []
+            def patched_get_access(self):
+                result = gpsoauth.perform_oauth(
+                    username,
+                    master_token,
+                    android_id=android_id,
+                    service='oauth2:https://www.google.com/accounts/OAuthLogin',
+                    app='com.google.android.apps.chromecast.app',
+                    client_sig='24bb24c05e47e0aefa68a58a766179d9b613a600'
+                )
+                if 'Auth' in result:
+                    self._access_token = result['Auth']
+                    self._access_token_date = datetime.now()
+                    return result['Auth']
+                return None
 
-        print(f"[glocaltokens] {len(glocal_devices)}개 기기 (토큰 포함)", file=sys.stderr)
+            # 패치 적용
+            GLocalAuthenticationTokens.get_master_token = patched_get_master
+            GLocalAuthenticationTokens.get_access_token = patched_get_access
 
-        # glocaltokens 성공시 그 결과 사용
-        if glocal_devices:
-            return {
-                "master_token": client.get_master_token(),
-                "access_token": client.get_access_token(),
-                "devices": glocal_devices
-            }
-    except Exception as e:
-        print(f"[glocaltokens] 토큰 조회 실패: {e}", file=sys.stderr)
+            client = GLocalAuthenticationTokens(username=username)
+            client._master_token = master_token
+            client._android_id = android_id
 
-    # glocaltokens 실패시 mDNS 결과만 반환 (토큰 없음)
+            print(f"[glocaltokens] 패치된 클라이언트로 토큰 조회 중...", file=sys.stderr)
+            devices_json = client.get_google_devices_json()
+            glocal_devices = json.loads(devices_json) if devices_json else []
+
+            print(f"[glocaltokens] {len(glocal_devices)}개 기기 (토큰 포함)", file=sys.stderr)
+
+            if glocal_devices:
+                return {
+                    "success": True,
+                    "master_token": master_token,
+                    "access_token": client._access_token,
+                    "devices": glocal_devices
+                }
+        except Exception as e:
+            print(f"[glocaltokens] 패치된 방식 실패: {e}", file=sys.stderr)
+
+    # glocaltokens 실패시 mDNS 결과만 반환
     if mdns_devices:
         return {
+            "success": True,
             "master_token": master_token,
             "access_token": None,
             "devices": mdns_devices,
@@ -131,6 +155,7 @@ def get_devices(username=None, password=None, master_token=None, android_id=None
         }
 
     return {
+        "success": True,
         "master_token": master_token,
         "access_token": None,
         "devices": []
