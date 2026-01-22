@@ -327,14 +327,28 @@ function saveGlocalCache(data) {
 // Python glocaltokens bridge 호출
 function callGlocalBridge(command, env = {}) {
   return new Promise((resolve, reject) => {
-    // Python 경로 결정 (환경변수가 유효한 경로인지 확인)
+    // Python 경로 결정 (가상환경 우선)
     let pythonPath = "python3"; // 기본값
     const envPython = process.env.PYTHON_PATH;
+
+    // 1. 환경변수로 지정된 경로
     if (envPython && fs.existsSync(path.join(envPython, "bin/python3"))) {
       pythonPath = path.join(envPython, "bin/python3");
-    } else if (fs.existsSync("/home/codespace/.python/current/bin/python3")) {
+    }
+    // 2. 로컬 glocaltokens_env 가상환경 (라즈베리파이)
+    else if (fs.existsSync(path.join(__dirname, "glocaltokens_env/bin/python3"))) {
+      pythonPath = path.join(__dirname, "glocaltokens_env/bin/python3");
+    }
+    // 3. 홈 디렉토리 glocaltokens_env
+    else if (fs.existsSync(path.join(process.env.HOME || "", "glocaltokens_env/bin/python3"))) {
+      pythonPath = path.join(process.env.HOME, "glocaltokens_env/bin/python3");
+    }
+    // 4. Codespaces Python
+    else if (fs.existsSync("/home/codespace/.python/current/bin/python3")) {
       pythonPath = "/home/codespace/.python/current/bin/python3";
     }
+
+    console.log(`🐍 Python 경로: ${pythonPath}`);
     const scriptPath = path.join(__dirname, "glocaltokens_bridge.py");
 
     const proc = spawn(pythonPath, [scriptPath, command], {
