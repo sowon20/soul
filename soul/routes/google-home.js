@@ -350,7 +350,25 @@ router.post('/devices/:id/control', async (req, res) => {
 
     const result = await executeMCPTool('control_smart_device', { command });
 
-    res.json({ success: true, command, result });
+    // 상태 업데이트
+    if (result.success) {
+      const deviceIdx = devices.findIndex(d => d.id === id);
+      if (deviceIdx !== -1) {
+        if (!devices[deviceIdx].state) devices[deviceIdx].state = {};
+
+        if (action === 'on') {
+          devices[deviceIdx].state.on = true;
+        } else if (action === 'off') {
+          devices[deviceIdx].state.on = false;
+        } else if (action === 'toggle') {
+          devices[deviceIdx].state.on = !devices[deviceIdx].state.on;
+        }
+
+        await saveDevices(devices);
+      }
+    }
+
+    res.json({ success: true, command, result, newState: device.state });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

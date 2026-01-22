@@ -335,4 +335,102 @@ router.get('/google-home/summary', async (req, res) => {
   }
 });
 
+// ========== Apple TV API (MCP 프록시) ==========
+
+/**
+ * GET /api/mcp/google-home/appletv/devices
+ * Apple TV 기기 목록
+ */
+router.get('/google-home/appletv/devices', async (req, res) => {
+  try {
+    const response = await fetch('http://localhost:8125/api/appletv/devices');
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/mcp/google-home/appletv/control
+ * Apple TV 제어
+ */
+router.post('/google-home/appletv/control', async (req, res) => {
+  try {
+    const response = await fetch('http://localhost:8125/api/appletv/control', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ========== AirPlay API (MCP 프록시) ==========
+
+/**
+ * GET /api/mcp/google-home/airplay/devices
+ * AirPlay 기기 목록
+ */
+router.get('/google-home/airplay/devices', async (req, res) => {
+  try {
+    const response = await fetch('http://localhost:8125/api/airplay/devices');
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ========== Network API (MCP 프록시) ==========
+
+/**
+ * GET /api/mcp/google-home/network/scan
+ * 네트워크 스캔
+ */
+router.get('/google-home/network/scan', async (req, res) => {
+  try {
+    const response = await fetch('http://localhost:8125/api/network/scan');
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/mcp/google-home/network/info
+ * 네트워크 정보
+ */
+router.get('/google-home/network/info', async (req, res) => {
+  try {
+    const response = await fetch('http://localhost:8125/api/network/info');
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/mcp/google-home/network/wol
+ * Wake-on-LAN
+ */
+router.post('/google-home/network/wol', async (req, res) => {
+  try {
+    const response = await fetch('http://localhost:8125/api/network/wol', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 module.exports = router;

@@ -10,10 +10,15 @@ export class GoogleHomeManager {
     this.rooms = [];
     this.devices = [];
     this.stats = null;
-    this.currentView = 'overview'; // overview, structures, rooms, devices
+    this.currentView = 'overview'; // overview, structures, rooms, devices, appletv, airplay, network
     this.selectedStructure = null;
     this.selectedRoom = null;
     this.showHidden = false;
+    // 스마트홈 확장 기능
+    this.appleTVDevices = [];
+    this.airplayDevices = [];
+    this.networkDevices = [];
+    this.networkInfo = null;
   }
 
   /**
@@ -98,7 +103,10 @@ export class GoogleHomeManager {
       { id: 'overview', label: '개요', icon: '📊' },
       { id: 'structures', label: '장소', icon: '🏢', count: this.structures.length },
       { id: 'rooms', label: '방', icon: '🚪', count: this.rooms.length },
-      { id: 'devices', label: '기기', icon: '📱', count: this.devices.length }
+      { id: 'devices', label: '기기', icon: '📱', count: this.devices.length },
+      { id: 'appletv', label: 'Apple TV', icon: '📺' },
+      { id: 'airplay', label: 'AirPlay', icon: '📡' },
+      { id: 'network', label: '네트워크', icon: '🌐' }
     ];
 
     return `
@@ -127,6 +135,12 @@ export class GoogleHomeManager {
         return this.renderRooms();
       case 'devices':
         return this.renderDevices();
+      case 'appletv':
+        return this.renderAppleTV();
+      case 'airplay':
+        return this.renderAirPlay();
+      case 'network':
+        return this.renderNetwork();
       default:
         return this.renderOverview();
     }
@@ -576,6 +590,83 @@ export class GoogleHomeManager {
         }
       });
     });
+
+    // ========== Apple TV 이벤트 ==========
+    const scanAppleTVBtn = container.querySelector('#scanAppleTV');
+    if (scanAppleTVBtn) {
+      scanAppleTVBtn.addEventListener('click', async () => {
+        scanAppleTVBtn.disabled = true;
+        scanAppleTVBtn.textContent = '검색 중...';
+        try {
+          const result = await this.apiClient.get('/mcp/google-home/appletv/devices');
+          this.appleTVDevices = result.devices || [];
+          await this.render(container);
+        } catch (error) {
+          alert(`Apple TV 검색 실패: ${error.message}\n(로컬 네트워크에서만 작동합니다)`);
+          scanAppleTVBtn.disabled = false;
+          scanAppleTVBtn.textContent = '🔍 기기 검색';
+        }
+      });
+    }
+
+    // ========== AirPlay 이벤트 ==========
+    const scanAirPlayBtn = container.querySelector('#scanAirPlay');
+    if (scanAirPlayBtn) {
+      scanAirPlayBtn.addEventListener('click', async () => {
+        scanAirPlayBtn.disabled = true;
+        scanAirPlayBtn.textContent = '검색 중...';
+        try {
+          const result = await this.apiClient.get('/mcp/google-home/airplay/devices');
+          this.airplayDevices = result.devices || [];
+          await this.render(container);
+        } catch (error) {
+          alert(`AirPlay 검색 실패: ${error.message}\n(로컬 네트워크에서만 작동합니다)`);
+          scanAirPlayBtn.disabled = false;
+          scanAirPlayBtn.textContent = '🔍 기기 검색';
+        }
+      });
+    }
+
+    // ========== 네트워크 이벤트 ==========
+    const scanNetworkBtn = container.querySelector('#scanNetwork');
+    if (scanNetworkBtn) {
+      scanNetworkBtn.addEventListener('click', async () => {
+        scanNetworkBtn.disabled = true;
+        scanNetworkBtn.textContent = '스캔 중...';
+        try {
+          const [devicesResult, infoResult] = await Promise.all([
+            this.apiClient.get('/mcp/google-home/network/scan'),
+            this.apiClient.get('/mcp/google-home/network/info')
+          ]);
+          this.networkDevices = devicesResult.devices || [];
+          this.networkInfo = infoResult;
+          await this.render(container);
+        } catch (error) {
+          alert(`네트워크 스캔 실패: ${error.message}\n(로컬 네트워크에서만 작동합니다)`);
+          scanNetworkBtn.disabled = false;
+          scanNetworkBtn.textContent = '🔍 기기 스캔';
+        }
+      });
+    }
+
+    // Wake-on-LAN
+    const sendWolBtn = container.querySelector('#sendWol');
+    if (sendWolBtn) {
+      sendWolBtn.addEventListener('click', async () => {
+        const macInput = container.querySelector('#wolMac');
+        const mac = macInput?.value?.trim();
+        if (!mac) {
+          alert('MAC 주소를 입력하세요');
+          return;
+        }
+        try {
+          await this.apiClient.post('/mcp/google-home/network/wol', { mac });
+          alert(`WoL 패킷 전송됨: ${mac}`);
+        } catch (error) {
+          alert(`WoL 전송 실패: ${error.message}`);
+        }
+      });
+    }
   }
 
   /**
@@ -676,5 +767,140 @@ export class GoogleHomeManager {
       'LOCK': '도어락'
     };
     return names[type] || type;
+  }
+
+  // ========== Apple TV 섹션 ==========
+  renderAppleTV() {
+    return `
+      <div class="ghm-section">
+        <div class="ghm-section-header">
+          <h3>📺 Apple TV</h3>
+          <button class="ghm-btn ghm-btn-scan" id="scanAppleTV">
+            🔍 기기 검색
+          </button>
+        </div>
+        <p class="ghm-note">Apple TV 기기를 검색하고 제어합니다. (로컬 네트워크 필요)</p>
+
+        <div id="appleTVList" class="ghm-device-list">
+          ${this.appleTVDevices.length === 0 ? `
+            <div class="ghm-empty">
+              <span style="font-size: 3rem;">📺</span>
+              <p>검색된 Apple TV가 없습니다</p>
+              <p class="ghm-note">같은 네트워크에서 검색 버튼을 눌러주세요</p>
+            </div>
+          ` : this.appleTVDevices.map(device => `
+            <div class="ghm-device-card" data-id="${device.identifier}">
+              <div class="ghm-device-icon">📺</div>
+              <div class="ghm-device-info">
+                <div class="ghm-device-name">${device.name}</div>
+                <div class="ghm-device-meta">${device.address}</div>
+                <div class="ghm-device-meta">${device.paired ? '✅ 페어링됨' : '🔗 페어링 필요'}</div>
+              </div>
+              <div class="ghm-device-actions">
+                ${device.paired ? `
+                  <button class="ghm-btn ghm-btn-sm" data-action="atv-playpause" data-id="${device.identifier}">⏯️</button>
+                  <button class="ghm-btn ghm-btn-sm" data-action="atv-menu" data-id="${device.identifier}">📋</button>
+                ` : `
+                  <button class="ghm-btn ghm-btn-sm" data-action="atv-pair" data-id="${device.identifier}">🔗 페어링</button>
+                `}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  // ========== AirPlay 섹션 ==========
+  renderAirPlay() {
+    return `
+      <div class="ghm-section">
+        <div class="ghm-section-header">
+          <h3>📡 AirPlay</h3>
+          <button class="ghm-btn ghm-btn-scan" id="scanAirPlay">
+            🔍 기기 검색
+          </button>
+        </div>
+        <p class="ghm-note">AirPlay 기기로 오디오/비디오를 스트리밍합니다.</p>
+
+        <div id="airplayList" class="ghm-device-list">
+          ${this.airplayDevices.length === 0 ? `
+            <div class="ghm-empty">
+              <span style="font-size: 3rem;">📡</span>
+              <p>검색된 AirPlay 기기가 없습니다</p>
+              <p class="ghm-note">같은 네트워크에서 검색 버튼을 눌러주세요</p>
+            </div>
+          ` : this.airplayDevices.map(device => `
+            <div class="ghm-device-card">
+              <div class="ghm-device-icon">🔊</div>
+              <div class="ghm-device-info">
+                <div class="ghm-device-name">${device.friendly_name || device.name}</div>
+                <div class="ghm-device-meta">${device.addresses?.[0] || 'Unknown IP'}</div>
+                <div class="ghm-device-meta">${device.model || device.type}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  // ========== 네트워크 섹션 ==========
+  renderNetwork() {
+    return `
+      <div class="ghm-section">
+        <div class="ghm-section-header">
+          <h3>🌐 네트워크</h3>
+          <button class="ghm-btn ghm-btn-scan" id="scanNetwork">
+            🔍 기기 스캔
+          </button>
+        </div>
+        <p class="ghm-note">로컬 네트워크의 스마트홈 기기를 검색합니다.</p>
+
+        ${this.networkInfo ? `
+          <div class="ghm-info-box">
+            <div><strong>로컬 IP:</strong> ${this.networkInfo.local_ip}</div>
+            <div><strong>서브넷:</strong> ${this.networkInfo.subnet}</div>
+            <div><strong>호스트:</strong> ${this.networkInfo.hostname}</div>
+          </div>
+        ` : ''}
+
+        <div id="networkList" class="ghm-device-list">
+          ${this.networkDevices.length === 0 ? `
+            <div class="ghm-empty">
+              <span style="font-size: 3rem;">🌐</span>
+              <p>검색된 기기가 없습니다</p>
+              <p class="ghm-note">검색 버튼을 눌러 네트워크를 스캔하세요</p>
+            </div>
+          ` : this.networkDevices.map(device => `
+            <div class="ghm-device-card">
+              <div class="ghm-device-icon">${this.getNetworkDeviceIcon(device.type)}</div>
+              <div class="ghm-device-info">
+                <div class="ghm-device-name">${device.friendly_name || device.name.split('.')[0]}</div>
+                <div class="ghm-device-meta">${device.addresses?.[0] || 'Unknown'}</div>
+                <div class="ghm-device-meta">${device.type.replace('._tcp.local.', '').replace('_', '')}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+
+        <div class="ghm-section" style="margin-top: 1.5rem;">
+          <h4>🔋 Wake-on-LAN</h4>
+          <div class="ghm-wol-form">
+            <input type="text" id="wolMac" placeholder="MAC 주소 (AA:BB:CC:DD:EE:FF)" class="ghm-input">
+            <button class="ghm-btn" id="sendWol">⚡ WoL 전송</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  getNetworkDeviceIcon(type) {
+    if (type.includes('airplay')) return '📡';
+    if (type.includes('googlecast')) return '🏠';
+    if (type.includes('hap')) return '🍎';
+    if (type.includes('matter')) return '🔗';
+    if (type.includes('raop')) return '🔊';
+    return '📦';
   }
 }
