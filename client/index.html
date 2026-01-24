@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Soul</title>
-  <link rel="stylesheet" href="/src/styles/main.css?v=11">
+  <link rel="stylesheet" href="/src/styles/main.css?v=37">
   <!-- Prism.js CSS - VSCode Dark Theme -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
   <!-- Marked.js for Markdown rendering -->
@@ -38,23 +38,58 @@
         <input type="text" placeholder="Search" class="search-input">
       </div>
 
-      <!-- 대시보드 -->
+      <!-- 대시보드 - AI 라우팅 통계 -->
       <div class="dashboard">
-        <!-- 오늘의 통계 -->
         <div class="dashboard-section">
-          <h3 class="dashboard-title">오늘의 통계</h3>
+          <h3 class="dashboard-title">AI 사용 통계</h3>
+          <!-- 기간 선택 탭 -->
+          <div class="stats-period-tabs">
+            <button class="stats-period-tab active" data-period="today">오늘</button>
+            <button class="stats-period-tab" data-period="week">주간</button>
+            <button class="stats-period-tab" data-period="month">월간</button>
+            <button class="stats-period-tab" data-period="all">전체</button>
+            <button class="stats-period-tab" data-period="custom">기간</button>
+          </div>
+          <!-- 커스텀 기간 선택 -->
+          <div class="stats-date-range" id="statsDateRange" style="display: none;">
+            <input type="date" id="statsStartDate" class="stats-date-input">
+            <span class="stats-date-separator">~</span>
+            <input type="date" id="statsEndDate" class="stats-date-input">
+            <button id="statsDateApply" class="stats-date-apply">조회</button>
+          </div>
           <div class="stats-grid">
             <div class="stat-item">
-              <div class="stat-label">총 대화</div>
-              <div class="stat-value" id="stat-conversations">0개</div>
+              <div class="stat-label">총 요청</div>
+              <div class="stat-value" id="stat-requests">0</div>
             </div>
             <div class="stat-item">
-              <div class="stat-label">메시지</div>
-              <div class="stat-value" id="stat-messages">0개</div>
+              <div class="stat-label">경량</div>
+              <div class="stat-value" id="stat-light">0%</div>
             </div>
             <div class="stat-item">
-              <div class="stat-label">토큰 사용</div>
-              <div class="stat-value" id="stat-tokens">0</div>
+              <div class="stat-label">중간</div>
+              <div class="stat-value" id="stat-medium">0%</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">고성능</div>
+              <div class="stat-value" id="stat-heavy">0%</div>
+            </div>
+          </div>
+          <div class="stats-grid stats-secondary">
+            <div class="stat-item">
+              <div class="stat-label">예상 비용</div>
+              <div class="stat-value" id="stat-cost">$0.00</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">평균 응답</div>
+              <div class="stat-value" id="stat-latency">-</div>
+            </div>
+          </div>
+          <!-- 모델별 사용량 -->
+          <div class="model-usage-section">
+            <h4 class="model-usage-title">모델별 사용량</h4>
+            <div id="model-usage-list" class="model-usage-list">
+              <div class="no-data">아직 사용 기록이 없습니다</div>
             </div>
           </div>
         </div>
@@ -693,18 +728,45 @@ export default Counter;</code></pre>
     </div>
   </template>
 
-  <!-- 타이핑 인디케이터 템플릿 -->
+  <!-- Gooey 효과용 SVG 필터 -->
+  <svg style="position:absolute;width:0;height:0;">
+    <defs>
+      <filter id="gooey">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="blur"/>
+        <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -10" result="gooey"/>
+      </filter>
+    </defs>
+  </svg>
+
+  <!-- 타이핑 인디케이터 템플릿 (끈적끈적 글로우 점) -->
   <template id="typingIndicatorTemplate">
     <div class="chat-message assistant typing-indicator">
       <div class="message-content">
         <div class="typing-dots">
-          <span></span>
-          <span></span>
-          <span></span>
+          <div class="os1-loader">
+            <div class="dot"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+          </div>
         </div>
       </div>
     </div>
   </template>
+
+  <!-- 외부 링크 팝업 모달 -->
+  <div class="external-link-modal" id="externalLinkModal">
+    <div class="external-link-backdrop"></div>
+    <div class="external-link-dialog">
+      <h3 class="external-link-title">링크 열기</h3>
+      <p class="external-link-desc">아래의 링크로 이동합니다.</p>
+      <div class="external-link-url" id="externalLinkUrl"></div>
+      <div class="external-link-actions">
+        <button class="external-link-btn cancel" id="externalLinkCancel">취소</button>
+        <button class="external-link-btn confirm" id="externalLinkConfirm">열기</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Prism.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
@@ -712,6 +774,6 @@ export default Counter;</code></pre>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
-  <script type="module" src="/src/main.js?v=12"></script>
+  <script type="module" src="/src/main.js?v=19"></script>
 </body>
 </html>

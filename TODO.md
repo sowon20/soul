@@ -1,6 +1,29 @@
 ## 항상 작업 전 확인 / 작업 후 업데이트할 것! : 체크 및 중요메모
 
-## 🔥 최근 작업 현황 (2026-01-23)
+## 🔥 최근 작업 현황 (2026-01-24)
+
+### ✅ 메모리 검색 UI 구현 완료
+**위치**: `/client/src/utils/search-manager.js`
+
+**구현 내용**:
+- SearchManager 클래스 - 검색 이벤트, API 호출, 결과 렌더링
+- 디바운스 검색 (300ms) + Enter 키 즉시 검색
+- Smart Search API 연동 (`/api/search/smart`)
+- 검색 결과 드롭다운 UI (glassmorphism 스타일)
+- 검색어 하이라이트, 날짜 포맷팅
+- 검색 결과 클릭 시 Canvas 패널에 메모리 상세 표시
+
+**변경 파일**:
+- `/client/src/utils/search-manager.js` - 신규 생성
+- `/client/src/styles/main.css` - 검색 드롭다운 CSS 추가
+- `/client/src/main.js` - SearchManager 통합
+- `/client/index.html` - 버전 업데이트 (CSS v37, JS v19)
+
+**참고**: 메모리 자동 아카이브 기능은 서버 구축 후 구현 예정 (Phase 1.4)
+
+---
+
+## 🔥 이전 작업 현황 (2026-01-23)
 
 ### ✅ 토큰 낭비 방지 - 역할 시스템 리팩토링 완료
 **문제**: 채팅 1회당 최대 3번의 AI API 호출 발생
@@ -144,6 +167,17 @@ settings/
 ### 1.3 메타데이터
 - [x] index.json 자동 업데이트
 - [x] 필드: id, date, length, participants, path, tags
+
+### 1.4 자동 아카이브 (서버 구축 후 구현) ⏸️
+**현재 상태**: API만 구현됨 (`/api/memory/archive`), 수동 호출 필요
+
+**구현 예정 기능**:
+- [ ] 대화 종료 시 자동 아카이브
+- [ ] 일정 메시지 수 이상이면 자동 아카이브 (예: 10개)
+- [ ] UI에 수동 아카이브 버튼 추가
+- [ ] 아카이브 트리거 설정 (자동/수동/조건부)
+
+**참고**: 현재 대화는 MongoDB에 실시간 저장, 메모리 아카이브는 별도 저장소
 
 ---
 
@@ -475,11 +509,16 @@ soul/storage-providers/
 - [ ] 태그 클라우드
 - [ ] 관계 그래프 시각화
 
-### 9.2 검색 UI
-- [ ] 검색창
-- [ ] 필터 옵션
-- [ ] 미리보기
-- [ ] "불러오기" 버튼
+### 9.2 검색 UI ✅ (2026-01-24)
+- [x] 검색창 이벤트 핸들러 연결
+- [x] SearchManager 클래스 구현 (`/client/src/utils/search-manager.js`)
+- [x] 검색 결과 드롭다운 UI (`/client/src/styles/main.css`)
+- [x] 디바운스 검색 (300ms)
+- [x] Smart Search API 연동 (`/api/search/smart`)
+- [x] 검색어 하이라이트
+- [x] 검색 결과 클릭 시 Canvas 패널에 상세 표시
+- [ ] 필터 옵션 (날짜, 태그, 카테고리) - 보류
+- [ ] "불러오기" 버튼 (대화 로드) - 보류
 
 ### 9.3 파일 관리 UI
 - [ ] 파일 목록 뷰

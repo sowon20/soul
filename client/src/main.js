@@ -4,12 +4,13 @@
  */
 
 import { ThemeManager } from './utils/theme-manager.js';
-import { ChatManager } from './components/chat/chat-manager.js?v=10';
+import { ChatManager } from './components/chat/chat-manager.js?v=17';
 import { PanelManager } from './components/shared/panel-manager.js';
 import { MenuManager } from './components/sidebar/menu-manager.js';
 import { APIClient } from './utils/api-client.js';
 import { initRoleManager } from './utils/role-manager.js';
 import dashboardManager from './utils/dashboard-manager.js';
+import { SearchManager } from './utils/search-manager.js';
 
 class SoulApp {
   constructor() {
@@ -18,6 +19,7 @@ class SoulApp {
     this.panelManager = null;
     this.menuManager = null;
     this.apiClient = null;
+    this.searchManager = null;
 
     // UI Elements
     this.elements = {
@@ -86,6 +88,13 @@ class SoulApp {
     // Scroll to bottom after messages are loaded
     this.scrollToBottom();
 
+    // 대시보드 통계 로드
+    await dashboardManager.init();
+
+    // 검색 매니저 초기화
+    this.searchManager = new SearchManager(this.apiClient);
+    this.searchManager.init();
+
     console.log('✅ Soul UI 초기화 완료!');
   }
 
@@ -119,12 +128,57 @@ class SoulApp {
           });
         }
       }
+
+      // Phase P 프로필 사진 로드
+      await this.loadProfileImage(userId);
+
     } catch (error) {
       console.warn('사용자 프로필 로드 실패:', error);
       // Use default theme (but still set userId for future saves)
       const userId = 'sowon'; // 임시
       this.themeManager.setUserId(userId);
       await this.themeManager.applyTheme('default');
+    }
+  }
+
+  /**
+   * Phase P 프로필 정보 로드 및 표시 (사진, 이름, 이메일)
+   */
+  async loadProfileImage(userId) {
+    try {
+      // 프로필 전체 정보 로드
+      const response = await fetch(`/api/profile/p?userId=${userId}`);
+      const data = await response.json();
+
+      if (data.success && data.profile) {
+        const profile = data.profile;
+
+        // 프로필 사진 업데이트
+        if (profile.profileImage) {
+          const avatar = document.querySelector('.profile-section .avatar');
+          if (avatar) {
+            avatar.style.backgroundImage = `url(${profile.profileImage})`;
+            avatar.style.backgroundSize = 'cover';
+            avatar.style.backgroundPosition = 'center';
+          }
+        }
+
+        // 이름 업데이트
+        const userName = document.querySelector('.profile-section .user-name');
+        if (userName && profile.basicInfo?.name?.value) {
+          userName.textContent = profile.basicInfo.name.value;
+        }
+
+        // 이메일 업데이트
+        const userEmail = document.querySelector('.profile-section .user-email');
+        if (userEmail && profile.basicInfo?.email?.value) {
+          userEmail.textContent = profile.basicInfo.email.value;
+        }
+
+        console.log('✅ 프로필 정보 로드 완료');
+      }
+    } catch (error) {
+      console.warn('프로필 정보 로드 실패:', error);
     }
   }
 
@@ -406,18 +460,15 @@ class SoulApp {
       this.elements.messageInput.addEventListener('compositionstart', (e) => {
         isComposing = true;
         e.target.style.fontWeight = '400';
-        e.target.style.fontSize = '1rem';
       });
 
       this.elements.messageInput.addEventListener('compositionupdate', (e) => {
         e.target.style.fontWeight = '400';
-        e.target.style.fontSize = '1rem';
       });
 
       this.elements.messageInput.addEventListener('compositionend', (e) => {
         isComposing = false;
         e.target.style.fontWeight = '400';
-        e.target.style.fontSize = '1rem';
       });
     }
 
@@ -724,8 +775,8 @@ class SoulApp {
     // Reset height to minimum
     textarea.style.height = 'auto';
 
-    // Calculate new height (최소 48px, 최대 200px)
-    const newHeight = Math.min(Math.max(textarea.scrollHeight, 48), 200);
+    // Calculate new height (최소 42px, 최대 200px)
+    const newHeight = Math.min(Math.max(textarea.scrollHeight, 42), 200);
     textarea.style.height = `${newHeight}px`;
 
     // 스크롤이 필요한지 확인하여 클래스 추가/제거
