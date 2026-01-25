@@ -30,9 +30,10 @@ export class APIClient {
       ...options,
     };
 
-    // 10초 타임아웃 설정
+    // 타임아웃 설정 (채팅은 60초, 나머지는 15초)
+    const timeout = endpoint.includes('/chat') ? 60000 : 15000;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
     config.signal = controller.signal;
 
     try {

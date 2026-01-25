@@ -1,0 +1,18 @@
+{
+  "hourlyActivity": {
+    "11": 8,
+    "12": 12
+  },
+  "dailyActivity": {
+    "0": 20
+  },
+  "weekendActivity": 20,
+  "weekdayActivity": 0,
+  "eventDurations": {},
+  "totalMessages": 20,
+  "lastMessageTime": "2026-01-25T12:22:44.102Z",
+  "createdAt": "2026-01-25T11:52:59.505Z",
+  "lastActiveHour": 12,
+  "lastActiveDay": 0,
+  "updatedAt": "2026-01-25T12:22:44.102Z"
+}
