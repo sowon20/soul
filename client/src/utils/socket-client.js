@@ -115,8 +115,29 @@ class SoulSocketClient {
     // 2. 인앱 알림 표시
     this._showInAppNotification(data);
 
-    // 3. 채팅에 메시지 추가 (선택적)
-    // this._addToChatHistory(data);
+    // 3. 채팅에 메시지 추가
+    this._addToChatHistory(data);
+  }
+
+  /**
+   * 채팅 히스토리에 메시지 추가
+   */
+  _addToChatHistory(data) {
+    console.log('🔌 Adding to chat:', data.message);
+    console.log('🔌 window.soulApp:', window.soulApp);
+    console.log('🔌 chatManager:', window.soulApp?.chatManager);
+    
+    // ChatManager 통해 assistant 메시지로 추가
+    if (window.soulApp && window.soulApp.chatManager) {
+      window.soulApp.chatManager.addMessage({
+        role: 'assistant',
+        content: data.message,
+        timestamp: data.timestamp || new Date().toISOString()
+      });
+      console.log('🔌 Message added!');
+    } else {
+      console.error('🔌 chatManager not found');
+    }
   }
 
   /**
