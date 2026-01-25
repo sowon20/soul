@@ -70,6 +70,7 @@ class AnthropicService extends AIService {
     };
 
     // extended thinking 설정 (활성화 시 temperature 사용 불가)
+    // 지원하지 않는 모델은 API에서 무시되거나 에러 발생 가능 - UI에서 안내
     if (thinking) {
       params.thinking = {
         type: 'enabled',

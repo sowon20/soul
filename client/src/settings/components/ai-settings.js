@@ -377,7 +377,7 @@ export class AISettings {
           <span class="thinking-toggle-slider"></span>
           <span class="thinking-toggle-label">생각</span>
         </label>
-        <span class="thinking-hint">지원 모델에서 생각 과정 표시</span>
+        <span class="thinking-hint">미지원 모델은 생각과정 없이 응답</span>
       </div>
     `;
   }
