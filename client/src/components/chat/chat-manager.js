@@ -42,6 +42,10 @@ export class ChatManager {
 
     // 선택 시작 시 메시지 추적
     this.messagesArea.addEventListener('mousedown', (e) => {
+      // thinking 토글 버튼은 무시
+      if (e.target.closest('.ai-thinking-toggle')) {
+        return;
+      }
       const messageContent = e.target.closest('.message-content');
       selectionStartMessage = messageContent ? messageContent.closest('.chat-message') : null;
       console.log('🖱️ mousedown on message:', selectionStartMessage?.classList?.value);
@@ -245,8 +249,15 @@ export class ChatManager {
       let displayContent = message.content;
       const thinkingMatch = message.content.match(/<thinking>([\s\S]*?)<\/thinking>/);
       if (thinkingMatch) {
-        const thinkingText = thinkingMatch[1].trim();
         displayContent = message.content.replace(/<thinking>[\s\S]*?<\/thinking>/, '').trim();
+      }
+      
+      const renderedContent = window.marked ? window.marked.parse(displayContent) : this.escapeHtml(displayContent);
+      content.innerHTML = renderedContent;
+
+      // thinking 블록은 innerHTML 설정 후에 추가 (이벤트 리스너 유지)
+      if (thinkingMatch) {
+        const thinkingText = thinkingMatch[1].trim();
         
         // thinking 토글 컨테이너
         const thinkingContainer = document.createElement('div');
@@ -254,11 +265,14 @@ export class ChatManager {
         
         // 토글 버튼
         const toggleBtn = document.createElement('button');
+        toggleBtn.type = 'button';
         toggleBtn.className = 'ai-thinking-toggle';
         toggleBtn.innerHTML = '💭 <span>생각 과정</span>';
-        toggleBtn.onclick = () => {
-          thinkingContainer.classList.toggle('expanded');
-        };
+        toggleBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          this.parentElement.classList.toggle('expanded');
+        });
         
         // thinking 내용
         const thinkingContent = document.createElement('div');
@@ -267,11 +281,8 @@ export class ChatManager {
         
         thinkingContainer.appendChild(toggleBtn);
         thinkingContainer.appendChild(thinkingContent);
-        content.appendChild(thinkingContainer);
+        content.insertBefore(thinkingContainer, content.firstChild);
       }
-      
-      const renderedContent = window.marked ? window.marked.parse(displayContent) : this.escapeHtml(displayContent);
-      content.innerHTML = (thinkingMatch ? content.innerHTML : '') + renderedContent;
 
       // Process code blocks - add copy button and syntax highlighting
       this.processCodeBlocks(content, message.content);
