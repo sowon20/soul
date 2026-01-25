@@ -2742,3 +2742,120 @@ body {
 .neomorphic-text {
   display: inline;
 }
+
+
+/* ===== Proactive Notification (Phase 1.6.3) ===== */
+.proactive-notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 10000;
+  animation: slideInRight 0.3s ease;
+}
+
+.proactive-notification.hiding {
+  animation: slideOutRight 0.3s ease forwards;
+}
+
+.proactive-notification-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  background: rgba(30, 30, 40, 0.95);
+  border: 1px solid rgba(138, 96, 245, 0.3);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4),
+              0 0 20px rgba(138, 96, 245, 0.2);
+  backdrop-filter: blur(20px);
+  cursor: pointer;
+  max-width: 350px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.proactive-notification-content:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5),
+              0 0 30px rgba(138, 96, 245, 0.3);
+}
+
+.proactive-notification-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.proactive-notification-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.proactive-notification-title {
+  font-weight: 600;
+  color: #8a60f5;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.proactive-notification-message {
+  color: #e0e0e0;
+  font-size: 14px;
+  line-height: 1.4;
+  word-break: keep-all;
+}
+
+.proactive-notification-close {
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+  transition: color 0.2s;
+  flex-shrink: 0;
+}
+
+.proactive-notification-close:hover {
+  color: #fff;
+}
+
+/* Socket Connection Indicator */
+.socket-indicator {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ff4444;
+  box-shadow: 0 0 8px rgba(255, 68, 68, 0.5);
+  z-index: 9999;
+  transition: background 0.3s, box-shadow 0.3s;
+}
+
+.socket-indicator.connected {
+  background: #44ff88;
+  box-shadow: 0 0 8px rgba(68, 255, 136, 0.5);
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOutRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}

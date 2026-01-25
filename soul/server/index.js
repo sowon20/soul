@@ -3,8 +3,14 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const mongoose = require('mongoose');
+const http = require('http');
+const { Server } = require('socket.io');
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: { origin: '*' }
+});
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/soul')
@@ -102,6 +108,35 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 4000;
 
-app.listen(PORT, () => {
+// Socket.io 연결 관리
+const connectedClients = new Map();
+
+io.on('connection', (socket) => {
+  console.log(`🔌 Client connected: ${socket.id}`);
+  connectedClients.set(socket.id, { connectedAt: new Date() });
+
+  socket.on('disconnect', () => {
+    console.log(`🔌 Client disconnected: ${socket.id}`);
+    connectedClients.delete(socket.id);
+  });
+});
+
+// io 인스턴스 글로벌 접근용
+app.set('io', io);
+app.set('connectedClients', connectedClients);
+
+// ProactiveMessenger 초기화
+const { getProactiveMessenger } = require('../utils/proactive-messenger');
+mongoose.connection.once('open', async () => {
+  try {
+    const messenger = await getProactiveMessenger(io);
+    messenger.start();
+    console.log('✅ ProactiveMessenger started');
+  } catch (e) {
+    console.error('❌ ProactiveMessenger init failed:', e.message);
+  }
+});
+
+server.listen(PORT, () => {
   console.log(`🌟 Soul server running on port ${PORT}`);
 });
