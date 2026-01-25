@@ -2,6 +2,194 @@
 
 ## 🔥 최근 작업 현황 (2026-01-25)
 
+# Soul AI - TODO & 작업 이력
+
+## 📋 현재 진행 상황
+
+### ✅ 완료된 작업들 (2026-01-25)
+
+#### 1. 설정 시스템 DB 마이그레이션 (14:10~15:10)
+**문제**: Docker 컨테이너 재빌드 시 settings.json 초기화
+**해결**: MongoDB 기반 설정 저장 시스템 구축
+
+**구현 내용**:
+- SystemConfig 모델 생성 (key-value 저장)
+- ConfigManager 전면 수정 (파일 → DB)
+- 마이그레이션 스크립트 작성 및 실행
+- 'auto' 라우팅 모드 추가 (API 키 없을 때 안내)
+
+**파일 변경**:
+```
+/soul/models/SystemConfig.js          (신규)
+/soul/utils/config.js                 (DB 기반으로 수정)
+/soul/migrate-settings.js             (신규)
+/soul/utils/smart-router.js           ('auto' 처리)
+/client/src/settings/components/ai-settings.js  (안내 메시지)
+/client/src/settings/styles/settings.css        (스타일)
+```
+
+**결과**: 
+- ✅ 컨테이너 재빌드해도 설정 유지
+- ✅ API 키 없어도 친화적 안내
+- ✅ Git: f27fd71
+
+---
+
+#### 2. 프론트엔드 버그 수정 (15:22~15:29)
+
+**문제 1**: 프로필 날짜 필드 에러
+```
+RangeError: Invalid time value at Date.toISOString()
+```
+**원인**: 유효하지 않은 날짜값 ("ㄱㄴㄷㄹ" 등)
+**해결**: 날짜 유효성 체크 추가
+```javascript
+const date = value ? new Date(value) : null;
+const dateValue = (date && !isNaN(date.getTime())) 
+  ? date.toISOString().split('T')[0] 
+  : '';
+```
+
+**문제 2**: MCP API 500 에러
+```
+ENOENT: no such file or directory, scandir '/mcp/tools'
+```
+**해결**: 
+- `./data/mcp/tools` 디렉토리 생성
+- docker-compose.yml 볼륨 마운트 추가
+- 컨테이너 재시작
+
+**파일 변경**:
+```
+/client/src/settings/components/profile-settings.js  (날짜 체크)
+/docker-compose.yml                                   (MCP 볼륨)
+/data/mcp/tools/                                      (디렉토리 생성)
+```
+
+**결과**:
+- ✅ 프로필 설정 정상 작동
+- ✅ MCP 서버 API 정상
+- ✅ Git: 39fc49b
+
+---
+
+### 🔄 시스템 아키텍처 변경사항
+
+**설정 저장 방식**:
+```
+Before: settings.json (컨테이너 내부) → 재빌드 시 초기화
+After:  MongoDB (영구 저장) → 재빌드 후에도 유지
+```
+
+**라우팅 기본값**:
+```
+Before: Claude 모델 하드코딩 → API 키 필수
+After:  'auto' 모드 → 사용 가능한 모델 자동 선택
+```
+
+**데이터 영구성**:
+```
+✅ MongoDB 데이터: /Volumes/soul/app/data/mongodb (호스트)
+✅ MCP 서버: /Volumes/soul/app/data/mcp (호스트)
+✅ 파일 저장소: /Volumes/soul/app/data/files (호스트)
+✅ 메모리: /Volumes/soul/app/memory (호스트)
+```
+
+---
+
+## 📝 다음 작업자를 위한 가이드
+
+### 프론트엔드 코드 수정 시 주의사항
+
+**중요**: 프론트엔드는 **프로덕션 빌드** 모드!
+
+코드 수정 후 반드시 재빌드:
+```bash
+cd /Volumes/soul/app
+docker-compose build --no-cache soul-frontend
+docker-compose up -d soul-frontend
+```
+
+브라우저 강력 새로고침:
+- Mac: `Cmd + Shift + R`
+- Windows: `Ctrl + Shift + R`
+
+### 설정 관련 작업
+
+**설정 확인**:
+```bash
+# MongoDB 설정 조회
+curl http://localhost:3001/api/config/routing
+
+# 라우팅 설정 수정
+curl -X PUT http://localhost:3001/api/config/routing \
+  -H "Content-Type: application/json" \
+  -d '{"enabled": true, "light": "auto", "medium": "auto", "heavy": "auto"}'
+```
+
+**설정 저장 위치**:
+- MongoDB: `systemconfigs` 컬렉션
+- Key: "ai", "routing", "memory", "files"
+
+### Git 커밋 이력
+
+```
+39fc49b - 🐛 날짜 필드 유효성 체크 + MCP 디렉토리 마운트 추가
+f27fd71 - ✅ Auto 라우팅 + 안내 메시지 추가  
+266895e - ✅ 설정 DB 마이그레이션 완료
+```
+
+---
+
+## 🗑️ 정리 가능한 파일
+
+### soul-backup/ (64KB)
+- MongoDB 백업 (2026-01-25 13:46)
+- 설정 마이그레이션 전 백업
+- 현재 DB 정상 작동 중
+
+**삭제 가능**:
+```bash
+cd /Volumes/soul/app
+rm -rf soul-backup/
+```
+
+또는 **압축 보관**:
+```bash
+tar -czf soul-backup-20260125.tar.gz soul-backup/
+rm -rf soul-backup/
+```
+
+---
+
+### ✅ 날짜 필드 유효성 체크 + MCP 디렉토리 수정
+**날짜**: 2026-01-25 15:22~15:27
+
+**문제 1**: 프로필 설정 날짜 필드에서 Invalid time value 에러
+**원인**: 사용자가 날짜 필드에 "ㄱㄴㄷㄹ" 같은 유효하지 않은 값 입력
+**해결**: `new Date(value)` 유효성 체크 추가
+```javascript
+const date = value ? new Date(value) : null;
+const dateValue = (date && !isNaN(date.getTime())) ? date.toISOString().split('T')[0] : '';
+```
+
+**문제 2**: MCP 버튼 클릭 시 500 에러 (ENOENT: /mcp/tools)
+**원인**: `/mcp/tools` 디렉토리 없음
+**해결**: 
+- `./data/mcp/tools` 디렉토리 생성
+- docker-compose.yml에 `./data/mcp:/mcp` 볼륨 마운트 추가
+- 컨테이너 재시작 (down → up)
+
+**완료**:
+- [x] 날짜 유효성 체크 (기본 필드 + 커스텀 필드)
+- [x] MCP 디렉토리 생성 및 마운트
+- [x] 컨테이너 재시작
+- [x] API 정상 작동 확인
+
+**Git**: 39fc49b
+
+---
+
 ### ✅ 설정 DB 마이그레이션 + Auto 라우팅 완료
 **날짜**: 2026-01-25 14:10~15:10
 
