@@ -139,6 +139,14 @@ class ConversationArchiver {
       // 메타 정보 계산 (타임존 반영)
       const meta = this.calculateMeta(timestamp, lastMessageTime, timezone);
       
+      // 세션 메타 병합
+      if (message.sessionMeta) {
+        meta.sessionId = message.sessionMeta.sessionId;
+        meta.sessionDuration = message.sessionMeta.sessionDuration;
+        meta.sessionDurationFormatted = this._formatDuration(message.sessionMeta.sessionDuration);
+        meta.messageIndex = message.sessionMeta.messageIndex;
+      }
+      
       // 저장할 메시지 객체
       const archiveEntry = {
         role: message.role,

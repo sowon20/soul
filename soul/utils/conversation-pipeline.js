@@ -275,6 +275,12 @@ class ConversationPipeline {
       if (recentMessages.length > 0) {
         lastMessageTime = recentMessages[recentMessages.length - 1].timestamp;
       }
+      
+      // 세션 정보 계산
+      const sessionStartTime = recentMessages.length > 0 
+        ? new Date(recentMessages[0].timestamp)
+        : new Date();
+      const messageIndex = recentMessages.length; // 현재 메시지가 몇 번째인지
 
       // 1. 사용자 메시지 저장 (명시적 타임스탬프)
       const userTimestamp = new Date();
@@ -286,11 +292,17 @@ class ConversationPipeline {
       
       // 1.1 사용자 메시지 파일 아카이브
       const timezone = metadata?.timezone || 'Asia/Seoul';
+      const sessionDuration = Math.floor((userTimestamp.getTime() - sessionStartTime.getTime()) / 1000);
       await archiver.archiveMessage({
         role: 'user',
         content: userMessage,
         timestamp: userTimestamp,
-        tokens: this._estimateTokens(userMessage)
+        tokens: this._estimateTokens(userMessage),
+        sessionMeta: {
+          sessionId,
+          sessionDuration,
+          messageIndex
+        }
       }, lastMessageTime, timezone);
 
       // 2. 어시스턴트 응답 저장 (사용자 메시지보다 최소 1ms 뒤)
@@ -310,6 +322,11 @@ class ConversationPipeline {
         content: assistantResponse,
         timestamp: assistantTimestamp,
         tokens: this._estimateTokens(assistantResponse),
+        sessionMeta: {
+          sessionId,
+          sessionDuration: sessionDuration + 1, // user보다 1초 뒤
+          messageIndex: messageIndex + 1
+        },
         metadata: {
           ...metadata,
           responseTime
