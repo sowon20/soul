@@ -64,6 +64,8 @@ const profileRoutes = require('../routes/profile');
 const rolesRoutes = require('../routes/roles');
 const mcpRoutes = require('../routes/mcp');
 const googleHomeRoutes = require('../routes/google-home');
+const storageRoutes = require('../routes/storage');
+const filesystemRoutes = require('../routes/filesystem');
 
 app.use('/api/memory', memoryRoutes);
 app.use('/api/ai-models', aiModelsRoutes);
@@ -85,6 +87,8 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/roles', rolesRoutes);
 app.use('/api/mcp', mcpRoutes);
 app.use('/api/google-home', googleHomeRoutes);
+app.use('/api/storage', storageRoutes);
+app.use('/api/filesystem', filesystemRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

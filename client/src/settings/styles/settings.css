@@ -2534,3 +2534,203 @@ textarea.settings-field-input {
   line-height: 1.5;
   color: rgba(0, 0, 0, 0.65);
 }
+
+
+/* ==================== Storage Settings ==================== */
+
+/* Storage Type Selector */
+.storage-type-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.storage-type-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: rgba(0, 0, 0, 0.03);
+  border: 2px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.storage-type-option:hover:not(.disabled) {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.storage-type-option.selected {
+  border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.storage-type-option.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.storage-type-option input[type="radio"] {
+  display: none;
+}
+
+.storage-type-option .type-icon {
+  font-size: 1.25rem;
+}
+
+.storage-type-option .type-name {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.storage-type-option .coming-soon {
+  font-size: 0.625rem;
+  padding: 0.125rem 0.375rem;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  color: rgba(0, 0, 0, 0.5);
+}
+
+/* Storage Path Input with Browse Button */
+.storage-path-input {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.storage-path-input .storage-input {
+  flex: 1;
+}
+
+.browse-btn {
+  padding: 0.5rem 0.75rem;
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background 0.2s;
+}
+
+.browse-btn:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+/* Folder Browser Modal */
+.folder-browser-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.folder-browser-content {
+  width: 90%;
+  max-width: 500px;
+  max-height: 70vh;
+  background: white;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.folder-browser-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.folder-browser-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.folder-browser-header .close-btn {
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+
+.folder-browser-header .close-btn:hover {
+  opacity: 1;
+}
+
+.folder-browser-path {
+  padding: 0.75rem 1.25rem;
+  background: rgba(0, 0, 0, 0.03);
+  font-size: 0.8125rem;
+  font-family: monospace;
+  color: rgba(0, 0, 0, 0.7);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.folder-browser-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem;
+  min-height: 200px;
+  max-height: 300px;
+}
+
+.folder-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.folder-item:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.folder-item.selected {
+  background: rgba(99, 102, 241, 0.15);
+}
+
+.folder-icon {
+  font-size: 1.125rem;
+}
+
+.folder-name {
+  flex: 1;
+  font-size: 0.875rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-browser-actions {
+  display: flex;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.folder-browser-list .loading,
+.folder-browser-list .empty,
+.folder-browser-list .error {
+  padding: 2rem;
+  text-align: center;
+  color: rgba(0, 0, 0, 0.5);
+  font-size: 0.875rem;
+}
+
+.folder-browser-list .error {
+  color: #ef4444;
+}

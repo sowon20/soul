@@ -1,0 +1,70 @@
+{
+  "enabled": true,
+  "conditions": [
+    {
+      "id": "long_silence_3days",
+      "name": "3일 연락 없음",
+      "enabled": true,
+      "trigger": {
+        "silenceDays": 3
+      },
+      "messages": [
+        "요즘 어떻게 지내?",
+        "잘 지내고 있어?",
+        "오랜만이다~"
+      ],
+      "cooldownHours": 72,
+      "maxPerWeek": 2
+    },
+    {
+      "id": "long_silence_7days",
+      "name": "7일 연락 없음",
+      "enabled": true,
+      "trigger": {
+        "silenceDays": 7
+      },
+      "messages": [
+        "일주일이나 됐네! 바빴어?",
+        "많이 바쁜가보다~ 힘내!",
+        "오랜만! 별일 없지?"
+      ],
+      "cooldownHours": 168,
+      "maxPerWeek": 1
+    },
+    {
+      "id": "sick_followup",
+      "name": "아픈 후 체크",
+      "enabled": true,
+      "trigger": {
+        "lastEventType": "sick",
+        "silenceHours": 24
+      },
+      "messages": [
+        "좀 괜찮아졌어?",
+        "몸은 좀 어때?",
+        "푹 쉬었어?"
+      ],
+      "cooldownHours": 48,
+      "maxPerWeek": 2
+    },
+    {
+      "id": "trip_return",
+      "name": "여행 복귀 체크",
+      "enabled": true,
+      "trigger": {
+        "lastEventType": "trip",
+        "expectedReturnPassed": true
+      },
+      "messages": [
+        "여행 잘 다녀왔어?",
+        "여행 어땠어?"
+      ],
+      "cooldownHours": 24,
+      "maxPerWeek": 1
+    }
+  ],
+  "quietHoursStart": 23,
+  "quietHoursEnd": 8,
+  "createdAt": "2026-01-25T15:49:43.075Z",
+  "updatedAt": "2026-01-25T15:49:43.075Z"
+}

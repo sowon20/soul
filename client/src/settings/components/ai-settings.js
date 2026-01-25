@@ -885,28 +885,47 @@ export class AISettings {
   renderStorageSettings() {
     return `
       <div class="storage-settings-container">
+        <!-- 스토리지 타입 선택 -->
+        <div class="storage-field">
+          <label class="storage-label">
+            <span class="label-text">저장소 유형</span>
+            <span class="label-hint">메모리와 파일이 저장될 위치를 선택합니다</span>
+          </label>
+          <div class="storage-type-selector" id="storageTypeSelector">
+            <!-- 동적으로 채워짐 -->
+          </div>
+        </div>
+
+        <!-- 메모리 저장 경로 -->
         <div class="storage-field">
           <label class="storage-label">
             <span class="label-text">메모리 저장 경로</span>
-            <span class="label-hint">대화 메모리가 저장될 디렉토리 경로 (절대 또는 상대 경로)</span>
+            <span class="label-hint">대화 메모리가 저장될 디렉토리</span>
           </label>
-          <input type="text"
-                 class="storage-input"
-                 id="memoryPath"
-                 value="${this.storageConfig.memoryPath}"
-                 placeholder="./memory">
+          <div class="storage-path-input">
+            <input type="text"
+                   class="storage-input"
+                   id="memoryPath"
+                   value="${this.storageConfig.memoryPath}"
+                   placeholder="./memory">
+            <button class="browse-btn" id="browseMemoryBtn" title="폴더 선택">📁</button>
+          </div>
         </div>
 
+        <!-- 파일 저장 경로 -->
         <div class="storage-field">
           <label class="storage-label">
             <span class="label-text">파일 저장 경로</span>
-            <span class="label-hint">업로드 파일이 저장될 디렉토리 경로 (절대 또는 상대 경로)</span>
+            <span class="label-hint">업로드 파일이 저장될 디렉토리</span>
           </label>
-          <input type="text"
-                 class="storage-input"
-                 id="filesPath"
-                 value="${this.storageConfig.filesPath}"
-                 placeholder="./files">
+          <div class="storage-path-input">
+            <input type="text"
+                   class="storage-input"
+                   id="filesPath"
+                   value="${this.storageConfig.filesPath}"
+                   placeholder="./files">
+            <button class="browse-btn" id="browseFilesBtn" title="폴더 선택">📁</button>
+          </div>
         </div>
 
         <div class="storage-actions">
@@ -918,7 +937,159 @@ export class AISettings {
           </button>
         </div>
       </div>
+
+      <!-- 폴더 탐색 모달 -->
+      <div class="folder-browser-modal" id="folderBrowserModal" style="display: none;">
+        <div class="folder-browser-content">
+          <div class="folder-browser-header">
+            <h3>폴더 선택</h3>
+            <button class="close-btn" id="closeFolderBrowser">✕</button>
+          </div>
+          <div class="folder-browser-path" id="currentPathDisplay">/</div>
+          <div class="folder-browser-list" id="folderList">
+            <!-- 동적으로 채워짐 -->
+          </div>
+          <div class="folder-browser-actions">
+            <button class="settings-btn settings-btn-outline" id="folderBrowserBack">← 상위 폴더</button>
+            <button class="settings-btn settings-btn-primary" id="folderBrowserSelect">선택</button>
+          </div>
+        </div>
+      </div>
     `;
+  }
+
+  /**
+   * 스토리지 타입 로드 및 렌더링
+   */
+  async loadStorageTypes() {
+    try {
+      const res = await this.apiClient.get('/storage/types');
+      if (!res.success) return;
+
+      const selector = document.getElementById('storageTypeSelector');
+      if (!selector) return;
+
+      selector.innerHTML = res.types.map(t => `
+        <label class="storage-type-option ${t.type === res.current ? 'selected' : ''} ${!t.available ? 'disabled' : ''}">
+          <input type="radio" name="storageType" value="${t.type}" 
+                 ${t.type === res.current ? 'checked' : ''} 
+                 ${!t.available ? 'disabled' : ''}>
+          <span class="type-icon">${t.icon}</span>
+          <span class="type-name">${t.name}</span>
+          ${t.comingSoon ? '<span class="coming-soon">준비 중</span>' : ''}
+        </label>
+      `).join('');
+
+      // 타입 변경 이벤트
+      selector.querySelectorAll('input[name="storageType"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+          selector.querySelectorAll('.storage-type-option').forEach(opt => opt.classList.remove('selected'));
+          e.target.closest('.storage-type-option').classList.add('selected');
+        });
+      });
+    } catch (error) {
+      console.error('Failed to load storage types:', error);
+    }
+  }
+
+  /**
+   * 폴더 탐색기 열기
+   */
+  openFolderBrowser(targetInputId) {
+    this.folderBrowserTarget = targetInputId;
+    this.currentBrowsePath = null;
+    
+    const modal = document.getElementById('folderBrowserModal');
+    if (modal) {
+      modal.style.display = 'flex';
+      this.loadFolderContents(null); // 루트부터 시작
+    }
+  }
+
+  /**
+   * 폴더 내용 로드
+   */
+  async loadFolderContents(dirPath) {
+    try {
+      const folderList = document.getElementById('folderList');
+      const pathDisplay = document.getElementById('currentPathDisplay');
+      
+      if (!folderList) return;
+      
+      folderList.innerHTML = '<div class="loading">로딩 중...</div>';
+
+      const url = dirPath 
+        ? `/storage/browse?path=${encodeURIComponent(dirPath)}&foldersOnly=true`
+        : '/storage/browse/roots';
+      
+      const res = await this.apiClient.get(url);
+      
+      if (!res.success) {
+        folderList.innerHTML = `<div class="error">오류: ${res.error}</div>`;
+        return;
+      }
+
+      this.currentBrowsePath = dirPath;
+      pathDisplay.textContent = dirPath || '루트';
+
+      if (!res.items.length) {
+        folderList.innerHTML = '<div class="empty">폴더가 없습니다.</div>';
+        return;
+      }
+
+      folderList.innerHTML = res.items.map(item => `
+        <div class="folder-item" data-path="${item.path}">
+          <span class="folder-icon">${item.isDirectory ? '📁' : '📄'}</span>
+          <span class="folder-name">${item.name}</span>
+        </div>
+      `).join('');
+
+      // 폴더 클릭 이벤트
+      folderList.querySelectorAll('.folder-item').forEach(item => {
+        item.addEventListener('click', () => {
+          // 기존 선택 해제
+          folderList.querySelectorAll('.folder-item').forEach(i => i.classList.remove('selected'));
+          item.classList.add('selected');
+        });
+        item.addEventListener('dblclick', () => {
+          const path = item.dataset.path;
+          this.loadFolderContents(path);
+        });
+      });
+    } catch (error) {
+      console.error('Failed to load folder contents:', error);
+      const folderList = document.getElementById('folderList');
+      if (folderList) {
+        folderList.innerHTML = `<div class="error">오류: ${error.message}</div>`;
+      }
+    }
+  }
+
+  /**
+   * 폴더 선택 완료
+   */
+  selectFolder() {
+    const selected = document.querySelector('.folder-item.selected');
+    const path = selected ? selected.dataset.path : this.currentBrowsePath;
+    
+    if (path && this.folderBrowserTarget) {
+      const input = document.getElementById(this.folderBrowserTarget);
+      if (input) {
+        input.value = path;
+      }
+    }
+    
+    this.closeFolderBrowser();
+  }
+
+  /**
+   * 폴더 탐색기 닫기
+   */
+  closeFolderBrowser() {
+    const modal = document.getElementById('folderBrowserModal');
+    if (modal) {
+      modal.style.display = 'none';
+    }
   }
 
   /**
@@ -1348,6 +1519,11 @@ export class AISettings {
     // 스토리지 설정 버튼
     const saveStorageBtn = container.querySelector('#saveStorageBtn');
     const resetStorageBtn = container.querySelector('#resetStorageBtn');
+    const browseMemoryBtn = container.querySelector('#browseMemoryBtn');
+    const browseFilesBtn = container.querySelector('#browseFilesBtn');
+    const closeFolderBrowser = container.querySelector('#closeFolderBrowser');
+    const folderBrowserBack = container.querySelector('#folderBrowserBack');
+    const folderBrowserSelect = container.querySelector('#folderBrowserSelect');
 
     if (saveStorageBtn) {
       saveStorageBtn.addEventListener('click', () => this.saveStorageSettings());
@@ -1356,6 +1532,34 @@ export class AISettings {
     if (resetStorageBtn) {
       resetStorageBtn.addEventListener('click', () => this.resetStorageSettings());
     }
+
+    if (browseMemoryBtn) {
+      browseMemoryBtn.addEventListener('click', () => this.openFolderBrowser('memoryPath'));
+    }
+
+    if (browseFilesBtn) {
+      browseFilesBtn.addEventListener('click', () => this.openFolderBrowser('filesPath'));
+    }
+
+    if (closeFolderBrowser) {
+      closeFolderBrowser.addEventListener('click', () => this.closeFolderBrowser());
+    }
+
+    if (folderBrowserBack) {
+      folderBrowserBack.addEventListener('click', () => {
+        if (this.currentBrowsePath) {
+          const parentPath = this.currentBrowsePath.split('/').slice(0, -1).join('/') || null;
+          this.loadFolderContents(parentPath);
+        }
+      });
+    }
+
+    if (folderBrowserSelect) {
+      folderBrowserSelect.addEventListener('click', () => this.selectFolder());
+    }
+
+    // 스토리지 타입 로드
+    this.loadStorageTypes();
 
     // 라우팅 통계 버튼
     const refreshStatsBtn = container.querySelector('#refreshStatsBtn');
