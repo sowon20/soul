@@ -30,6 +30,11 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/soul')
   const Role = require('../models/Role');
   await Role.initializeDefaultRoles();
   console.log('✅ Role system initialized');
+
+  // 예약 메시지 복구 (서버 재시작 후)
+  const { restoreScheduledMessages } = require('../utils/scheduled-messages');
+  await restoreScheduledMessages();
+  console.log('✅ Scheduled messages restored');
 })
 .catch(err => console.error('❌ MongoDB connection error:', err));
 

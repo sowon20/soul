@@ -6,14 +6,11 @@
 const fs = require('fs');
 const path = require('path');
 const { getProactiveMessenger } = require('./proactive-messenger');
+const scheduledMessages = require('./scheduled-messages');
 
 // MCP 도구 캐시
 let toolsCache = null;
 let executorsCache = {};
-
-// 예약 메시지 추적
-let scheduledMessages = new Map(); // id -> { timeoutId, message, sendAt }
-let scheduleIdCounter = 0;
 
 /**
  * 내장 도구 정의
@@ -117,107 +114,40 @@ async function executeBuiltinTool(toolName, input) {
 
     case 'schedule_message': {
       const delaySeconds = input.delay_seconds || 60;
-      const scheduleId = ++scheduleIdCounter;
-      const sendAt = new Date(Date.now() + delaySeconds * 1000);
-      
-      const timeoutId = setTimeout(async () => {
-        const msg = await getProactiveMessenger();
-        if (msg) {
-          await msg.sendNow({ 
-            type: 'scheduled', 
-            message: input.message 
-          });
-        }
-        scheduledMessages.delete(scheduleId);
-        console.log(`[Scheduled] Sent #${scheduleId}: "${input.message}"`);
-      }, delaySeconds * 1000);
-      
-      scheduledMessages.set(scheduleId, {
-        timeoutId,
-        message: input.message,
-        sendAt: sendAt.toISOString(),
-        delaySeconds
-      });
-      
+      const result = await scheduledMessages.schedule(input.message, delaySeconds);
       return { 
         success: true, 
-        schedule_id: scheduleId,
-        message: `${delaySeconds}초 후에 메시지가 전송됩니다 (예약 ID: ${scheduleId})` 
+        schedule_id: result.scheduleId,
+        message: `${delaySeconds}초 후에 메시지가 전송됩니다 (예약 ID: ${result.scheduleId})` 
       };
     }
 
     case 'cancel_scheduled_message': {
-      const scheduleId = input.schedule_id;
-      const scheduled = scheduledMessages.get(scheduleId);
-      
-      if (!scheduled) {
-        return { success: false, error: `예약 ID ${scheduleId}를 찾을 수 없습니다` };
+      const result = await scheduledMessages.cancel(input.schedule_id);
+      if (!result) {
+        return { success: false, error: `예약 ID ${input.schedule_id}를 찾을 수 없습니다` };
       }
-      
-      clearTimeout(scheduled.timeoutId);
-      scheduledMessages.delete(scheduleId);
-      
-      return { 
-        success: true, 
-        message: `예약 #${scheduleId} 취소됨: "${scheduled.message}"` 
-      };
+      return { success: true, message: `예약 #${input.schedule_id} 취소됨: "${result.message}"` };
     }
 
     case 'list_scheduled_messages': {
-      const list = [];
-      for (const [id, data] of scheduledMessages) {
-        list.push({
-          id,
-          message: data.message,
-          sendAt: data.sendAt
-        });
-      }
+      const pending = await scheduledMessages.list();
       return { 
         success: true, 
-        count: list.length,
-        scheduled: list 
+        count: pending.length,
+        scheduled: pending.map(d => ({ id: d.scheduleId, message: d.message, sendAt: d.sendAt }))
       };
     }
 
     case 'update_scheduled_message': {
-      const scheduleId = input.schedule_id;
-      const scheduled = scheduledMessages.get(scheduleId);
-      
-      if (!scheduled) {
-        return { success: false, error: `예약 ID ${scheduleId}를 찾을 수 없습니다` };
-      }
-      
-      // 기존 타이머 취소
-      clearTimeout(scheduled.timeoutId);
-      
-      // 새 값 적용
-      const newMessage = input.message || scheduled.message;
-      const newDelaySeconds = input.delay_seconds || 60;
-      const newSendAt = new Date(Date.now() + newDelaySeconds * 1000);
-      
-      const newTimeoutId = setTimeout(async () => {
-        const msg = await getProactiveMessenger();
-        if (msg) {
-          await msg.sendNow({ 
-            type: 'scheduled', 
-            message: newMessage 
-          });
-        }
-        scheduledMessages.delete(scheduleId);
-        console.log(`[Scheduled] Sent #${scheduleId}: "${newMessage}"`);
-      }, newDelaySeconds * 1000);
-      
-      scheduledMessages.set(scheduleId, {
-        timeoutId: newTimeoutId,
-        message: newMessage,
-        sendAt: newSendAt.toISOString(),
-        delaySeconds: newDelaySeconds
+      const result = await scheduledMessages.update(input.schedule_id, {
+        message: input.message,
+        delaySeconds: input.delay_seconds
       });
-      
-      return { 
-        success: true, 
-        message: `예약 #${scheduleId} 수정됨: ${newDelaySeconds}초 후 "${newMessage}"` 
-      };
+      if (!result) {
+        return { success: false, error: `예약 ID ${input.schedule_id}를 찾을 수 없습니다` };
+      }
+      return { success: true, message: `예약 #${input.schedule_id} 수정됨: "${result.message}"` };
     }
 
     default:
