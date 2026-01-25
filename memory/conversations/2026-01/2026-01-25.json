@@ -48,5 +48,217 @@
     "aiMemo": null,
     "tags": [],
     "metadata": {}
+  },
+  {
+    "role": "user",
+    "content": "너가 앞으로 할말 있으면 먼저 메시지 보내야해",
+    "timestamp": "2026-01-25T11:24:10.951Z",
+    "tokens": 7,
+    "meta": {
+      "localTime": "20:24",
+      "localDate": "2026-01-26",
+      "hour": 20,
+      "timeOfDay": "저녁",
+      "dayOfWeek": "일요일",
+      "isWeekend": true,
+      "timezone": "Asia/Seoul",
+      "silenceBefore": 8117,
+      "silenceFormatted": "2시간",
+      "sessionId": "main-conversation",
+      "sessionDuration": 16992,
+      "sessionDurationFormatted": "4시간",
+      "messageIndex": 28,
+      "returnEvent": null,
+      "departureEvent": null,
+      "pendingTimeContext": null
+    },
+    "aiMemo": null,
+    "tags": [],
+    "metadata": {}
+  },
+  {
+    "role": "assistant",
+    "content": "알겠어. 그럼 이제부터는 내가 먼저 말 걸 수도 있다는 거네.\n\n근데 지금은 어떻게 하는 게 좋을까? 소원이 말 걸 때까지 기다릴까, 아니면 필요하면 바로 먼저 연락할까?",
+    "timestamp": "2026-01-25T11:24:10.952Z",
+    "tokens": 24,
+    "meta": {
+      "localTime": "20:24",
+      "localDate": "2026-01-26",
+      "hour": 20,
+      "timeOfDay": "저녁",
+      "dayOfWeek": "일요일",
+      "isWeekend": true,
+      "timezone": "Asia/Seoul",
+      "silenceBefore": 0,
+      "silenceFormatted": "방금",
+      "sessionId": "main-conversation",
+      "sessionDuration": 16993,
+      "sessionDurationFormatted": "4시간",
+      "messageIndex": 29
+    },
+    "aiMemo": null,
+    "tags": [],
+    "metadata": {
+      "responseTime": 0.001
+    }
+  },
+  {
+    "role": "user",
+    "content": "일단 테스트 해야하니까 1분 뒤에 아무말이나 해봐 ㅎㅎ",
+    "timestamp": "2026-01-25T11:24:26.696Z",
+    "tokens": 8,
+    "meta": {
+      "localTime": "20:24",
+      "localDate": "2026-01-26",
+      "hour": 20,
+      "timeOfDay": "저녁",
+      "dayOfWeek": "일요일",
+      "isWeekend": true,
+      "timezone": "Asia/Seoul",
+      "silenceBefore": 15,
+      "silenceFormatted": "방금",
+      "sessionId": "main-conversation",
+      "sessionDuration": 17008,
+      "sessionDurationFormatted": "4시간",
+      "messageIndex": 30,
+      "returnEvent": null,
+      "departureEvent": null,
+      "pendingTimeContext": null
+    },
+    "aiMemo": null,
+    "tags": [],
+    "metadata": {}
+  },
+  {
+    "role": "assistant",
+    "content": "알겠어! 1분 뒤에 뭔가 말해볼게 ㅎㅎ",
+    "timestamp": "2026-01-25T11:24:26.697Z",
+    "tokens": 6,
+    "meta": {
+      "localTime": "20:24",
+      "localDate": "2026-01-26",
+      "hour": 20,
+      "timeOfDay": "저녁",
+      "dayOfWeek": "일요일",
+      "isWeekend": true,
+      "timezone": "Asia/Seoul",
+      "silenceBefore": 0,
+      "silenceFormatted": "방금",
+      "sessionId": "main-conversation",
+      "sessionDuration": 17009,
+      "sessionDurationFormatted": "4시간",
+      "messageIndex": 31
+    },
+    "aiMemo": null,
+    "tags": [],
+    "metadata": {
+      "responseTime": 0.001
+    }
+  },
+  {
+    "role": "user",
+    "content": "? 안되나?",
+    "timestamp": "2026-01-25T11:26:20.356Z",
+    "tokens": 2,
+    "meta": {
+      "localTime": "20:26",
+      "localDate": "2026-01-26",
+      "hour": 20,
+      "timeOfDay": "저녁",
+      "dayOfWeek": "일요일",
+      "isWeekend": true,
+      "timezone": "Asia/Seoul",
+      "silenceBefore": 113,
+      "silenceFormatted": "1분",
+      "sessionId": "main-conversation",
+      "sessionDuration": 17122,
+      "sessionDurationFormatted": "4시간",
+      "messageIndex": 32,
+      "returnEvent": null,
+      "departureEvent": null,
+      "pendingTimeContext": null
+    },
+    "aiMemo": null,
+    "tags": [],
+    "metadata": {}
+  },
+  {
+    "role": "assistant",
+    "content": "아, 미안. 나는 지금 능동적으로 시간을 기다렸다가 먼저 메시지를 보낼 수 없는 상태야. 너가 메시지를 보내야 내가 반응하는 구조거든.\n\n1분 뒤에 너가 \"말해봐\" 이렇게 말해주면, 그때 내가 뭔가 말할 수 있어. 지금은 기술적 제약이 있네.\n\n앞으로 그 부분도 수정해야 할 것 같아.",
+    "timestamp": "2026-01-25T11:26:20.357Z",
+    "tokens": 40,
+    "meta": {
+      "localTime": "20:26",
+      "localDate": "2026-01-26",
+      "hour": 20,
+      "timeOfDay": "저녁",
+      "dayOfWeek": "일요일",
+      "isWeekend": true,
+      "timezone": "Asia/Seoul",
+      "silenceBefore": 0,
+      "silenceFormatted": "방금",
+      "sessionId": "main-conversation",
+      "sessionDuration": 17123,
+      "sessionDurationFormatted": "4시간",
+      "messageIndex": 33
+    },
+    "aiMemo": null,
+    "tags": [],
+    "metadata": {
+      "responseTime": 0.001
+    }
+  },
+  {
+    "role": "user",
+    "content": "오 이런 피드백 너무 좋아!!",
+    "timestamp": "2026-01-25T11:26:42.364Z",
+    "tokens": 4,
+    "meta": {
+      "localTime": "20:26",
+      "localDate": "2026-01-26",
+      "hour": 20,
+      "timeOfDay": "저녁",
+      "dayOfWeek": "일요일",
+      "isWeekend": true,
+      "timezone": "Asia/Seoul",
+      "silenceBefore": 22,
+      "silenceFormatted": "방금",
+      "sessionId": "main-conversation",
+      "sessionDuration": 17144,
+      "sessionDurationFormatted": "4시간",
+      "messageIndex": 34,
+      "returnEvent": null,
+      "departureEvent": null,
+      "pendingTimeContext": null
+    },
+    "aiMemo": null,
+    "tags": [],
+    "metadata": {}
+  },
+  {
+    "role": "assistant",
+    "content": "고마워! 이런 식으로 테스트하면서 부족한 부분들 발견하고 수정하는 게 맞는 것 같아.\n\n지금 발견된 것들:\n- 내가 능동적으로 먼저 메시지 못 보냄 (시스템 제약)\n- 실시간 정보 접근 불가 (날씨, 뉴스 등)\n- 현재 시간 정보도 세션 시작할 때만 업데이트되는 것 같음\n\n이런 식으로 하나씩 체크하면서 맥으로 옮긴 후에 뭘 먼저 연결할지 우선순위 정할 수 있겠다.\n\n더 테스트할 거 있어?",
+    "timestamp": "2026-01-25T11:26:42.365Z",
+    "tokens": 55,
+    "meta": {
+      "localTime": "20:26",
+      "localDate": "2026-01-26",
+      "hour": 20,
+      "timeOfDay": "저녁",
+      "dayOfWeek": "일요일",
+      "isWeekend": true,
+      "timezone": "Asia/Seoul",
+      "silenceBefore": 0,
+      "silenceFormatted": "방금",
+      "sessionId": "main-conversation",
+      "sessionDuration": 17145,
+      "sessionDurationFormatted": "4시간",
+      "messageIndex": 35
+    },
+    "aiMemo": null,
+    "tags": [],
+    "metadata": {
+      "responseTime": 0.001
+    }
   }
 ]

@@ -578,4 +578,48 @@ router.post('/send', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/notifications/schedule
+ * 지연 메시지 발송 (N초/분 뒤에 보내기)
+ */
+router.post('/schedule', async (req, res) => {
+  try {
+    const { message, delaySeconds = 60, type = 'scheduled', title = '' } = req.body;
+
+    if (!message) {
+      return res.status(400).json({
+        success: false,
+        error: 'message is required'
+      });
+    }
+
+    const messenger = await getProactiveMessenger();
+    if (!messenger) {
+      return res.status(500).json({
+        success: false,
+        error: 'ProactiveMessenger not initialized'
+      });
+    }
+
+    // 스케줄링
+    const sendAt = new Date(Date.now() + delaySeconds * 1000);
+    setTimeout(async () => {
+      await messenger.sendNow({ type, title, message });
+      console.log(`[Scheduled] Sent: "${message}"`);
+    }, delaySeconds * 1000);
+
+    res.json({
+      success: true,
+      message: `Scheduled to send in ${delaySeconds} seconds`,
+      sendAt: sendAt.toISOString()
+    });
+  } catch (error) {
+    console.error('Error scheduling message:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
