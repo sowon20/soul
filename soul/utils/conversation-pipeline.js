@@ -62,6 +62,31 @@ class ConversationPipeline {
       });
       totalTokens += this._estimateTokens(systemPrompt);
 
+      // 1.5 시간 인지 프롬프트 추가
+      const { getTimeAwarePromptBuilder } = require('./time-aware-prompt');
+      const timePromptBuilder = getTimeAwarePromptBuilder();
+      
+      // 마지막 메시지 시간 가져오기
+      const recentMsgs = this.memoryManager?.shortTerm?.messages || [];
+      const lastMsgTime = recentMsgs.length > 0 
+        ? recentMsgs[recentMsgs.length - 1].timestamp 
+        : null;
+      
+      const timePrompt = await timePromptBuilder.build({
+        timezone: options.timezone || 'Asia/Seoul',
+        lastMessageTime: lastMsgTime,
+        sessionDuration: 0,
+        messageIndex: recentMsgs.length
+      });
+      
+      if (timePrompt) {
+        messages.push({
+          role: 'system',
+          content: timePrompt
+        });
+        totalTokens += this._estimateTokens(timePrompt);
+      }
+
       // 2. 컨텍스트 감지 (과거 대화 참조 여부)
       let contextData = null;
       if (this.config.autoMemoryInjection) {
