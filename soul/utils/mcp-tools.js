@@ -11,6 +11,10 @@ const { getProactiveMessenger } = require('./proactive-messenger');
 let toolsCache = null;
 let executorsCache = {};
 
+// 예약 메시지 추적
+let scheduledMessages = new Map(); // id -> { timeoutId, message, sendAt }
+let scheduleIdCounter = 0;
+
 /**
  * 내장 도구 정의
  */
@@ -31,7 +35,7 @@ const BUILTIN_TOOLS = [
   },
   {
     name: 'schedule_message',
-    description: '일정 시간 후에 메시지를 보냅니다. "1분 뒤에 알려줄게", "10분 후에 확인해볼게" 같은 상황에 사용합니다.',
+    description: '일정 시간 후에 메시지를 보냅니다. "1분 뒤에 알려줄게", "10분 후에 확인해볼게" 같은 상황에 사용합니다. 예약 ID가 반환됩니다.',
     input_schema: {
       type: 'object',
       properties: {
@@ -46,6 +50,28 @@ const BUILTIN_TOOLS = [
       },
       required: ['message']
     }
+  },
+  {
+    name: 'cancel_scheduled_message',
+    description: '예약된 메시지를 취소합니다. 사용자가 "아 그거 안 보내도 돼", "취소해" 라고 하면 사용합니다.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        schedule_id: {
+          type: 'number',
+          description: '취소할 예약 ID (schedule_message에서 반환된 값)'
+        }
+      },
+      required: ['schedule_id']
+    }
+  },
+  {
+    name: 'list_scheduled_messages',
+    description: '현재 예약된 메시지 목록을 보여줍니다.',
+    input_schema: {
+      type: 'object',
+      properties: {}
+    }
   }
 ];
 
@@ -55,7 +81,7 @@ const BUILTIN_TOOLS = [
 async function executeBuiltinTool(toolName, input) {
   const messenger = await getProactiveMessenger();
   
-  if (!messenger) {
+  if (toolName !== 'list_scheduled_messages' && toolName !== 'cancel_scheduled_message' && !messenger) {
     return { success: false, error: 'ProactiveMessenger not initialized' };
   }
 
@@ -67,19 +93,69 @@ async function executeBuiltinTool(toolName, input) {
       });
       return { success: true, message: '메시지 전송 완료' };
 
-    case 'schedule_message':
+    case 'schedule_message': {
       const delaySeconds = input.delay_seconds || 60;
-      setTimeout(async () => {
-        await messenger.sendNow({ 
-          type: 'scheduled', 
-          message: input.message 
-        });
-        console.log(`[Scheduled] Sent: "${input.message}"`);
+      const scheduleId = ++scheduleIdCounter;
+      const sendAt = new Date(Date.now() + delaySeconds * 1000);
+      
+      const timeoutId = setTimeout(async () => {
+        const msg = await getProactiveMessenger();
+        if (msg) {
+          await msg.sendNow({ 
+            type: 'scheduled', 
+            message: input.message 
+          });
+        }
+        scheduledMessages.delete(scheduleId);
+        console.log(`[Scheduled] Sent #${scheduleId}: "${input.message}"`);
       }, delaySeconds * 1000);
+      
+      scheduledMessages.set(scheduleId, {
+        timeoutId,
+        message: input.message,
+        sendAt: sendAt.toISOString(),
+        delaySeconds
+      });
+      
       return { 
         success: true, 
-        message: `${delaySeconds}초 후에 메시지가 전송됩니다` 
+        schedule_id: scheduleId,
+        message: `${delaySeconds}초 후에 메시지가 전송됩니다 (예약 ID: ${scheduleId})` 
       };
+    }
+
+    case 'cancel_scheduled_message': {
+      const scheduleId = input.schedule_id;
+      const scheduled = scheduledMessages.get(scheduleId);
+      
+      if (!scheduled) {
+        return { success: false, error: `예약 ID ${scheduleId}를 찾을 수 없습니다` };
+      }
+      
+      clearTimeout(scheduled.timeoutId);
+      scheduledMessages.delete(scheduleId);
+      
+      return { 
+        success: true, 
+        message: `예약 #${scheduleId} 취소됨: "${scheduled.message}"` 
+      };
+    }
+
+    case 'list_scheduled_messages': {
+      const list = [];
+      for (const [id, data] of scheduledMessages) {
+        list.push({
+          id,
+          message: data.message,
+          sendAt: data.sendAt
+        });
+      }
+      return { 
+        success: true, 
+        count: list.length,
+        scheduled: list 
+      };
+    }
 
     default:
       return { success: false, error: `Unknown builtin tool: ${toolName}` };
