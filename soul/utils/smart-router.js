@@ -523,9 +523,10 @@ let globalRouter = null;
 /**
  * 사용자 설정에서 모델 정보 업데이트
  * 새 형식: { modelId: '...', serviceId: '...' } 또는 이전 형식: 'modelId'
+ * 'auto'일 경우 기본 모델 사용
  */
 function updateModelsFromConfig(routingConfig) {
-  if (routingConfig.light) {
+  if (routingConfig.light && routingConfig.light !== 'auto') {
     // 새 형식 또는 이전 형식 모두 지원
     if (typeof routingConfig.light === 'object') {
       MODELS.HAIKU.id = routingConfig.light.modelId;
@@ -535,7 +536,7 @@ function updateModelsFromConfig(routingConfig) {
       MODELS.HAIKU.id = routingConfig.light;
     }
   }
-  if (routingConfig.medium) {
+  if (routingConfig.medium && routingConfig.medium !== 'auto') {
     if (typeof routingConfig.medium === 'object') {
       MODELS.SONNET.id = routingConfig.medium.modelId;
       MODELS.SONNET.serviceId = routingConfig.medium.serviceId;
@@ -544,7 +545,7 @@ function updateModelsFromConfig(routingConfig) {
       MODELS.SONNET.id = routingConfig.medium;
     }
   }
-  if (routingConfig.heavy) {
+  if (routingConfig.heavy && routingConfig.heavy !== 'auto') {
     if (typeof routingConfig.heavy === 'object') {
       MODELS.OPUS.id = routingConfig.heavy.modelId;
       MODELS.OPUS.serviceId = routingConfig.heavy.serviceId;

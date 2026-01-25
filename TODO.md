@@ -2,27 +2,38 @@
 
 ## 🔥 최근 작업 현황 (2026-01-25)
 
-### ✅ 설정 DB 마이그레이션 완료
-**날짜**: 2026-01-25 14:10~15:00
+### ✅ 설정 DB 마이그레이션 + Auto 라우팅 완료
+**날짜**: 2026-01-25 14:10~15:10
 
-**문제**: settings.json이 Docker 컨테이너 내부에 있어 재빌드 시 초기화됨
+**문제 1**: settings.json이 Docker 컨테이너 내부에 있어 재빌드 시 초기화됨
 **해결**: 모든 설정을 MongoDB로 이전하여 영구 보존
+
+**문제 2**: 라우팅 설정이 Claude 모델로 하드코딩되어 API 키 없으면 사용 불가
+**해결**: 'auto' 모드 추가 + 프론트엔드 안내 메시지
 
 **완료 작업**:
 - [x] SystemConfig 모델 생성 (`/soul/models/SystemConfig.js`)
 - [x] ConfigManager DB 기반으로 수정 (`/soul/utils/config.js`)
   - [x] readConfig() → MongoDB 조회
   - [x] writeConfig() → MongoDB 저장
-  - [x] 기존 파일 기반 로직 제거
+  - [x] 기본값을 'auto'로 변경
 - [x] 초기 데이터 마이그레이션
-  - [x] settings.json → MongoDB 복사 완료
   - [x] migrate-settings.js 스크립트 작성
-  - [x] 마이그레이션 실행 성공 (ai, memory, files, routing)
+  - [x] 마이그레이션 실행 성공
+- [x] Auto 라우팅 구현
+  - [x] updateModelsFromConfig에서 'auto' 처리 (기본 모델 사용)
+  - [x] DB 설정을 'auto'로 업데이트
+- [x] 프론트엔드 안내 메시지
+  - [x] API 키 없을 때 드롭다운 비활성화
+  - [x] "API 키를 먼저 설정해주세요" 안내 박스
+  - [x] CSS 스타일 추가
 - [x] 테스트 및 검증
-  - [x] 설정 저장/로드 테스트 (GET /api/config/routing)
   - [x] 컨테이너 재시작 후 DB에서 정상 로드 확인
 
-**결과**: 이제 컨테이너 재빌드해도 설정 유지됨! 🎉
+**결과**: 
+- 컨테이너 재빌드해도 설정 유지됨! 🎉
+- API 키 없어도 'auto' 모드로 기본 모델 사용 가능
+- 사용자 친화적인 안내 메시지 추가
 
 ---
 

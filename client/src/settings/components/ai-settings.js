@@ -382,15 +382,27 @@ export class AISettings {
    * 스마트 라우팅 설정 렌더링
    */
   renderSmartRoutingSettings() {
+    const hasModels = this.availableModels.length > 0 && !this.availableModels[0].disabled;
+    
     return `
       <div class="routing-settings-container">
+        ${!hasModels ? `
+          <div class="routing-notice">
+            <div class="routing-notice-icon">💡</div>
+            <div class="routing-notice-content">
+              <p class="routing-notice-title">API 키를 먼저 설정해주세요</p>
+              <p class="routing-notice-desc">위의 AI 서비스 관리에서 API 키를 입력하고 [모델 새로고침]을 클릭하면, 사용 가능한 모델이 자동으로 드롭다운에 표시됩니다.</p>
+            </div>
+          </div>
+        ` : ''}
+        
         <div class="routing-field">
           <label class="routing-label">
             <span class="label-text">경량 작업 (1-2)</span>
             <span class="label-hint">간단한 질문, 번역, 요약</span>
           </label>
           <div class="routing-field-row">
-            <select class="routing-select" id="routingLight" ${this.availableModels.length === 1 && this.availableModels[0].disabled ? 'disabled' : ''}>
+            <select class="routing-select" id="routingLight" ${!hasModels ? 'disabled' : ''}>
               ${this.renderModelOptions(this.routingConfig.light)}
             </select>
             ${this.renderThinkingToggle('Light', this.routingConfig.light, this.routingConfig.lightThinking)}
@@ -403,7 +415,7 @@ export class AISettings {
             <span class="label-hint">코드 생성, 리뷰, 분석, 문제 해결</span>
           </label>
           <div class="routing-field-row">
-            <select class="routing-select" id="routingMedium" ${this.availableModels.length === 1 && this.availableModels[0].disabled ? 'disabled' : ''}>
+            <select class="routing-select" id="routingMedium" ${!hasModels ? 'disabled' : ''}>
               ${this.renderModelOptions(this.routingConfig.medium)}
             </select>
             ${this.renderThinkingToggle('Medium', this.routingConfig.medium, this.routingConfig.mediumThinking)}
@@ -416,7 +428,7 @@ export class AISettings {
             <span class="label-hint">아키텍처 설계, 복잡한 디버깅, 연구</span>
           </label>
           <div class="routing-field-row">
-            <select class="routing-select" id="routingHeavy" ${this.availableModels.length === 1 && this.availableModels[0].disabled ? 'disabled' : ''}>
+            <select class="routing-select" id="routingHeavy" ${!hasModels ? 'disabled' : ''}>
               ${this.renderModelOptions(this.routingConfig.heavy)}
             </select>
             ${this.renderThinkingToggle('Heavy', this.routingConfig.heavy, this.routingConfig.heavyThinking)}
@@ -424,10 +436,10 @@ export class AISettings {
         </div>
 
         <div class="routing-actions">
-          <button class="settings-btn settings-btn-primary" id="saveRoutingBtn">
+          <button class="settings-btn settings-btn-primary" id="saveRoutingBtn" ${!hasModels ? 'disabled' : ''}>
             저장
           </button>
-          <button class="settings-btn settings-btn-outline" id="resetRoutingBtn">
+          <button class="settings-btn settings-btn-outline" id="resetRoutingBtn"
             기본값으로 초기화
           </button>
         </div>
