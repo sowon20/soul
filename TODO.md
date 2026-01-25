@@ -510,9 +510,9 @@ settings/
 
 ---
 
-### 1.5 메모리 밀도 압축 시스템 (Omi 방식) 🔴 **미구현**
+### 1.5 메모리 밀도 압축 시스템 🔴 **미구현**
 
-**⚠️ 핵심**: 라즈베리파이 시절 설계된 메모리 시스템. 현재 코드에는 구현 안 됨!
+**⚠️ 핵심**: 라즈베리파이 시절 설계 → 2026-01-25 재설계 (소원 상의)
 
 #### 📚 **기본 철학: 사람의 기억처럼**
 ```
@@ -520,153 +520,208 @@ settings/
 일기장: 필요하면 언제든 자세히 볼 수 있음
 ```
 
-#### 🗂️ **1단계: 원본 대화 영구 보관**
+**핵심 원칙**:
+- 장기 = 원문 영구 보관 (절대 압축 안 함, 절대 삭제 안 함)
+- 중기 = 장기에서 최근 N개월 요약본 (검색용 인덱스, 오래되면 폐기)
+- 단기 = 컨텍스트 윈도우 내 (80/10/10 밀도 비율)
+- 압축 = 복합적 (사실/감정/맥락 모두 포함, 밀도만 줄임)
+
+#### 🗂️ **1단계: 원본 대화 실시간 저장 (장기 메모리)**
 ```
 /memory/conversations/
-├── 2026-01-25_main-conversation.json
-├── 2026-01-26_main-conversation.json
-└── 2026-01-27_main-conversation.json
+├── 2026-01/
+│   ├── 2026-01-25.json
+│   ├── 2026-01-26.json
+│   └── ...
+├── 2026-02/
+└── ...
 
-- 모든 대화 원문 JSON으로 영구 저장 (절대 삭제 안 됨)
-- 이게 "일기장" → 필요시 언제든 검색해서 원문 로드
-- 파일명: YYYY-MM-DD_세션ID.json
-- 내용: [{role, content, timestamp, tokens}, ...]
+- 메시지 올 때마다 실시간 원문 저장 (대화 종료 트리거 X)
+- 절대 삭제 안 됨, 절대 압축 안 됨
+- 이게 "일기장" → 필요시 태그 검색 → 주변 맥락 로드
+```
+
+**메시지 저장 구조**:
+```javascript
+{
+  // 원문
+  role: "user",
+  content: "야 나 졸려",
+  timestamp: "2026-01-25T03:42:00",
+  tokens: 15,
+  
+  // 메타 (객관적 사실)
+  meta: {
+    silenceBefore: 10800,   // 이전 메시지로부터 경과 시간 (초)
+    responseTime: 2.3,       // AI 응답까지 걸린 시간 (초)
+    timeOfDay: "새벽",       // 시간대
+    dayOfWeek: "토요일"      // 요일
+  },
+  
+  // AI 내면 메모 (주관적 해석, 선택적)
+  aiMemo: "3시간 만에 말 걸어옴. 새벽 3시. 잠 못 자는 듯.",
+  
+  // 태그 (검색용)
+  tags: ["늦은밤", "피로", "일상"]
+}
 ```
 
 **구현 계획**:
 - [ ] ConversationArchiver 클래스 생성
-- [ ] 대화 종료 시 JSON 파일로 저장
-- [ ] 파일 회전 (일별/주별/월별 폴더 구조)
-- [ ] 압축 (gzip으로 오래된 파일 압축)
+- [ ] 메시지 수신 시 실시간 JSON 저장
+- [ ] meta 필드 자동 계산 (침묵 시간, 시간대 등)
+- [ ] aiMemo 생성 (선택적, 알바 작업)
+- [ ] 태그 자동 생성
+- [ ] 파일 구조: 월별 폴더 / 일별 파일
 
-#### 🧠 **2단계: DB 컨텍스트 윈도우 (밀도별 관리)**
+#### 🧠 **2단계: 컨텍스트 윈도우 밀도 관리 (단기 메모리)**
 
+**컨텍스트 윈도우 구성 비율** (설정 가능):
+```
+┌─────────────────────────────────────────────────┐
+│                  컨텍스트 윈도우                  │
+├─────────────────────────────────────────────────┤
+│ 80% │ 원문 (최신 대화)                           │
+│     │ → densityLevel: 0                         │
+├─────────────────────────────────────────────────┤
+│ 10% │ 느슨한 압축 (감정/맥락 유지)                │
+│     │ → densityLevel: 1                         │
+├─────────────────────────────────────────────────┤
+│ 10% │ 더 압축 (핵심만, 태그 포함)                 │
+│     │ → densityLevel: 2                         │
+└─────────────────────────────────────────────────┘
+```
+
+**압축 예시 (복합적 - 사실/감정/맥락 모두 포함)**:
 ```javascript
-MongoDB messages 컬렉션:
+// 원문 (densityLevel: 0)
+"야 나 졸려 ㅠㅠ 오늘 진짜 힘들었어 회의 5개나 했거든"
 
-[단기 메모리] 최근 대화 (컨텍스트 80% 이내)
-  role: "user"
-  content: "오늘 프로젝트 회의에서 A, B, C 결정했어요. 
-           A는 UI 디자인 변경, B는 API 구조 리팩토링, 
-           C는 데이터베이스 스키마 수정입니다."
-  densityLevel: 0  // 원문
-  timestamp: 2026-01-25 14:00
+// 느슨한 압축 (densityLevel: 1)
+"새벽, 피곤해함. 회의 5개 힘든 하루"
 
-[중기 메모리] 컨텍스트 80% 넘어가면 (알바가 압축)
-  // 레벨 1 (자세한 요약)
-  role: "system"
-  content: "프로젝트 회의 결정사항: UI 디자인 변경(A), 
-           API 리팩토링(B), DB 스키마 수정(C)"
-  densityLevel: 1
-  originalMessageIds: [msg1, msg2, msg3]
+// 더 압축 (densityLevel: 2)  
+"[새벽] 피곤, 바쁜 하루"
+tags: ["피로", "회의", "야근"]
+```
+
+**⚠️ 중요**: 압축 ≠ 사실만 남기기
+- 감정, 톤, 관계 맥락 모두 유지
+- 밀도만 줄이는 것
+- "다른 애 되는" 문제 방지
+
+#### 🔄 **3단계: 중기 메모리 (검색용 요약본)**
+
+**위치**: 장기 메모리(원문) 위에 레이어로 존재
+```
+/memory/summaries/
+├── 2026-01/
+│   ├── week1.json   (1주차 요약)
+│   ├── week2.json
+│   └── ...
+└── ...
+
+- 최근 N개월만 유지 (설정 가능, 기본 3개월)
+- 오래되면 요약본 폐기 (원문은 영구 보존)
+- 검색 시 요약본 먼저 훑고, 필요하면 원문 로드
+```
+
+**요약본 구조**:
+```javascript
+{
+  period: "2026-01-20 ~ 2026-01-26",
+  densityLevel: 1,  // 또는 2
   
-  // 레벨 2 (조금 덜 자세한 요약)
-  role: "system"
-  content: "프로젝트 방향 3가지 결정 (UI, API, DB)"
-  densityLevel: 2
-  originalMessageIds: [msg1, msg2, msg3]
+  // 단계별 요약
+  summaries: [
+    {
+      level: 1,
+      content: "프로젝트 회의 다수. UI/API/DB 변경 결정. 야근 많음.",
+      tokens: 50
+    },
+    {
+      level: 2,
+      content: "프로젝트 집중 기간, 피로 누적",
+      tokens: 20
+    }
+  ],
   
-  // 레벨 3 (핵심만)
-  role: "system"
-  content: "프로젝트 회의"
-  densityLevel: 3
-  tags: ["프로젝트", "회의", "결정사항"]
-
-[장기 메모리] 아주 오래된 것
-  role: "system"
-  content: "2026-01-25: 프로젝트 회의"
-  densityLevel: 4
-  tags: ["프로젝트", "회의"]
-  fileReference: "/memory/conversations/2026-01-25_main.json"
+  // 원문 참조
+  sourceFiles: ["2026-01-20.json", "2026-01-21.json", ...],
+  
+  // 검색용 태그
+  tags: ["프로젝트", "회의", "UI", "API", "DB", "야근", "피로"]
+}
 ```
 
-**밀도 레벨 정의**:
+**검색 플로우**:
 ```
-Level 0: 원문 (최근 메시지, 컨텍스트 80% 이내)
-Level 1: 자세한 요약 (문장 단위, 핵심 정보 유지)
-Level 2: 중간 요약 (문단 단위, 주요 내용만)
-Level 3: 간략 요약 (한 줄, 키워드 + 태그)
-Level 4: 초간략 (날짜 + 태그 + 파일 참조)
+1. 쿼리 → 중기 요약본 검색
+2. 관련 기간 찾음
+3. 더 자세히 필요? → 장기에서 해당 날짜 원문 로드
+4. 주변 맥락까지 로드 (앞뒤 메시지)
 ```
 
-#### ⚙️ **3단계: 자동 압축 프로세스**
+#### ⚙️ **4단계: 자동 압축 프로세스**
 
 ```javascript
 // 컨텍스트 사용량 체크
 if (contextUsage > 80%) {
-  // 1. 오래된 메시지부터 압축 대상 선정
-  const oldMessages = selectOldestMessages(20);
-  
-  // 2. 알바(백그라운드 워커)에게 압축 요청
-  await AlbaSystem.requestCompression({
-    messages: oldMessages,
-    targetDensity: 1  // 레벨 1로 압축
-  });
-  
-  // 3. 알바 응답 대기 (비동기)
-  // 4. 압축된 메시지로 교체
-  // 5. 원본은 유지 (densityLevel: 0 → 1)
+  // 가장 오래된 원문 → Level 1 압축
+  const oldMessages = getOldestLevel0Messages();
+  await AlbaSystem.compress(oldMessages, targetLevel: 1);
 }
 
-// 더 압축 필요할 때
 if (contextUsage > 90%) {
-  // 레벨 1 메시지를 레벨 2로 추가 압축
-  await AlbaSystem.requestCompression({
-    messages: level1Messages,
-    targetDensity: 2
-  });
+  // Level 1 → Level 2 추가 압축
+  const level1Messages = getLevel1Messages();
+  await AlbaSystem.compress(level1Messages, targetLevel: 2);
 }
+
+// Level 2 넘어가면 → 컨텍스트에서 제거, 중기 메모리로 이동
+// (장기 원문은 이미 저장되어 있음)
 ```
 
-**압축 로직 (알바 작업)**:
+**알바 압축 작업**:
 - [ ] CompressionAlba 클래스 (백그라운드 워커)
-- [ ] AI 기반 요약 생성 (Haiku 모델 사용)
-- [ ] 레벨별 요약 품질 설정
-  - Level 1: "자세히 요약해줘 (중요 정보 보존)"
-  - Level 2: "핵심만 요약해줘"
-  - Level 3: "한 줄로 요약해줘 + 태그 추출"
-- [ ] 원본 메시지 ID 추적 (나중에 원문 검색용)
-- [ ] 태그 자동 생성 및 인덱싱
+- [ ] AI 기반 요약 생성 (Haiku/로컬 모델)
+- [ ] **압축 프롬프트**: "감정/톤/관계 맥락 유지하면서 밀도만 줄여"
+- [ ] 원본 메시지 ID 추적
+- [ ] 태그 자동 생성
+- [ ] aiMemo도 함께 압축 (AI 내면 기록 보존)
 
-#### 🔍 **4단계: AI 메모리 로드 전략**
+#### 🔍 **5단계: AI 메모리 로드 전략**
 
 ```javascript
-// AI가 응답 생성 시
 async function loadMemoryForContext(query, maxTokens) {
   const memories = [];
   let tokenCount = 0;
   
-  // 1. 최근 것부터 역순으로 로드
-  const recentMessages = await Message.find()
-    .sort({ timestamp: -1 })
-    .limit(100);
+  // 1. 단기: 컨텍스트 내 메시지 (80/10/10 비율)
+  const contextMessages = await loadContextWindow(maxTokens);
+  memories.push(...contextMessages);
+  tokenCount += contextMessages.tokens;
   
-  for (const msg of recentMessages) {
-    // 토큰 한계까지 로드
-    if (tokenCount + msg.tokens > maxTokens * 0.7) break;
+  // 2. 관련 기억 검색 필요시
+  if (needsMemorySearch(query)) {  // "저번에", "그때", "예전에" 등
+    // 중기 요약본 검색
+    const relevant = await searchMiddleTermMemory(query);
     
-    // 밀도 레벨에 따라 원문 or 요약 사용
-    if (msg.densityLevel === 0) {
-      memories.push(msg.content);  // 원문
-    } else {
-      memories.push(msg.content);  // 요약본
-    }
-    
-    tokenCount += msg.tokens;
-  }
-  
-  // 2. 쿼리 관련 오래된 메모리 검색
-  if (query.includes("저번에") || query.includes("그때")) {
-    const relevant = await searchRelevantMemories(query);
-    
-    // 파일에서 원문 로드
+    // 더 자세히 필요하면 장기에서 원문 로드
     for (const ref of relevant) {
-      const original = await loadFromFile(ref.fileReference);
+      if (tokenCount + ref.estimatedTokens > maxTokens) break;
+      
+      const original = await loadFromLongTermMemory(
+        ref.sourceFile,
+        ref.nearbyContext  // 앞뒤 맥락도 함께
+      );
       memories.push({
         type: "recalled",
         content: original,
-        timestamp: ref.timestamp
+        meta: ref.meta,
+        aiMemo: ref.aiMemo
       });
+      tokenCount += original.tokens;
     }
   }
   
@@ -674,47 +729,61 @@ async function loadMemoryForContext(query, maxTokens) {
 }
 ```
 
-**검색 인덱스**:
-- [ ] Message 모델에 태그 필드 추가
-- [ ] 태그 기반 검색 API
-- [ ] 시간 범위 검색
-- [ ] 유사도 기반 검색 (벡터 임베딩)
+**프로필/관계 맥락은 압축 대상 아님**:
+- 성격, 호칭, 관계 설정 → 별도 관리 (Profile 시스템)
+- 압축해도 이 정보는 유지
 
-#### 📊 **5단계: 구현 우선순위**
+#### 📊 **6단계: 구현 우선순위**
 
-**Phase 1.5.1** (필수):
-- [ ] JSON 파일 저장 시스템
-- [ ] densityLevel 필드 추가 (Message 모델)
-- [ ] 레벨 0 → 1 압축 (단순 AI 요약)
+**Phase 1.5.1** (필수, 1-2시간):
+- [ ] Message 모델에 `meta`, `aiMemo`, `tags`, `densityLevel` 필드 추가
+- [ ] ConversationArchiver - 실시간 JSON 저장
+- [ ] meta 자동 계산 (침묵 시간, 시간대, 요일)
 
-**Phase 1.5.2** (중요):
-- [ ] CompressionAlba 백그라운드 워커
-- [ ] 레벨 1 → 2 → 3 단계적 압축
-- [ ] 태그 자동 생성 및 인덱싱
+**Phase 1.5.2** (중요, 2-3시간):
+- [ ] 컨텍스트 80/10/10 비율 관리
+- [ ] Level 0 → 1 압축 (알바)
+- [ ] Level 1 → 2 압축 (알바)
+- [ ] 태그 자동 생성
 
-**Phase 1.5.3** (최적화):
-- [ ] 파일 참조 시스템 (레벨 4)
+**Phase 1.5.3** (중기 메모리, 2-3시간):
+- [ ] 중기 요약본 생성 시스템
+- [ ] 요약본 폐기 스케줄러 (N개월 후)
 - [ ] 검색 기반 원문 로드
-- [ ] 압축 품질 평가 시스템
+
+**Phase 1.5.4** (최적화, 추후):
+- [ ] aiMemo 생성 (AI 내면 기록)
+- [ ] 압축 품질 평가
+- [ ] 벡터 임베딩 검색
 
 #### 🎯 **예상 효과**
 
 ```
 현재 시스템:
-- 100개 메시지 = 100,000 토큰
-- 컨텍스트 한계 도달 → 삭제
+- 메시지 늘어나면 → 오래된 거 삭제
+- 맥락 손실 → "다른 애" 됨
 
-Omi 방식:
-- 100개 메시지 원본 보관 (파일)
-- 50개 원문 (40,000 토큰) - 최근
-- 30개 레벨1 (6,000 토큰) - 중간
-- 15개 레벨2 (1,500 토큰) - 오래됨
-- 5개 레벨3 (500 토큰) - 아주 오래됨
-= 총 48,000 토큰 (50% 절감 + 전체 맥락 유지)
+새 시스템:
+┌─────────────────────────────────────────────┐
+│ 컨텍스트 윈도우 (예: 100K 토큰)              │
+├─────────────────────────────────────────────┤
+│ 80% │ 원문 (최근 대화)         → 80K 토큰   │
+│ 10% │ 느슨한 압축 (Level 1)    → 10K 토큰   │
+│ 10% │ 더 압축 (Level 2)        → 10K 토큰   │
+├─────────────────────────────────────────────┤
+│ + 중기 메모리 (검색용 요약본)                │
+│ + 장기 메모리 (영구 원문, 필요시 로드)        │
+└─────────────────────────────────────────────┘
+
+결과:
+- 최근 대화: 완전한 원문으로 자연스러운 대화
+- 오래된 대화: 요약으로 맥락 유지 + 필요시 원문 검색
+- 관계/톤: 절대 잃어버리지 않음 (복합 압축)
+- 검색: 태그/키워드로 과거 기억 소환
 ```
 
 **참고 자료**:
-- Omi 논문: "Progressive Density Memory Compression"
+- Omi 앱 대화방 방식
 - 사람의 기억 모델: 작업 기억 → 단기 기억 → 장기 기억
 - LibreChat 메모리 계층: ShortTerm → MiddleTerm → LongTerm
 
