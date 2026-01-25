@@ -478,14 +478,19 @@ class LongTermMemory {
  */
 class MemoryManager {
   constructor(config = {}) {
-    this.shortTerm = new ShortTermMemory(config.maxShortTerm || 50);
+    // DB 설정 사용 (UI에서 설정한 값)
+    const shortTermSize = config.shortTermSize || 50;
+    const archiveThreshold = config.archiveThreshold || 100;
+    const sessionSummaryInterval = config.sessionSummaryInterval || 50;
+
+    this.shortTerm = new ShortTermMemory(shortTermSize);
     this.middleTerm = new MiddleTermMemory(config.memoryPath);
     this.longTerm = new LongTermMemory();
 
     this.config = {
       autoArchive: config.autoArchive !== false, // 기본 활성화
-      archiveThreshold: config.archiveThreshold || 100, // 100개 메시지마다 아카이브
-      sessionSummaryInterval: config.sessionSummaryInterval || 50 // 50개마다 요약
+      archiveThreshold, // DB 설정 사용
+      sessionSummaryInterval // DB 설정 사용
     };
 
     this.messagesSinceArchive = 0;
@@ -784,11 +789,11 @@ async function getMemoryManager(config = {}) {
 
     // 사용자 설정과 기본값 병합
     const mergedConfig = {
-      maxShortTerm: memoryConfig.shortTermSize || config.maxShortTerm || 50,
+      shortTermSize: memoryConfig.shortTermSize || config.maxShortTerm || 50,
       memoryPath: memoryConfig.storagePath || config.memoryPath,
       autoArchive: memoryConfig.autoArchive ?? config.autoArchive ?? true,
-      archiveThreshold: config.archiveThreshold || 100,
-      sessionSummaryInterval: config.sessionSummaryInterval || 50
+      archiveThreshold: memoryConfig.archiveThreshold || config.archiveThreshold || 100,
+      sessionSummaryInterval: memoryConfig.sessionSummaryInterval || config.sessionSummaryInterval || 50
     };
 
     globalMemoryManager = new MemoryManager(mergedConfig);

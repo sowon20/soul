@@ -1860,15 +1860,17 @@ export class AISettings {
       const shortTermSize = parseInt(document.getElementById('memoryShortTermSize')?.value) || 50;
       const compressionThreshold = parseInt(document.getElementById('memoryCompressionThreshold')?.value) || 80;
 
-      this.memoryConfig = {
+      const memoryConfig = {
         autoSave,
         autoInject,
         shortTermSize,
         compressionThreshold
       };
 
-      // localStorage에 저장
-      localStorage.setItem('memoryConfig', JSON.stringify(this.memoryConfig));
+      // MongoDB에 저장 (API 호출)
+      await this.apiClient.put('/config/memory', memoryConfig);
+
+      this.memoryConfig = memoryConfig;
 
       this.showSaveStatus('메모리 설정이 저장되었습니다.', 'success');
     } catch (error) {
@@ -1886,14 +1888,17 @@ export class AISettings {
     }
 
     try {
-      this.memoryConfig = {
+      const defaultConfig = {
         autoSave: true,
         autoInject: true,
         shortTermSize: 50,
         compressionThreshold: 80
       };
 
-      localStorage.setItem('memoryConfig', JSON.stringify(this.memoryConfig));
+      // MongoDB에 저장 (API 호출)
+      await this.apiClient.put('/config/memory', defaultConfig);
+
+      this.memoryConfig = defaultConfig;
 
       this.showSaveStatus('메모리 설정이 초기화되었습니다.', 'success');
 

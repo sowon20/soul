@@ -8,7 +8,44 @@
 
 ### ✅ 완료된 작업들 (2026-01-25)
 
-#### 1. 설정 시스템 DB 마이그레이션 (14:10~15:10)
+#### 4. 메모리 설정 DB 연동 완료 (15:55~16:00)
+**문제**: 메모리 설정이 localStorage에만 저장되어 백엔드가 인식 못함
+```
+프론트: localStorage.setItem('memoryConfig') → 브라우저만 저장
+백엔드: 하드코딩 (shortTermSize: 50, archiveThreshold: 100)
+```
+
+**해결**: 
+- ✅ 프론트엔드: API 호출로 변경 (`PUT /api/config/memory`)
+- ✅ 백엔드: DB 설정 읽어오도록 수정
+  - memory-layers.js - DB 값 사용
+  - getMemoryManager - archiveThreshold, sessionSummaryInterval DB 로드
+- ✅ DB 기본값 설정
+  ```javascript
+  {
+    autoSave: true,
+    autoInject: true,
+    shortTermSize: 50,
+    compressionThreshold: 80,
+    archiveThreshold: 100,
+    sessionSummaryInterval: 50
+  }
+  ```
+
+**파일 변경**:
+```
+/client/src/settings/components/ai-settings.js  (이미 수정됨)
+/soul/utils/memory-layers.js                    (DB 설정 사용)
+```
+
+**결과**:
+- ✅ 설정 페이지에서 변경 → MongoDB 저장 → 백엔드 적용
+- ✅ 컨테이너 재시작 후에도 설정 유지
+- ✅ Git: (커밋 예정)
+
+---
+
+#### 3. 커스텀 필드 textarea 타입 추가
 **문제**: Docker 컨테이너 재빌드 시 settings.json 초기화
 **해결**: MongoDB 기반 설정 저장 시스템 구축
 
@@ -159,6 +196,28 @@ rm -rf soul-backup/
 tar -czf soul-backup-20260125.tar.gz soul-backup/
 rm -rf soul-backup/
 ```
+
+---
+
+### ✅ 커스텀 필드 textarea 타입 추가
+**날짜**: 2026-01-25 15:33
+
+**문제**: 프로필 커스텀 필드에서 textarea 타입 선택 시 500 에러
+```
+Profile validation failed: customFields.1.type: 
+`textarea` is not a valid enum value for path `type`.
+```
+
+**해결**: Profile.js 스키마 enum에 'textarea' 추가
+```javascript
+// Before
+enum: ['text', 'number', 'date', 'tag', 'list', 'url', 'select']
+
+// After  
+enum: ['text', 'number', 'date', 'tag', 'list', 'url', 'select', 'textarea']
+```
+
+**Git**: 1bb4347
 
 ---
 
