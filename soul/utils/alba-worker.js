@@ -30,10 +30,12 @@ class AlbaWorker {
    */
   async initialize() {
     try {
-      // API 키 확인
-      const apiKey = process.env.ANTHROPIC_API_KEY;
+      // API 키 확인 - DB에서 가져옴 (AIServiceFactory와 동일 방식)
+      const { AIServiceFactory } = require('./ai-service');
+      const apiKey = await AIServiceFactory.getApiKey('anthropic');
+      
       if (!apiKey) {
-        console.warn('AlbaWorker: ANTHROPIC_API_KEY not found, will skip AI tasks');
+        console.warn('AlbaWorker: Anthropic API key not found in DB, will skip AI tasks');
         return;
       }
       
