@@ -18,6 +18,7 @@ const Role = require('../models/Role');
 const UsageStats = require('../models/UsageStats');
 const Message = require('../models/Message');
 const { loadMCPTools, executeMCPTool } = require('../utils/mcp-tools');
+const { builtinTools, executeBuiltinTool, isBuiltinTool } = require('../utils/builtin-tools');
 
 /**
  * POST /api/chat
@@ -141,14 +142,25 @@ router.post('/', async (req, res) => {
 
       // MCP 도구 로드 (스마트홈 등)
       const mcpTools = loadMCPTools();
+      
+      // 내장 도구 + MCP 도구 합치기
+      const allTools = [...builtinTools, ...mcpTools];
+      
+      // 통합 도구 실행기
+      const toolExecutor = async (toolName, input) => {
+        if (isBuiltinTool(toolName)) {
+          return await executeBuiltinTool(toolName, input);
+        }
+        return await executeMCPTool(toolName, input);
+      };
 
       // AI 호출 (도구 포함) - 프로필 설정 적용
       aiResponse = await aiService.chat(chatMessages, {
         systemPrompt: combinedSystemPrompt,
         maxTokens: aiSettings.maxTokens,
         temperature: aiSettings.temperature,
-        tools: mcpTools.length > 0 ? mcpTools : null,
-        toolExecutor: mcpTools.length > 0 ? executeMCPTool : null,
+        tools: allTools.length > 0 ? allTools : null,
+        toolExecutor: allTools.length > 0 ? toolExecutor : null,
         thinking: routingResult.thinking || false
       });
     } catch (aiError) {
