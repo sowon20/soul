@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  # MongoDB
+  mongodb:
+    image: mongo:7
+    container_name: soul-mongodb
+    restart: unless-stopped
+    volumes:
+      - ./data/mongodb:/data/db
+    ports:
+      - "27017:27017"
+    networks:
+      - soul-network
+
+  # Soul Backend
+  soul-backend:
+    build:
+      context: ./soul
+      dockerfile: Dockerfile
+    container_name: soul-backend
+    restart: unless-stopped
+    depends_on:
+      - mongodb
+    environment:
+      - NODE_ENV=production
+      - MONGODB_URI=mongodb://mongodb:27017/soul
+      - PORT=3001
+    volumes:
+      - ./memory:/app/memory
+      - ./data/files:/app/files
+    ports:
+      - "3001:3001"
+    networks:
+      - soul-network
+
+  # Soul Frontend
+  soul-frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: soul-frontend
+    restart: unless-stopped
+    depends_on:
+      - soul-backend
+    environment:
+      - VITE_API_URL=http://localhost:3001
+    ports:
+      - "3080:80"
+    networks:
+      - soul-network
+
+networks:
+  soul-network:
+    driver: bridge

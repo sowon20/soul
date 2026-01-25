@@ -1,6 +1,50 @@
 ## 항상 작업 전 확인 / 작업 후 업데이트할 것! : 체크 및 중요메모
 
-## 🔥 최근 작업 현황 (2026-01-24)
+## 🔥 최근 작업 현황 (2026-01-25)
+
+### ✅ 완전 포터블 맥 환경 구축 완료 🎉
+**날짜**: 2026-01-25 13:55
+
+**완료 내용**:
+- [x] APFS 볼륨 생성 (`/Volumes/soul/app`, 30GB)
+- [x] Docker Compose 완전 포터블 구조 구축
+- [x] MongoDB 백업 (코드스페이스 → 맥) 및 복원 완료
+- [x] Frontend/Backend 빌드 및 컨테이너 실행 성공
+- [x] 전체 시스템 가동 확인 (http://localhost:3080)
+
+**시스템 상태**:
+```
+✅ MongoDB: 14개 문서 복원 완료
+✅ Backend: http://localhost:3001 - AI 서비스, 프로필, Role 초기화 완료
+✅ Frontend: http://localhost:3080 - Vite 빌드 완료, Nginx 서빙
+✅ 포터블: ./start.sh 한 번으로 전체 시스템 실행
+```
+
+**아키텍처**:
+```
+/Volumes/soul/app/
+├── docker-compose.yml (상대 경로만)
+├── start.sh (자동 실행 스크립트)
+├── soul/ (백엔드)
+├── client/ (프론트엔드)
+├── data/ (자동 생성 - MongoDB 데이터)
+└── memory/ (메모리 저장소)
+```
+
+**특징**:
+- 환경별 경로 하드코딩 완전 제거
+- 폴더 복사만으로 어디서든 실행 가능
+- 맥미니 이전: `rsync -av /Volumes/soul/app/ 맥미니:/path/`
+- Docker만 있으면 실행 (~5GB 설치)
+
+**다음 단계**:
+- [ ] 외장하드 연결 시 데이터 이전 (1TB)
+- [ ] 맥미니 구매 후 rsync로 마이그레이션
+- [ ] 코드스페이스 완전 삭제 (비용 절감)
+
+---
+
+## 🔥 이전 작업 현황 (2026-01-24)
 
 ### ✅ 메모리 검색 UI 구현 완료
 **위치**: `/client/src/utils/search-manager.js`
