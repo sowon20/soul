@@ -556,45 +556,111 @@ ${messages.map(m => `[${m.role}] ${m.content}`).join('\n').substring(0, 3000)}
 
 /**
  * 장기 메모리 (Long-Term Memory)
- * - 아카이브된 대화
- * - 검색 가능
- * - MongoDB 저장
+ * - 아카이브된 원본 대화 (평생 보관)
+ * - 파일 시스템 저장 (DB 아님!)
+ * - AI 생성 태그로 검색 가능
+ * 
+ * 저장 구조:
+ * /memory/archives/YYYY/MM/conv-{timestamp}.json
+ * /memory/archives/index.json (검색용 메타데이터)
  */
 class LongTermMemory {
   constructor() {
-    this.Memory = null; // Mongoose 모델 (지연 로딩)
+    this.archivesPath = path.join(MEMORY_STORAGE_PATH, 'archives');
+    this.indexPath = path.join(this.archivesPath, 'index.json');
+    this.index = null; // 메모리 캐시
   }
 
   /**
-   * 초기화
+   * 초기화 - 인덱스 로드
    */
   async initialize() {
     try {
-      // Memory 모델 로드
-      this.Memory = require('../models/Memory');
+      await fs.mkdir(this.archivesPath, { recursive: true });
+      
+      try {
+        const content = await fs.readFile(this.indexPath, 'utf-8');
+        this.index = JSON.parse(content);
+      } catch {
+        // 인덱스 없으면 새로 생성
+        this.index = { entries: [], lastUpdated: null };
+        await this._saveIndex();
+      }
+      
+      console.log(`[LongTermMemory] Loaded ${this.index.entries.length} archive entries`);
     } catch (error) {
       console.error('Error initializing long-term memory:', error);
+      this.index = { entries: [], lastUpdated: null };
     }
   }
 
   /**
-   * 대화 아카이브
+   * 인덱스 저장
+   */
+  async _saveIndex() {
+    this.index.lastUpdated = new Date().toISOString();
+    await fs.writeFile(this.indexPath, JSON.stringify(this.index, null, 2));
+  }
+
+  /**
+   * 아카이브 파일 경로 생성
+   */
+  _getArchivePath(date) {
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const timestamp = d.getTime();
+    
+    return {
+      dir: path.join(this.archivesPath, String(year), month),
+      file: path.join(this.archivesPath, String(year), month, `conv-${timestamp}.json`)
+    };
+  }
+
+  /**
+   * 대화 아카이브 (원본 저장)
    */
   async archive(conversationId, messages, metadata = {}) {
     try {
-      if (!this.Memory) {
-        throw new Error('Long-term memory not initialized');
-      }
-
-      const memory = new this.Memory({
+      const now = new Date();
+      const { dir, file } = this._getArchivePath(now);
+      
+      await fs.mkdir(dir, { recursive: true });
+      
+      const archiveData = {
+        id: `${now.getTime()}-${conversationId}`,
         conversationId,
         messages,
-        ...metadata,
-        archivedAt: new Date()
+        messageCount: messages.length,
+        archivedAt: now.toISOString(),
+        // 메타데이터 (AI가 생성한 태그 등)
+        tags: metadata.tags || [],
+        topics: metadata.topics || [],
+        category: metadata.category || 'general',
+        summary: metadata.summary || '',
+        importance: metadata.importance || 5
+      };
+      
+      // 원본 파일 저장
+      await fs.writeFile(file, JSON.stringify(archiveData, null, 2));
+      
+      // 인덱스에 메타데이터만 추가 (검색용)
+      this.index.entries.push({
+        id: archiveData.id,
+        filePath: file,
+        archivedAt: archiveData.archivedAt,
+        tags: archiveData.tags,
+        topics: archiveData.topics,
+        category: archiveData.category,
+        summary: archiveData.summary,
+        importance: archiveData.importance,
+        messageCount: archiveData.messageCount
       });
-
-      await memory.save();
-      return memory;
+      
+      await this._saveIndex();
+      
+      console.log(`[LongTermMemory] Archived: ${archiveData.id}`);
+      return archiveData;
     } catch (error) {
       console.error('Error archiving conversation:', error);
       throw error;
@@ -602,14 +668,12 @@ class LongTermMemory {
   }
 
   /**
-   * 대화 검색
+   * 검색 (인덱스 기반)
    */
   async search(query, options = {}) {
     try {
-      if (!this.Memory) {
-        throw new Error('Long-term memory not initialized');
-      }
-
+      if (!this.index) return [];
+      
       const {
         limit = 10,
         tags,
@@ -618,46 +682,51 @@ class LongTermMemory {
         endDate,
         minImportance
       } = options;
-
-      const filter = {};
-
+      
+      let results = [...this.index.entries];
+      
       // 태그 필터
       if (tags && tags.length > 0) {
-        filter.tags = { $all: tags };
+        results = results.filter(e => 
+          tags.every(tag => e.tags?.includes(tag))
+        );
       }
-
+      
       // 카테고리 필터
       if (category) {
-        filter.category = category;
+        results = results.filter(e => e.category === category);
       }
-
+      
       // 날짜 범위
-      if (startDate || endDate) {
-        filter.date = {};
-        if (startDate) filter.date.$gte = new Date(startDate);
-        if (endDate) filter.date.$lte = new Date(endDate);
+      if (startDate) {
+        const start = new Date(startDate);
+        results = results.filter(e => new Date(e.archivedAt) >= start);
       }
-
+      if (endDate) {
+        const end = new Date(endDate);
+        results = results.filter(e => new Date(e.archivedAt) <= end);
+      }
+      
       // 중요도 필터
       if (minImportance !== undefined) {
-        filter.importance = { $gte: minImportance };
+        results = results.filter(e => (e.importance || 0) >= minImportance);
       }
-
-      // 텍스트 검색 (주제, 태그, 카테고리)
+      
+      // 텍스트 검색 (태그, 주제, 요약)
       if (query) {
-        filter.$or = [
-          { topics: { $regex: query, $options: 'i' } },
-          { tags: { $regex: query, $options: 'i' } },
-          { category: { $regex: query, $options: 'i' } }
-        ];
+        const q = query.toLowerCase();
+        results = results.filter(e => 
+          e.tags?.some(t => t.toLowerCase().includes(q)) ||
+          e.topics?.some(t => t.toLowerCase().includes(q)) ||
+          e.summary?.toLowerCase().includes(q) ||
+          e.category?.toLowerCase().includes(q)
+        );
       }
-
-      const results = await this.Memory.find(filter)
-        .sort({ date: -1 })
-        .limit(limit)
-        .lean();
-
-      return results;
+      
+      // 최신순 정렬 + 제한
+      return results
+        .sort((a, b) => new Date(b.archivedAt) - new Date(a.archivedAt))
+        .slice(0, limit);
     } catch (error) {
       console.error('Error searching long-term memory:', error);
       return [];
@@ -665,17 +734,17 @@ class LongTermMemory {
   }
 
   /**
-   * ID로 조회
+   * ID로 원본 대화 로드
    */
   async getById(id) {
     try {
-      if (!this.Memory) {
-        throw new Error('Long-term memory not initialized');
-      }
-
-      return await this.Memory.findById(id).lean();
+      const entry = this.index?.entries.find(e => e.id === id);
+      if (!entry) return null;
+      
+      const content = await fs.readFile(entry.filePath, 'utf-8');
+      return JSON.parse(content);
     } catch (error) {
-      console.error('Error getting memory by id:', error);
+      console.error('Error getting archive by id:', error);
       return null;
     }
   }
@@ -684,29 +753,141 @@ class LongTermMemory {
    * 통계
    */
   async getStats() {
+    return {
+      totalCount: this.index?.entries.length || 0,
+      totalMessages: this.index?.entries.reduce((sum, e) => sum + (e.messageCount || 0), 0) || 0
+    };
+  }
+}
+
+/**
+ * 문서 스토리지 (Document Storage)
+ * - OCR 스캔, 기록물 등 영구 보관 문서
+ * - 파일 시스템 저장
+ * - AI 태그로 검색 가능
+ * 
+ * 저장 구조:
+ * /memory/documents/{category}/{filename}
+ * /memory/documents/index.json
+ */
+class DocumentStorage {
+  constructor() {
+    this.documentsPath = path.join(MEMORY_STORAGE_PATH, 'documents');
+    this.indexPath = path.join(this.documentsPath, 'index.json');
+    this.index = null;
+  }
+
+  async initialize() {
     try {
-      if (!this.Memory) {
-        return { totalCount: 0, totalTokens: 0 };
+      await fs.mkdir(this.documentsPath, { recursive: true });
+      
+      try {
+        const content = await fs.readFile(this.indexPath, 'utf-8');
+        this.index = JSON.parse(content);
+      } catch {
+        this.index = { documents: [], lastUpdated: null };
+        await this._saveIndex();
       }
-
-      const totalCount = await this.Memory.countDocuments();
-      const stats = await this.Memory.aggregate([
-        {
-          $group: {
-            _id: null,
-            totalTokens: { $sum: '$length' }
-          }
-        }
-      ]);
-
-      return {
-        totalCount,
-        totalTokens: stats[0]?.totalTokens || 0
-      };
+      
+      console.log(`[DocumentStorage] Loaded ${this.index.documents.length} documents`);
     } catch (error) {
-      console.error('Error getting stats:', error);
-      return { totalCount: 0, totalTokens: 0 };
+      console.error('Error initializing document storage:', error);
+      this.index = { documents: [], lastUpdated: null };
     }
+  }
+
+  async _saveIndex() {
+    this.index.lastUpdated = new Date().toISOString();
+    await fs.writeFile(this.indexPath, JSON.stringify(this.index, null, 2));
+  }
+
+  /**
+   * 문서 저장
+   * @param {string} filename - 파일명
+   * @param {Buffer|string} content - 파일 내용
+   * @param {Object} metadata - { category, tags, ocrText, description }
+   */
+  async save(filename, content, metadata = {}) {
+    try {
+      const category = metadata.category || 'general';
+      const categoryPath = path.join(this.documentsPath, category);
+      await fs.mkdir(categoryPath, { recursive: true });
+      
+      const filePath = path.join(categoryPath, filename);
+      await fs.writeFile(filePath, content);
+      
+      const doc = {
+        id: `${Date.now()}-${filename}`,
+        filename,
+        filePath,
+        category,
+        tags: metadata.tags || [],
+        ocrText: metadata.ocrText || '',
+        description: metadata.description || '',
+        createdAt: new Date().toISOString(),
+        size: Buffer.byteLength(content)
+      };
+      
+      this.index.documents.push(doc);
+      await this._saveIndex();
+      
+      console.log(`[DocumentStorage] Saved: ${filename}`);
+      return doc;
+    } catch (error) {
+      console.error('Error saving document:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 문서 검색
+   */
+  async search(query, options = {}) {
+    if (!this.index) return [];
+    
+    const { category, tags, limit = 10 } = options;
+    let results = [...this.index.documents];
+    
+    if (category) {
+      results = results.filter(d => d.category === category);
+    }
+    
+    if (tags && tags.length > 0) {
+      results = results.filter(d => 
+        tags.every(tag => d.tags?.includes(tag))
+      );
+    }
+    
+    if (query) {
+      const q = query.toLowerCase();
+      results = results.filter(d =>
+        d.filename.toLowerCase().includes(q) ||
+        d.description?.toLowerCase().includes(q) ||
+        d.ocrText?.toLowerCase().includes(q) ||
+        d.tags?.some(t => t.toLowerCase().includes(q))
+      );
+    }
+    
+    return results.slice(0, limit);
+  }
+
+  /**
+   * 문서 읽기
+   */
+  async read(id) {
+    const doc = this.index?.documents.find(d => d.id === id);
+    if (!doc) return null;
+    
+    const content = await fs.readFile(doc.filePath);
+    return { ...doc, content };
+  }
+
+  /**
+   * 카테고리 목록
+   */
+  getCategories() {
+    if (!this.index) return [];
+    return [...new Set(this.index.documents.map(d => d.category))];
   }
 }
 
@@ -726,6 +907,7 @@ class MemoryManager {
     this.shortTerm = new ShortTermMemory(shortTermSize);
     this.middleTerm = new MiddleTermMemory(config.memoryPath);
     this.longTerm = new LongTermMemory();
+    this.documents = new DocumentStorage(); // 문서 스토리지 추가
 
     this.config = {
       autoArchive: config.autoArchive !== false, // 기본 활성화
@@ -744,6 +926,7 @@ class MemoryManager {
     await this.shortTerm.initialize(sessionId);
     await this.middleTerm.initialize();
     await this.longTerm.initialize();
+    await this.documents.initialize(); // 문서 스토리지 초기화
   }
 
   /**
@@ -1054,6 +1237,7 @@ module.exports = {
   ShortTermMemory,
   MiddleTermMemory,
   LongTermMemory,
+  DocumentStorage,
   MemoryManager,
   getMemoryManager,
   resetMemoryManager,
