@@ -38,10 +38,13 @@
 - **recall_memory 도구 추가** - AI가 자율적으로 과거 기억 조회 (builtin-tools.js)
 - **주간 요약 자동 트리거** - 7일 경과 or 100메시지 시 Alba가 백그라운드 생성
 - **메모리 스토리지 경로 환경 변수화** - MEMORY_STORAGE_PATH로 통합 관리
+- **장기 메모리 파일 기반으로 전환** - MongoDB → 파일 시스템 (평생 보관용)
+- **DocumentStorage 추가** - OCR/스캔 기록물 별도 저장 (/memory/documents/)
 
 ### 🔜 다음 작업 후보
 - 스트리밍 중 thinking 자동 펼침/완료 시 접기
 - recall_memory 실제 테스트 및 튜닝
+- 문서 OCR 연동 (문서 업로드 → AI 태깅 → 검색)
 
 # Soul AI - TODO & 작업 이력
 
