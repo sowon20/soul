@@ -13,8 +13,24 @@
 const path = require('path');
 const fs = require('fs').promises;
 
-// 메모리 스토리지 경로 (환경 변수 또는 기본값)
-const MEMORY_STORAGE_PATH = process.env.MEMORY_STORAGE_PATH || path.join(process.cwd(), 'memory');
+// 기본 메모리 스토리지 경로
+let MEMORY_STORAGE_PATH = process.env.MEMORY_STORAGE_PATH || path.join(process.cwd(), 'memory');
+
+/**
+ * DB에서 메모리 경로 설정 가져오기
+ */
+async function getMemoryStoragePath() {
+  try {
+    const configManager = require('./config');
+    const memoryConfig = await configManager.getMemoryConfig();
+    if (memoryConfig?.storagePath) {
+      MEMORY_STORAGE_PATH = memoryConfig.storagePath;
+    }
+  } catch (e) {
+    // DB 연결 전이면 환경변수/기본값 사용
+  }
+  return MEMORY_STORAGE_PATH;
+}
 
 /**
  * 단기 메모리 (Short-Term Memory)
@@ -182,6 +198,7 @@ class ShortTermMemory {
 class MiddleTermMemory {
   constructor(memoryPath) {
     this.memoryPath = memoryPath || path.join(process.cwd(), 'memory', 'sessions');
+    this.storagePath = null; // initialize()에서 설정
     this.currentSession = null;
     this.sessionSummaries = new Map(); // sessionId -> summary
   }
@@ -191,6 +208,9 @@ class MiddleTermMemory {
    */
   async initialize() {
     try {
+      // DB에서 설정된 경로 가져오기
+      this.storagePath = await getMemoryStoragePath();
+      this.memoryPath = path.join(this.storagePath, 'sessions');
       await fs.mkdir(this.memoryPath, { recursive: true });
     } catch (error) {
       console.error('Error initializing middle-term memory:', error);
@@ -323,7 +343,8 @@ class MiddleTermMemory {
    */
   _getWeeklySummaryPath(year, month, weekNum) {
     const monthStr = String(month).padStart(2, '0');
-    const dir = path.join(MEMORY_STORAGE_PATH, 'summaries', `${year}-${monthStr}`);
+    const basePath = this.storagePath || MEMORY_STORAGE_PATH;
+    const dir = path.join(basePath, 'summaries', `${year}-${monthStr}`);
     return {
       dir,
       file: path.join(dir, `week-${weekNum}.json`)
@@ -379,7 +400,8 @@ class MiddleTermMemory {
    */
   async getRecentWeeklySummaries(count = 4) {
     try {
-      const summariesRoot = path.join(MEMORY_STORAGE_PATH, 'summaries');
+      const basePath = this.storagePath || MEMORY_STORAGE_PATH;
+      const summariesRoot = path.join(basePath, 'summaries');
       
       // 폴더가 없으면 빈 배열 반환
       try {
@@ -566,8 +588,9 @@ ${messages.map(m => `[${m.role}] ${m.content}`).join('\n').substring(0, 3000)}
  */
 class LongTermMemory {
   constructor() {
-    this.archivesPath = path.join(MEMORY_STORAGE_PATH, 'archives');
-    this.indexPath = path.join(this.archivesPath, 'index.json');
+    this.storagePath = null; // initialize()에서 설정
+    this.archivesPath = null;
+    this.indexPath = null;
     this.index = null; // 메모리 캐시
   }
 
@@ -576,6 +599,11 @@ class LongTermMemory {
    */
   async initialize() {
     try {
+      // DB에서 설정된 경로 가져오기
+      this.storagePath = await getMemoryStoragePath();
+      this.archivesPath = path.join(this.storagePath, 'archives');
+      this.indexPath = path.join(this.archivesPath, 'index.json');
+      
       await fs.mkdir(this.archivesPath, { recursive: true });
       
       try {
@@ -772,13 +800,19 @@ class LongTermMemory {
  */
 class DocumentStorage {
   constructor() {
-    this.documentsPath = path.join(MEMORY_STORAGE_PATH, 'documents');
-    this.indexPath = path.join(this.documentsPath, 'index.json');
+    this.storagePath = null; // initialize()에서 설정
+    this.documentsPath = null;
+    this.indexPath = null;
     this.index = null;
   }
 
   async initialize() {
     try {
+      // DB에서 설정된 경로 가져오기
+      this.storagePath = await getMemoryStoragePath();
+      this.documentsPath = path.join(this.storagePath, 'documents');
+      this.indexPath = path.join(this.documentsPath, 'index.json');
+      
       await fs.mkdir(this.documentsPath, { recursive: true });
       
       try {
@@ -1241,5 +1275,6 @@ module.exports = {
   MemoryManager,
   getMemoryManager,
   resetMemoryManager,
+  getMemoryStoragePath,
   MEMORY_STORAGE_PATH
 };
