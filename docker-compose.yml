@@ -31,6 +31,7 @@ services:
       - /app/node_modules              # node_modules는 컨테이너 것 사용
       - ./memory:/app/memory
       - ./data/files:/app/files
+      - ./data/mcp:/mcp                # MCP 서버 저장소
     ports:
       - "3001:3001"
     networks:

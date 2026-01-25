@@ -136,7 +136,8 @@ export class ProfileSettings {
           </select>
         `;
       } else if (field.type === 'date') {
-        const dateValue = value ? new Date(value).toISOString().split('T')[0] : '';
+        const date = value ? new Date(value) : null;
+        const dateValue = (date && !isNaN(date.getTime())) ? date.toISOString().split('T')[0] : '';
         inputHtml = `
           <input type="${field.type}"
                  class="settings-input"
@@ -235,7 +236,8 @@ export class ProfileSettings {
       case 'number':
         return `<input type="number" class="settings-field-input" value="${value}" data-field-id="${field.id}" data-prop="value" placeholder="숫자를 입력하세요">`;
       case 'date':
-        const dateValue = value ? new Date(value).toISOString().split('T')[0] : '';
+        const date = value ? new Date(value) : null;
+        const dateValue = (date && !isNaN(date.getTime())) ? date.toISOString().split('T')[0] : '';
         return `<input type="date" class="settings-field-input" value="${dateValue}" data-field-id="${field.id}" data-prop="value">`;
       default:
         return `<input type="text" class="settings-field-input" value="${value}" data-field-id="${field.id}" data-prop="value" placeholder="내용을 입력하세요">`;
