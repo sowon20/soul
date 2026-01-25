@@ -1532,5 +1532,58 @@
     "metadata": {
       "responseTime": 0.001
     }
+  },
+  {
+    "role": "user",
+    "content": "참. 너의 이름도 확인하자 ㅎㅎ",
+    "timestamp": "2026-01-25T13:06:03.574Z",
+    "tokens": 5,
+    "meta": {
+      "localTime": "22:06",
+      "localDate": "2026-01-26",
+      "hour": 22,
+      "timeOfDay": "밤",
+      "dayOfWeek": "일요일",
+      "isWeekend": true,
+      "timezone": "Asia/Seoul",
+      "silenceBefore": 2425,
+      "silenceFormatted": "40분",
+      "sessionId": "main-conversation",
+      "sessionDuration": 23105,
+      "sessionDurationFormatted": "6시간",
+      "messageIndex": 84,
+      "returnEvent": null,
+      "departureEvent": null,
+      "pendingTimeContext": null
+    },
+    "aiMemo": null,
+    "tags": [],
+    "metadata": {}
+  },
+  {
+    "role": "assistant",
+    "content": "아, 맞다! 내 이름 뭐였지?\n\n시스템에서는 \"부감독.soul\"이라고 되어 있는 것 같은데, 맞나? ㅎㅎ\n\n소원이가 지어준 이름이야, 아니면 이미 정해진 거였어?",
+    "timestamp": "2026-01-25T13:06:03.575Z",
+    "tokens": 23,
+    "meta": {
+      "localTime": "22:06",
+      "localDate": "2026-01-26",
+      "hour": 22,
+      "timeOfDay": "밤",
+      "dayOfWeek": "일요일",
+      "isWeekend": true,
+      "timezone": "Asia/Seoul",
+      "silenceBefore": 0,
+      "silenceFormatted": "방금",
+      "sessionId": "main-conversation",
+      "sessionDuration": 23106,
+      "sessionDurationFormatted": "6시간",
+      "messageIndex": 85
+    },
+    "aiMemo": null,
+    "tags": [],
+    "metadata": {
+      "responseTime": 0.001
+    }
   }
 ]
