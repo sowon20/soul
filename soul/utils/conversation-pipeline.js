@@ -17,6 +17,7 @@ const { shouldAutoCompress, compressMessages } = require('./context-compressor')
 const contextDetector = require('./context-detector');
 const ProfileModel = require('../models/Profile');
 const { getAgentProfileManager } = require('./agent-profile');
+const { getDensityManager } = require('./density-manager');
 
 /**
  * ConversationPipeline 클래스
@@ -226,7 +227,7 @@ class ConversationPipeline {
   }
 
   /**
-   * 자동 압축
+   * 자동 압축 (DensityManager 사용 - 80/10/10 비율)
    */
   async _autoCompress(messages, sessionId) {
     try {
@@ -234,18 +235,23 @@ class ConversationPipeline {
       const systemMessages = messages.filter(m => m.role === 'system');
       const conversationMessages = messages.filter(m => m.role !== 'system');
 
-      // 압축
-      const compressed = await compressMessages(conversationMessages, {
-        targetRatio: 0.5,
-        preserveRecent: 10
+      // DensityManager로 80/10/10 압축
+      const densityManager = getDensityManager({
+        maxContextTokens: this.config.maxTokens,
+        ratios: { level0: 0.8, level1: 0.1, level2: 0.1 }
       });
-
+      
+      const result = await densityManager.buildContext(conversationMessages);
+      
       // 시스템 메시지 + 압축된 메시지
-      const result = [...systemMessages, ...compressed.compressedMessages];
+      const finalMessages = [...systemMessages, ...result.messages];
+
+      console.log(`[AutoCompress] 80/10/10 applied: L0=${result.stats.level0}, L1=${result.stats.level1}, L2=${result.stats.level2}`);
 
       return {
-        messages: result,
-        totalTokens: result.reduce((sum, m) => sum + this._estimateTokens(m.content), 0)
+        messages: finalMessages,
+        totalTokens: finalMessages.reduce((sum, m) => sum + this._estimateTokens(m.content), 0),
+        stats: result.stats
       };
     } catch (error) {
       console.error('Error auto-compressing messages:', error);
