@@ -1,56 +1,48 @@
 {
   "version": "1.0.0",
-  "lastUpdated": "2026-01-24T08:02:15.652Z",
+  "lastUpdated": "2026-01-17T19:45:40.703Z",
   "conversations": [
     {
-      "id": "test-conv-2",
-      "date": "2026-01-24T08:02:15.638Z",
+      "id": "test-no-ai",
+      "date": "2026-01-17T19:45:40.678Z",
       "participants": [
         "user",
         "soul"
       ],
       "messageCount": 2,
       "topics": [
-        "Python",
-        "웹 크롤링",
-        "BeautifulSoup"
+        "대화"
       ],
-      "tags": [
-        "개발",
-        "자동화",
-        "데이터수집"
-      ],
-      "category": "기술",
-      "importance": 3,
-      "filename": "2026-01-24_080215_Python.md",
-      "path": "raw/2026-01-24_080215_Python.md",
-      "fileSize": 440,
-      "lastModified": "2026-01-24T08:02:15.642Z"
+      "tags": [],
+      "category": "기타",
+      "importance": 5,
+      "filename": "2026-01-17_194540_대화.md",
+      "path": "raw/2026-01-17_194540_대화.md",
+      "fileSize": 389,
+      "lastModified": "2026-01-17T19:45:40.702Z"
     },
     {
-      "id": "test-conv-1",
-      "date": "2026-01-24T08:02:01.972Z",
+      "id": "main-conversation",
+      "date": "2026-01-17T19:22:54.901Z",
       "participants": [
         "user",
         "soul"
       ],
       "messageCount": 2,
       "topics": [
-        "React",
-        "프론트엔드",
-        "컴포넌트"
+        "Phase 1 테스트"
       ],
       "tags": [
         "개발",
-        "프로그래밍",
-        "웹"
+        "테스트",
+        "메모리"
       ],
-      "category": "기술",
-      "importance": 4,
-      "filename": "2026-01-24_080201_React.md",
-      "path": "raw/2026-01-24_080201_React.md",
-      "fileSize": 439,
-      "lastModified": "2026-01-24T08:02:01.975Z"
+      "category": "개발",
+      "importance": 7,
+      "filename": "2026-01-17_192254_Phase_1_테스트.md",
+      "path": "raw/2026-01-17_192254_Phase_1_테스트.md",
+      "fileSize": 456,
+      "lastModified": "2026-01-17T19:22:55.284Z"
     }
   ]
 }

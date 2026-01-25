@@ -2,27 +2,27 @@
 
 ## 🔥 최근 작업 현황 (2026-01-25)
 
-### 🚧 진행 중: 설정 DB 마이그레이션
-**날짜**: 2026-01-25 14:10
+### ✅ 설정 DB 마이그레이션 완료
+**날짜**: 2026-01-25 14:10~15:00
 
 **문제**: settings.json이 Docker 컨테이너 내부에 있어 재빌드 시 초기화됨
-**목표**: 모든 설정을 MongoDB로 이전하여 영구 보존
+**해결**: 모든 설정을 MongoDB로 이전하여 영구 보존
 
-**작업 단계**:
-- [ ] SystemConfig 모델 생성 (`/soul/models/SystemConfig.js`)
-- [ ] ConfigManager DB 기반으로 수정 (`/soul/utils/config.js`)
-  - [ ] readConfig() → MongoDB 조회
-  - [ ] writeConfig() → MongoDB 저장
-  - [ ] 기존 파일 기반 로직 제거
-- [ ] 초기 데이터 마이그레이션
-  - [ ] 현재 settings.json → DB 복사
-  - [ ] 마이그레이션 스크립트 작성
-- [ ] 테스트 및 검증
-  - [ ] 설정 저장/로드 테스트
-  - [ ] 컨테이너 재빌드 후 데이터 보존 확인
-- [ ] Git 커밋 및 docker-compose down/up 테스트
+**완료 작업**:
+- [x] SystemConfig 모델 생성 (`/soul/models/SystemConfig.js`)
+- [x] ConfigManager DB 기반으로 수정 (`/soul/utils/config.js`)
+  - [x] readConfig() → MongoDB 조회
+  - [x] writeConfig() → MongoDB 저장
+  - [x] 기존 파일 기반 로직 제거
+- [x] 초기 데이터 마이그레이션
+  - [x] settings.json → MongoDB 복사 완료
+  - [x] migrate-settings.js 스크립트 작성
+  - [x] 마이그레이션 실행 성공 (ai, memory, files, routing)
+- [x] 테스트 및 검증
+  - [x] 설정 저장/로드 테스트 (GET /api/config/routing)
+  - [x] 컨테이너 재시작 후 DB에서 정상 로드 확인
 
-**예상 소요**: 30분
+**결과**: 이제 컨테이너 재빌드해도 설정 유지됨! 🎉
 
 ---
 

@@ -1,13 +1,11 @@
-const fs = require('fs').promises;
-const path = require('path');
+const SystemConfig = require('../models/SystemConfig');
 
 /**
- * 설정 파일 관리 클래스
- * 사용자 설정을 JSON 파일로 저장/로드
+ * 설정 관리 클래스
+ * 시스템 설정을 MongoDB에 저장/로드
  */
 class ConfigManager {
   constructor() {
-    this.configPath = path.join(process.cwd(), 'config', 'settings.json');
     this.defaultConfig = {
       ai: {
         defaultService: process.env.DEFAULT_AI_SERVICE || 'anthropic',
@@ -52,41 +50,67 @@ class ConfigManager {
   }
 
   /**
-   * 설정 파일 읽기
+   * DB에서 설정 값 가져오기
    */
-  async readConfig() {
+  async getConfigValue(key, defaultValue = null) {
     try {
-      const data = await fs.readFile(this.configPath, 'utf-8');
-      return JSON.parse(data);
+      const config = await SystemConfig.findOne({ configKey: key });
+      return config ? config.value : defaultValue;
     } catch (error) {
-      // 파일이 없으면 기본 설정 반환
-      if (error.code === 'ENOENT') {
-        return this.defaultConfig;
-      }
+      console.error(`Failed to get config ${key}:`, error);
+      return defaultValue;
+    }
+  }
+
+  /**
+   * DB에 설정 값 저장
+   */
+  async setConfigValue(key, value, description = '') {
+    try {
+      const config = await SystemConfig.findOneAndUpdate(
+        { configKey: key },
+        { value, description, updatedAt: new Date() },
+        { upsert: true, new: true }
+      );
+      return config.value;
+    } catch (error) {
+      console.error(`Failed to set config ${key}:`, error);
       throw error;
     }
   }
 
   /**
-   * 설정 파일 쓰기
+   * 전체 설정 읽기 (호환성 유지)
+   */
+  async readConfig() {
+    try {
+      const ai = await this.getConfigValue('ai', this.defaultConfig.ai);
+      const memory = await this.getConfigValue('memory', this.defaultConfig.memory);
+      const files = await this.getConfigValue('files', this.defaultConfig.files);
+      const routing = await this.getConfigValue('routing', this.defaultConfig.routing);
+
+      return { ai, memory, files, routing };
+    } catch (error) {
+      console.error('Failed to read config:', error);
+      return this.defaultConfig;
+    }
+  }
+
+  /**
+   * 전체 설정 쓰기 (호환성 유지)
    */
   async writeConfig(config) {
-    const configDir = path.dirname(this.configPath);
-
-    // config 디렉토리 생성
     try {
-      await fs.access(configDir);
-    } catch {
-      await fs.mkdir(configDir, { recursive: true });
+      if (config.ai) await this.setConfigValue('ai', config.ai, 'AI service configuration');
+      if (config.memory) await this.setConfigValue('memory', config.memory, 'Memory storage configuration');
+      if (config.files) await this.setConfigValue('files', config.files, 'File storage configuration');
+      if (config.routing) await this.setConfigValue('routing', config.routing, 'Smart routing configuration');
+
+      return config;
+    } catch (error) {
+      console.error('Failed to write config:', error);
+      throw error;
     }
-
-    await fs.writeFile(
-      this.configPath,
-      JSON.stringify(config, null, 2),
-      'utf-8'
-    );
-
-    return config;
   }
 
   /**

@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Soul</title>
+  <!-- Prism.js CSS - VSCode Dark Theme -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+  <!-- Marked.js for Markdown rendering -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
+  <!-- Google Fonts for Neomorphic Title -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@500&family=Poppins:wght@700;800&family=Montserrat:wght@700;800&family=Raleway:wght@700;800&family=Roboto:wght@700;900&display=swap" rel="stylesheet">
+  <script type="module" crossorigin src="/assets/index-BKZIwKOh.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-aCs8beyQ.css">
+</head>
+<body>
+  <!-- 배경 -->
+  <div class="bg"></div>
+
+  <!-- 모바일 오버레이 -->
+  <div class="mobile-overlay" id="mobileOverlay"></div>
+
+  <!-- 3개 카드 레이아웃 -->
+  <div class="container">
+    <!-- 왼쪽 카드 (좁은 사이드바) -->
+    <div class="card left-card">
+      <div class="left-resizer"></div>
+      <h1 class="neomorphic-title">
+        <span class="neomorphic-text" data-text=".soul">.soul</span>
+      </h1>
+
+      <div class="search-box">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/>
+          <path d="M21 21l-4.35-4.35"/>
+        </svg>
+        <input type="text" placeholder="Search" class="search-input">
+      </div>
+
+      <!-- 대시보드 - AI 라우팅 통계 -->
+      <div class="dashboard">
+        <div class="dashboard-section">
+          <h3 class="dashboard-title">AI 사용 통계</h3>
+          <!-- 기간 선택 탭 -->
+          <div class="stats-period-tabs">
+            <button class="stats-period-tab active" data-period="today">오늘</button>
+            <button class="stats-period-tab" data-period="week">주간</button>
+            <button class="stats-period-tab" data-period="month">월간</button>
+            <button class="stats-period-tab" data-period="all">전체</button>
+            <button class="stats-period-tab" data-period="custom">기간</button>
+          </div>
+          <!-- 커스텀 기간 선택 -->
+          <div class="stats-date-range" id="statsDateRange" style="display: none;">
+            <input type="date" id="statsStartDate" class="stats-date-input">
+            <span class="stats-date-separator">~</span>
+            <input type="date" id="statsEndDate" class="stats-date-input">
+            <button id="statsDateApply" class="stats-date-apply">조회</button>
+          </div>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <div class="stat-label">총 요청</div>
+              <div class="stat-value" id="stat-requests">0</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">경량</div>
+              <div class="stat-value" id="stat-light">0%</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">중간</div>
+              <div class="stat-value" id="stat-medium">0%</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">고성능</div>
+              <div class="stat-value" id="stat-heavy">0%</div>
+            </div>
+          </div>
+          <div class="stats-grid stats-secondary">
+            <div class="stat-item">
+              <div class="stat-label">예상 비용</div>
+              <div class="stat-value" id="stat-cost">$0.00</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">평균 응답</div>
+              <div class="stat-value" id="stat-latency">-</div>
+            </div>
+          </div>
+          <!-- 모델별 사용량 -->
+          <div class="model-usage-section">
+            <h4 class="model-usage-title">모델별 사용량</h4>
+            <div id="model-usage-list" class="model-usage-list">
+              <div class="no-data">아직 사용 기록이 없습니다</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button class="add-page-btn">
+        <span class="add-icon">+</span> New page
+      </button>
+
+      <div class="profile-section" id="profileSection" style="cursor: pointer;" title="프로필 관리">
+        <div class="avatar"></div>
+        <div class="user-info">
+          <div class="user-name">소원</div>
+          <div class="user-email">sowon@soul.ai</div>
+        </div>
+        <button class="notification-btn">
+          <span class="notification-dot"></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 가운데 카드 + 토글 버튼 래퍼 -->
+    <div class="center-group">
+      <!-- 가운데 카드 (좁은 아이콘 사이드바) -->
+      <div class="card center-card">
+        <!-- 캘린더 위젯 -->
+        <div class="calendar-widget">
+          <div class="calendar-weekday" id="calendarWeekday">Mon</div>
+          <div class="calendar-month" id="calendarMonth">Jul</div>
+          <div class="calendar-day" id="calendarDay">15</div>
+        </div>
+
+        <!-- 시간 표시 (플립 스타일) -->
+        <div class="flip-time">
+          <div class="flip-digit" id="hourTens">0</div>
+          <div class="flip-digit" id="hourOnes">0</div>
+          <div class="flip-separator">:</div>
+          <div class="flip-digit" id="minuteTens">0</div>
+          <div class="flip-digit" id="minuteOnes">0</div>
+        </div>
+
+        <!-- 구분선 -->
+        <div style="width: 100%; height: 1px; background: rgba(0,0,0,0.1); margin: 12px 0;"></div>
+
+        <!-- 뉴모픽 버튼 (별도) -->
+        <button class="neo-btn neo-btn-1">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1">
+            <rect x="4" y="4" width="6" height="6" rx="1"/>
+            <rect x="14" y="4" width="6" height="6" rx="1"/>
+            <rect x="14" y="14" width="6" height="6" rx="1"/>
+            <rect x="4" y="14" width="6" height="6" rx="1"/>
+          </svg>
+          <span>대시보드</span>
+        </button>
+        <button class="neo-btn neo-btn-2">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/>
+          </svg>
+          <span>북마크</span>
+        </button>
+        <button class="neo-btn neo-btn-3">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1">
+            <circle cx="18" cy="5" r="3"/>
+            <circle cx="6" cy="12" r="3"/>
+            <circle cx="18" cy="19" r="3"/>
+            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+          </svg>
+          <span>MCP</span>
+        </button>
+        <button class="neo-btn neo-btn-4">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1">
+            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+            <line x1="9" y1="10" x2="15" y2="10"/>
+            <line x1="12" y1="7" x2="12" y2="13"/>
+          </svg>
+          <span>프롬프트</span>
+        </button>
+
+        <!-- 원형 추가 버튼 -->
+        <button class="circular-add-btn">
+          <span class="add-icon">+</span>
+        </button>
+      </div>
+
+      <!-- 모바일 메뉴 토글 버튼 -->
+      <button class="mobile-menu-btn" id="mobileMenuBtn">.soul</button>
+    </div>
+
+    <!-- 오른쪽 영역 래퍼 -->
+    <div class="right-area">
+      <!-- 오른쪽 카드 (상하 분할) -->
+      <div class="right-container">
+        <button class="scroll-to-bottom" id="scrollToBottom" title="맨 아래로">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="7 13 12 18 17 13"/>
+            <polyline points="7 6 12 11 17 6"/>
+          </svg>
+        </button>
+        <!-- 채팅 메시지 영역 -->
+        <div class="card right-card-top" id="chatContainer">
+          <div class="chat-messages" id="messagesArea">
+            <div class="chat-message assistant">
+              <div class="message-content">
+                <p>안녕하세요! React 컴포넌트 예제를 보여드리겠습니다:</p>
+
+                <div class="code-block">
+                  <button class="code-copy-btn" title="복사">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                    </svg>
+                  </button>
+                  <pre><code class="language-jsx">import React, { useState } from 'react';
+
+function Counter() {
+  const [count, setCount] = useState(0);
+
+  return (
+    &lt;div className="counter"&gt;
+      &lt;h1&gt;Count: {count}&lt;/h1&gt;
+      &lt;button onClick={() => setCount(count + 1)}&gt;
+        증가
+      &lt;/button&gt;
+    &lt;/div&gt;
+  );
+}
+
+export default Counter;</code></pre>
+                </div>
+
+                <p>이 컴포넌트는 간단한 카운터 기능을 구현합니다. <code>useState</code> 훅을 사용하여 상태를 관리하고 있습니다.</p>
+              </div>
+              <div class="message-actions">
+                <button class="message-action-btn" title="복사">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                  </svg>
+                </button>
+                <button class="message-action-btn" title="좋아요">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3zM7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3"/>
+                  </svg>
+                </button>
+                <button class="message-action-btn" title="싫어요">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3zm7-13h2.67A2.31 2.31 0 0122 4v7a2.31 2.31 0 01-2.33 2H17"/>
+                  </svg>
+                </button>
+                <button class="message-action-btn" title="북마크">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/>
+                  </svg>
+                </button>
+                <button class="message-action-btn" title="재생성">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="23 4 23 10 17 10"/>
+                    <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="chat-message user">
+              <div class="message-content">React로 간단한 카운터 컴포넌트를 만들어줄 수 있나요?</div>
+              <div class="user-message-footer">
+                <div class="message-time">2026.01.20 오후 2:30</div>
+                <button class="message-action-btn" title="복사">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                  </svg>
+                </button>
+                <button class="message-action-btn" title="수정">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 20h9"/>
+                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                  </svg>
+                </button>
+                <button class="message-action-btn" title="삭제">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                  </svg>
+                </button>
+                <button class="message-action-btn" title="재시도">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="23 4 23 10 17 10"/>
+                    <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="chat-message assistant">
+              <div class="message-content">
+                <p>물론입니다! 추가로 감소 버튼도 함께 만들어드릴게요:</p>
+
+                <div class="code-block">
+                  <button class="code-copy-btn" title="복사">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                    </svg>
+                  </button>
+                  <pre><code class="language-jsx">import React, { useState } from 'react';
+
+function Counter() {
+  const [count, setCount] = useState(0);
+
+  return (
+    &lt;div className="counter"&gt;
+      &lt;h1&gt;Count: {count}&lt;/h1&gt;
+      &lt;div className="buttons"&gt;
+        &lt;button onClick={() => setCount(count - 1)}&gt;
+          감소
+        &lt;/button&gt;
+        &lt;button onClick={() => setCount(0)}&gt;
+          초기화
+        &lt;/button&gt;
+        &lt;button onClick={() => setCount(count + 1)}&gt;
+          증가
+        &lt;/button&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  );
+}
+
+export default Counter;</code></pre>
+                </div>
+
+                <p>이 컴포넌트는 <code>useState</code> 훅을 사용하여 카운트 상태를 관리하며, 증가/감소/초기화 기능을 제공합니다.</p>
+              </div>
+              <div class="message-actions">
+                <button class="message-action-btn" title="복사">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                  </svg>
+                </button>
+                <button class="message-action-btn" title="좋아요">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3zM7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3"/>
+                  </svg>
+                </button>
+                <button class="message-action-btn" title="싫어요">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3zm7-13h2.67A2.31 2.31 0 0122 4v7a2.31 2.31 0 01-2.33 2H17"/>
+                  </svg>
+                </button>
+                <button class="message-action-btn" title="북마크">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/>
+                  </svg>
+                </button>
+                <button class="message-action-btn" title="재생성">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="23 4 23 10 17 10"/>
+                    <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="chat-message user">
+              <div class="message-content">CSS 스타일도 추가해주세요!</div>
+              <div class="user-message-footer">
+                <div class="message-time">2026.01.20 오후 2:32</div>
+                <button class="message-action-btn" title="복사">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                  </svg>
+                </button>
+                <button class="message-action-btn" title="수정">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 20h9"/>
+                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                  </svg>
+                </button>
+                <button class="message-action-btn" title="삭제">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                  </svg>
+                </button>
+                <button class="message-action-btn" title="재시도">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="23 4 23 10 17 10"/>
+                    <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="chat-message assistant">
+              <div class="message-content">
+                <p>카운터를 더 예쁘게 꾸며줄 CSS 스타일입니다:</p>
+
+                <div class="code-block">
+                  <button class="code-copy-btn" title="복사">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                    </svg>
+                  </button>
+                  <pre><code class="language-css">.counter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 40px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.counter h1 {
+  font-size: 48px;
+  color: white;
+  margin: 0;
+  font-weight: 700;
+}
+
+.buttons {
+  display: flex;
+  gap: 12px;
+}
+
+.buttons button {
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  background: white;
+  color: #667eea;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.buttons button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}</code></pre>
+                </div>
+
+                <p>이 스타일은 그라데이션 배경과 호버 효과를 포함하고 있습니다.</p>
+              </div>
+              <div class="message-actions">
+                <button class="message-action-btn" title="복사">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                  </svg>
+                </button>
+                <button class="message-action-btn" title="좋아요">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3zM7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3"/>
+                  </svg>
+                </button>
+                <button class="message-action-btn" title="싫어요">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3zm7-13h2.67A2.31 2.31 0 0122 4v7a2.31 2.31 0 01-2.33 2H17"/>
+                  </svg>
+                </button>
+                <button class="message-action-btn" title="북마크">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/>
+                  </svg>
+                </button>
+                <button class="message-action-btn" title="재생성">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="23 4 23 10 17 10"/>
+                    <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+
+        <!-- MacOS Dock 영역 -->
+        <div class="dock-test-area">
+          <div class="dock">
+            <div class="dock-item" data-name="Soul">
+              <div class="icon">
+                <img src="/assets/soul-icon-Cs7QQISU.webp" alt="Soul" />
+              </div>
+            </div>
+            <div class="dock-item" data-name="MCP">
+              <div class="icon">
+                <img src="/assets/mcp-icon-LZKIFkN3.webp" alt="MCP" />
+              </div>
+            </div>
+            <div class="dock-item" data-name="스마트홈">
+              <div class="icon">
+                <img src="data:image/webp;base64,UklGRtwOAABXRUJQVlA4WAoAAAAQAAAA/wAA8QAAQUxQSAMFAAABoEVt2/HGev8/rtu1x7Ztq3YbZ2zbtm3btm3b3MMa03Rmwv/7DprGK+9hI2ICwMkFgRWatgsJtxwRERkdExsXn5A3USqVyhUqtVrTsUu3Hl3VSlVepVKhVKk1eTt21KiUSpVKKZdJZXK5TCqTKxRKpUIuV6gUMqlMJpMmJsTHxkRFRUZEhIeHR0SE2zHMYqitYWFhYaGhIR3atWlZo5gE3DU/oGKLKHmPsavOfvmtN1vJuWez6+peH1k0uFdwKZ57YVhJ8SbKEYsOPvyW+ZejnvDXi9tmy6sFCVn3wPetFDtp5/W3SbkmQj1oc+rrgxOiynqxLicuFzvtyPOUP0aOet5E//Xk1PYlhK7EeFXRbHiU9FvPUY9d+3JLp+rejIuwgQ17b32SYTRzhHryhq8Hetf2YVyA8Wsy4vC730YzoR6/8ev+XpVFTieo3PvAB62ZItHwYVN8cZ5TMYFtFzzKMhCKR+2dqU18nIgt3vXAVz1HKCbNP/Z1KsNzFqbM0FtZZorOf4+m1hI6B6/C2Mf/CEWo+fOKpmInYCT1pjzXEZRQkrKzgx/jKMa7+ar3BorWnMPRPo4SNVz+3UQR+/dosK9j+JWnfTBS1P451FLsCF7Jgfd1BDdUu7Gu2H5MIfX5HEKxm726gdhukja70zmK36yV1fl2EtWY+cVMMZw0rbLQLsK6Ux/rKI6/za8vtkeRkS/1BEk0aUYlvm2C5of+UDy/7FPIJqbYiHccooynGvNsEbQ6mEMxnTo0wJb/Br81o4pebsxax9bblk1xrRsjtk4svWNEFn1Rwbqg0V8JtgzzBdYwlTdqKbq/NrFGGHXbjC/TOqEVQROTKMI/t7Oi7E4dxuhy73yYBjcJypIa5yNU/qI4nyW0FDifQ1pKWQtMudsU6brBjIXmGVij13zy8Mbr0fajQx7JLYp2sooBgJrv8UZPFwaAUf8QlxYFwNtGMT+cgTJXUbcxAOIzUPe5DgylqCdh4rm44/qVOIE7srVBMu7oj/YEeTSRQxzJMwB9czFncQ/B3k30faLYz0afCX0F/i/wf4H/C/xf4P8C/xf4v8CgZvRp0fcVffcI9g6hbwmHvWHoU6AvGH1NMpGXUfYS7shh76W440Yww5EXBQot6n41gKp3UbenEIj3oG48CzBZh7gsKQA0/oy4K2UAQHIDb9xaFgCYkTq0pSRC3qpZaHsSZMF7N9YM0xkLTJQeacnVwHLJC0jbIMmHHWhCmbY95F/pFsp2BFrBTDIgLDsRrC1xD19kh59V0Psfun4Eg/VBJ7BlWiKwAYIzkfW+ItjqPceEqj9deDZB5duo2hkIdkz8iagH9cCeolkcmrI7s3aBQuewZF4lAjvXvIMjsr8Q2JsNe4shcrUG2J/XLRVBr9sxDgDBmH/oSZYz4FDJbBNycnqw4GCfBUbUaPvyweFeM7WISe7BBycUj0xCy2s5A07J17zECbnaFpyVbX0DI6Z91cGJKx37g46MFYXAqQPGfEbGw84icHJe8HkTIv7uqAsuWGp0CocE09vOQeCSgkY7M1DwY3FFFlzVS33C4PFl7wwWgCsX7nnaaBUhHhb5s13qA65ePO5Ipjm/vIQQ4pkQQogNhuT17QPBHfo2Wvk82xqPOeXxlKpe4C7ZYt033dV7VNmXVyUEMOBeq2omn8jkOOLxEM78c/eYhNLgjtkSjWMnnNd6OOkHhofXLwTODABWUDggsgkAAHBVAJ0BKgAB8gA+kT6XSKWqIqIwFDnRQBIJZUP6VDVTCFIwFH83n8uiHA9RKwJfqteCsKe96mERiw5IIbFOFfNX+Ap7PqiRbNXcZkU2zjVcF1O8NDY0uqnp1h3NDSQKmbQo68CO7K4PHR8r0yBbLTv8MCp2/xGcoD+KjwcGpOWGjBlx1yGSaz7Iir5ZcEB3ysbZ2foVZ56qDsdCL2VNgoZbXHqMujK5q9pXxMzP4gHBORvCTK2Qt/qfepN5VniasvlpVoD/K+f6nsMjb75yBCiA0eXZx0wCjRkXkIVvBvLW3tl/UMpmec6/XDE/ni+Yj+j+ne92eHATidejDgvgw+uFZNxflWTvRXUWSZT5R5sQ7p8S2pArpJkX3+gqKaoqzcmaYZEjMHFabmGBhqc67kut8neKMe/Hn+Dx6uWjuo2STDs7YeQ+APO+T0QNS6Bk6YMpY1FdBvmG4fO8O8yRy4BhQikM5Tj8b98UWvEP31/baJwyuwni4k4ERRN9V5ovT0VniqGq7kxPXLcH1806PVOreRrUHh+isMTEAN+waZyJoz5Jgkf5Pccr9tL1ufxLHdZUO7lAhx1w6RdsmsMazM6OzfTr4rKSEmuyhXV8mJzCUJrl039YfgiGo0TxDNCQVsK0YTt5NXJ83SO/F+gjtSc9/IzS9dCk7mjpMweoYj2YCG+7OcIvWcf8q2PqDLslTFzwWGid3pxZ/k8QaQWJbeF3Z27uxJwslXCTBWlegz884d7Msl9x6Yx+evRwtMqDCOc0CPCFE5ruhlsyFdRGsrvaB5FZ0ZqSNb4R4JC7ijeQQXyIOGAMAlbPg3nbj1cGKulERz3aOLEdWZcsP17qhuUmMMytTn5JMvfuTxHH2GKMtBEJt3w0W5HaYd5q/W7GggZdL7XjG1AWucOLaVPm+0XqmITAAP7qis0/3AN/v9UVppbHnZa3CjYEtnvJO31Lf8bms7//ZuLmYCdpRrvanSdBB9wjJr8gqKO1t5D9rVJmCG4GeuoZJqiD6jbmDl/lzTcEg/o15AVhT0wNB69RaXLYVknSyV3rx/afwGSC6PNCFyzIJDP5KDwHPPuwgxD+Ao0k0Qn7ai92qJ/vFQw2P71qT2mbTObK6idEpk9kHBVnd9k5dIuEDDvtTmY7GSsAhid/Fo8Mw5I+R4rYrctCnFFEM59uGELqKbqc4FfVfSK3QOse6H/w7D+3ubNwww0VJsAo9Pap5nUWUjagctfohd5759BzLmbHkvKAPal5jL/cnyqDI0RkS0M4hOA84l19T0xSLO/P3CBiKjZwk4+4L/wUv/f1ldVi5TkAYVPRKpFPHZsmQ0RPQN+eY2xCOOD+NE48mKkf1MzttYDUmJts/sn0H5vQpMB2037sHU963oP/4IlpE1i6abrjrpbMa1zRBBXx1B0InTYCMxx7k0yjWF9lX2J0T/Ssf740D/FqELUmHMf2W5jwNbGA5zDkxcWpufJ/T7od5yglholE2po+FTUKvCaVWtr/AXvLlPej3RUYQ8wXWdX3MYJDgXESCBGeTifWRw5Yi2ioXRvotbsd8rZy6QU0GBrUWjszahT1npHIaxubNqqOAw/jNHln4vkZihqaA8TBHBVLJ8F8cGDYcQF4MLWJrb+NnZmw4Xy1eqgefbEgXBddbdiqU5ZkFXPg2BccQgJvOwccCAAYxHrrcmQx/wJ6g8/sMvxBtMysUGHFjHIoxU09hVw+FxeTss80FFtVKzJSsDeEKoRZOQeN3ATPb3VLXnUvDL80ruCtncTuM3tiYSYHQvukN76sqn2VKrGrSrMVmSFmNpE7FU8llMFqLPsy1tqj+Lok0KBsrOjXI+WxTX/HLkeXxTeh1U0BaN345vv9B10lLCr675u5X/Vrti3Lz3K91JeBw3AX1Z8VGak9o7g19lgViIhmRBRLvz05ARtu/Bg89ZNZdS3QEqjRg7QTIehswtu/ziNZAsg6JfJzMAaL05zXm0o/E/AqKE9jF0C/znNCIklC+SGvHRodzSO30OghwtVUXCLI/7iZ8bb9VTRcNhrIUjPnI541lD/jA+GFVlZPB3K2yKUKdBzr4bzKaLMwxCEcVJ/1+kLYk2rI2xizfaqP350sTTCWboRHKkvZLWdPcWtDcANzhBhbGD36QnldRYARgtFvI8SCi8R/IUEzckxOauVM8V5ebRCLMtr0Yd/va2MndVF0vgZHMosJjP48k7KVUbsZrtZ4tVo3W8Oa1wwAlWp2VrUfiiEiY6Mpiy1r3o6LHbNkVC5Aal2mZImzYP+iVwaJAfH3iHjgRvVsgFhXrUKrBVgqwUtH0jYj0rVHJy80C2+HBlUlAytN/K3Bt7gKNyA9I903vaUiZqENM2opmtSvDDC2MeLxbfZ1Fw1WmOpiRX8Wcxp8onOMj+ka8YZ4IIqJFAewmtEIMslRHuxLlY5O/2/5NF+cXm7WPzHRS1retUSIRhu3bDuwF2EMK+XrJCYdByo4PkuPAUv96+GHJu2grsY6fTBjJOKzf5e8hLuqWNYRtL+PZXYOn0AKBo/479yEb992v1PTOux0K0ltZZohr1bBC5t1WWt4fdnJIJa3nOpOf/GVtOmHtCc+UERhZw1fOgL+U4uu2zen+1+faoKDmIq9uuqQTzhibc0yd/Tm7VN/5bMWegIHPrQSNeKgHtTuUcv160svUtXm2Xup9lw4X99JsqmLvVznACrbU+13u5wDpsgqibGcCzixzYmA9NvHiYtjEDeXGgvHXqPBL+QCUun33+KbChKGBlF3JOzdjJ7NPxCnQiDr3qXU/6+VkPb7DQ0KWGjVLadX4n1vw/arV//ttbvFXmxx8BdVsLNynBm3KrMdvvvwE4txbFXE2l/Ca3KA4WiL0ZDA25AvGgRCLVMB8lp7RZ+qxJj+lK9Nl8wL0JhnNwNG1jQpZjEWeGnh8o1o6H3aTordIu6jfleA25B6+ZzpcYBI/pJJufmbi9akMJNgYWhP30U18pJE7bi/5D6f6VKWObEuGXAZhr25YjsQJUUzEibmd+HBtaqi7pxCau6VRZ1SIWfR+VK8siQMIMRr5imV4cj4w7+QtBhddb/nHAB7lm+BMVRd2MpSNIq6ouze1gBPLMw1EdJAPcLRdkSZJdUrF+kUotWEoeRutYtW8kPBt3IRXy9UGkvwoMFYACeqgGx25Xy2I/tbc0d8P/WYOO14jz+leBikY8SJJzDXgxVfYEqEeO/L6lQE4C/kbAlaY2CXhnJn6/ySxiRUCm53s2QegX6VoZaEFqoBlZhuH0sTjuvjLDWDWjb/m/3Z846+2Pp1WV++MC+SiIJZXACKIAA=" alt="스마트홈" />
+              </div>
+            </div>
+            <div class="dock-item" data-name="폴더">
+              <div class="icon">
+                <img src="data:image/webp;base64,UklGRmYMAABXRUJQVlA4WAoAAAAQAAAA/wAA8QAAQUxQSPcEAAABoEZt2+HWemcmqY2027bt2kawbdu2bdu2bdu2TlMb6cx8P5IGk6y8x42ICQChW0rqtAkIDtEcGhYeERUVHRMbGxsbFxcfL5Up2rZr175j527dOrVVtFVXKOSKdu01dujQvq1C0batXCaNl8qkUqlULpcr5HKZTKGQxcdLpdL4uJjoqIjwsLDQ0JCQ0NAQfQarB+kcHBwcHBQY4OfTpk4pWwpMNGXpXtMnun2/qVvvK3MKWS05k8war+rtsSVD+4RVsjAxFGNXwafLuFVnXiVkqIgZzP2+tnNBt6albEWUaRA7120/99C9z6n5HDGj2ZQPZ+Z2bugqNjrKrmaHJec/pBVwxPzmVQnXVnWs6UAZE+3YaOChd6kFHDHb8z6fHuslYYxF5Okz5sTXfGLms4k3ZgRIaGOg3YNmX1eqCAK5lJsz2zhQgrNpMulGCkuQyKVcHl7LWlh0Sfn+XyqCSPbbLnlJRkCiWpMe5BBkZj+Y2tyOEopFs/U/WIJOLmF/tBslDJuwY+k8wWjWxW4lGQFQrh2v5RGk5t0fUlFsMFrS/4mKoLXwxbhKtIFoj34vWYJY7s2oioxBRLVmv2MJarlP08pQBqArTPvBE+Tyn4Z6Unqj3Po85wh6+deDPfRmE3wxnyCYf9XDQU+WTTenExRzdxSOlD6oKot+8zgiBfd7uOjDrstrnmCZfRBrqxtde2cuwXPB0SaMTs4DPhJMp4xz1kXc+lQ+qsj55mLtKI8JfxBcJ45w1k7sdU6FLP5EdVorp8HfCLaTZRZaVd6UjS7+kCelBeN/h0MXUcoZLewH/yQIPyTRouKmXIwpZUWJAm5xGCPbXItwHPqdoDzZSxNVeWs2zvh5lhoY39sczoiyogaLrl8I0vOGUGrWkzKwRq7Zq9mtKkTbjwA1x6ME7yvVPO4j7pQEAJp8RJwyHAAGZyKODAcQbyeY3+AEnqdR96keNHuFOjYYOhWgjusLwwjq+S2Ws3FHfkj2II/UeIy9lhnY82b/6edV7L9i/xX7r9h/xf4r9t8/BLz/948P+nzRF4i+4H/9C0Sf319+AegL+svPH30+6PNGn9e//rXOx17NF9jzPIA9q/nIS4LhuOMPQhcWddwwaPYKdxHgcgx1PxsBrEfdbglAr3TMjQWAyq8RlxEPABZXEXe5HABQvXPxthbUKyeiTRmnwXYn2p64aIAoFmmqaZSmcleQllADihyFtPU2RTV4grJMf9ByKcp2uGhT7z3CUqWgLTO/EF877bWCSi/R9SsItGf6FyKLXW6hA3geQtbHaqBzTAKqcrrRuomn5mFqtxvosdRdRD1pDHr1+oam1K6gX6ZnKpLY9dZ6AoflPI4OlwC9lzmLopv1wIDVbyLobSAYtPF99CS0B8NS3o+Qk9GHMRDQfk9Rkz5ADAanvB4i5o/eYhAg1ewGWt62o0GYdS4g5UYgBUItvzELIfyRehQI137QV3RkbPAEQTNht1W4eNzNCoReZV4GInL2NqFB+HYxNwuQwH7u5gZGSZWc/aUQAfzv5dUYMFa6wfrPZl/67hALMGYLvxVK7XhzK2u33BGM3a75/MR8LdR5njdTeJ7XoUC5OdAVTKFlhWHXfvLamMl84tPZtWzAVFJWQStPJZtV6dfWylzBxLpHDd30jed4s4fnuD/2j5dVoMEEUy4N/Pvt+MPMSTk6MryRBwMCBgBWUDggSAcAADA6AJ0BKgAB8gA+kUKbSiWjpiSolEoowBIJZR+21TywW8XydBb/0ikfi3V6btwk1QD9APqhdm78wtfWbRVV/na7ITyuPYmf2R8qSAnbWH1N7e471tnELnNHkYPsbI8MSxgKsSeywsLpccSuGXvfeddnuephbyjZcIQVE0Zk9jLsnkKtiWY6kRTKF/ycN9+8C55aItnxWdRXhrzaKGyFJz8wy0b0VqjQj4ASo/6y8KbN5j/+qCpMKDp4XFAWl77LbRk/MvX24afTatCPsDxNLyFP0ULlSTJOeYuz2erAoRgGRB/iJ/MFslUs285b4y4fgsz8Y+ClQr6RHXsJzs5/Cf9rlvQt+H2xO3wtAbkr392jdFt/j6gKlcE6Rzw3IDbvMfuN0Ku74LNvKN9WcLcsEwbYQ2DsP/kOZESbpXxRGkCzIgx9ro/bJ9nv78jTjbvIT4oqpYmnSOKD3qjNhmQPVTcIRLv1RyWNe15WIJJ5MsxMO/HsvkPQCKrPNuGQIBOWB6n+6FKA9H9vZ0ahAqZSViaU0l+1/cjBLniqmjxZGC91kmBS0kOJA4q8l0DAZVZTIyxBgsAfra4iSe7kN3OVqZJbLP6q9Xlp3OCEXFHCO+ACw77bouC0qI+fAAD+Yg4f8AQmGpnRrrNG/s2KGekRpxBRzjbqgfbUPTYPnPLeAlo2A0wbZoJvbi/FgjNpTv/tI6dGLR/ocZJNhRDdeghp9kvC8+6n9keJjHyNLxe0enkL9b3xeXqfAPiuAiFdoNUSrnY0rtx+Bz5KhJdXN7+RBV2wQ0cLY/7aiEI/Chz3n8RoPXivTQl97tKuoZzCrR0C22dF9mwLPbcTfNPtHrtDDHWa7/OKoCFDIEjqN/oUAejEIw2OBUYnlRcuJwa10TlVytYdrnVzHDVmnzs3X4U72YoFwzdPuCRaQ5FJdTOrhIHQAOwTp8E3IHH8Gcbmke0cwIQxDsur3Ja/knU/6M4wC7rY9c+PKk4W+T+prANiq5gMEU8//82eP/2oVLg7s/YMWC1Gs04hyEpATVJl33HtwEtfUaAfTUh5T0wzYAaEcSLiT84vqO9q9s5UalPZRR6Zcf6svSnUIAuRwmje+Q0jQSv2uNkJ9+6ru77j9u7fBWpVl8sSLHj7V3UMh2/KeDdQ6YhjhGB09rSLp2UgP3fBvnFSDKc75l5okyzOxbetLwE4tkIZBT1anAnBZI4DxyQ2x5d4MJ8A3xRVxauD3yjFVaDZgiSc1z/tKeN6OtaPkBEzqUbE1n8F8TpwB4YKHGAjaHpeHrO9M8UbFh5Dznnj+biWNcga6y7DQ2bV4MQqRt3D0xjXkWLS4fdc7QhdZtP14xACSTLfT4zlKJwAV4kPFIuYWrThjGPm40qbtmyIR3Rj+DA3xYptWsIo9LlBX34o1ZMK0Vqk3TN/TYVje2Yj28cSiu5GpB0Nsce4dXPJ/BNKwl3eXE/Ey1djZl5lzToV9C+EvFNpJ4lncProZ/sgBWwej5UYQm75W8Bg0N5b6o+Tux8vvFH1K/UQIvuZquBUBcI4QeRfkZ7f233FTEc4L/VaIGT/wDTm9+1j4cUqDP7ticTxjJ1COW6MYvP0C/uK0gmPRG6eN2INe8reVmddieGCuak51GeXPIJSswk6PC/5G9FbClaQFFE8l/oVhlP5S7NqXGcgdYsITwOY8L62jo8zj5ikxd6ex2A2rq/Rx/8c/iaqMlVrMQNLjgrVHtQ2dFB1K+SYixK2gXr4YSVNot5ZkWlXS1NOZVzgHYQA9AqugEjyvU43fJbHuC9ZQASJyIUcfIp8qloO6gBeXTx2g2ONzxG47mgKFqGWUQDzUCs53kpnue3kQCm+eLAWkJcjEzQiU00zog9UaUuHDUOJyupaQwenWVfbDdg7WRSn6FF8vDthFbFPuIIFBfLZV4UMrNRLh3S2bwvxvODEh2L30+TC3hiINElbgi4hQUZmnw61BBS2v1+Up1wSqGj7xTGL853NRUfctxhaVrYpU0SRmqUT4C6stvvzvT5C1Uo71BxGOG3RHeGins6Q6FWXRhW1BeyOVpRbnz0Ie2QYDFCYEjjlddxeHJsexuHZALCifiycVutGeIlhvmees5/X79Uy41G7G4sAz1oVcUi+j3e43GRRvXnt9EpipwH4+6+ZoXg0wSrFeHxcj+/v038TAv8gKS02UO9wARWYr2hgEcxVAHVo+2OAgKphIWZ4/XOnZUQwIrraiftTb83Gejn5QanuJoe5QuDMct5JDkSShGr5D4d4Cjy2VF/wbs4DKCE+oxELtqUP8i3kZnfawy7EIFpjKjRjVDYJuMkj6mVtMoDPnDWD2d0xvt9VzZQQm1aS/xY+nqX25AZR9xxcX93S9ls39no8QfnKr+aZSoZneG76gKlmyd3+XY+9H/+0D//1uz/9bAf/9aCCP1gwqaiUxuW7P+GssYCkTFSaVJZjboPWAAAAAAAAXKAx2CUJxqFkRcW/7iyAZ6XxGgA=" alt="폴더" />
+              </div>
+            </div>
+            <div class="dock-item" data-name="체크리스트">
+              <div class="icon">
+                <img src="data:image/webp;base64,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" alt="체크리스트" />
+              </div>
+            </div>
+            <div class="dock-item" data-name="고양이">
+              <div class="icon">
+                <img src="/assets/cat-icon-DFUgehjU.webp" alt="고양이" />
+              </div>
+            </div>
+            <div class="dock-item" data-name="사용자">
+              <div class="icon">
+                <img src="/assets/user-icon-C3luNci4.webp" alt="사용자" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 채팅 입력창 -->
+        <div class="card right-card-bottom">
+          <form id="chatForm" class="chat-input-wrapper">
+            <textarea id="messageInput" class="chat-input" placeholder="Message .Soul" rows="1"></textarea>
+            <div class="chat-actions">
+              <div class="chat-actions-left">
+                <button class="attach-btn" title="추가">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                    <line x1="12" y1="4" x2="12" y2="20"/>
+                    <line x1="4" y1="12" x2="20" y2="12"/>
+                  </svg>
+                </button>
+                <button class="attach-btn" title="MCP">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <circle cx="18" cy="5" r="3"/>
+                    <circle cx="6" cy="12" r="3"/>
+                    <circle cx="18" cy="19" r="3"/>
+                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                  </svg>
+                </button>
+                <button class="attach-btn" id="toggleRightPanelBtn" title="Details">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M12 1v6m0 6v6M1 12h6m6 0h6"/>
+                    <circle cx="12" cy="12" r="10"/>
+                  </svg>
+                </button>
+                <button class="attach-btn" id="testBoxToggleBtn" title="테스트 박스">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <line x1="3" y1="9" x2="21" y2="9"/>
+                    <line x1="9" y1="21" x2="9" y2="9"/>
+                  </svg>
+                </button>
+              </div>
+              <button id="sendBtn" type="submit" class="chat-send-btn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                </svg>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- 맨 오른쪽 패널 (토글 가능) -->
+      <div class="card canvas-panel hide" id="canvasPanel">
+        <div class="canvas-resizer" id="canvasResizer"></div>
+        <div class="canvas-header">
+          <h3>Canvas</h3>
+          <button class="close-panel-btn" id="closeCanvasPanelBtn">✕</button>
+        </div>
+        <div class="canvas-content">
+          <div style="display: flex; flex-direction: column; gap: 16px;">
+            <!-- 오늘의 이벤트 섹션 -->
+            <div style="background: rgba(255, 255, 255, 0.03); padding: 16px; border-radius: 12px;">
+              <h4 style="margin: 0 0 12px 0; font-size: 13px; color: rgba(255, 255, 255, 0.5); text-transform: uppercase; letter-spacing: 0.5px;">TODAY'S EVENTS</h4>
+              <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <div style="width: 32px; height: 32px; background: rgba(255, 193, 7, 0.2); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #FFC107; font-weight: 600; font-size: 14px;">4</div>
+                  <span style="color: rgba(255, 255, 255, 0.7); font-size: 12px;">MILESTONES</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <div style="width: 32px; height: 32px; background: rgba(33, 150, 243, 0.2); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #2196F3; font-weight: 600; font-size: 14px;">12</div>
+                  <span style="color: rgba(255, 255, 255, 0.7); font-size: 12px;">TASKS</span>
+                </div>
+              </div>
+              <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <div style="width: 32px; height: 32px; background: rgba(76, 175, 80, 0.2); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #4CAF50; font-weight: 600; font-size: 14px;">3</div>
+                  <span style="color: rgba(255, 255, 255, 0.7); font-size: 12px;">MEETINGS</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <div style="width: 32px; height: 32px; background: rgba(233, 30, 99, 0.2); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #E91E63; font-weight: 600; font-size: 14px;">2</div>
+                  <span style="color: rgba(255, 255, 255, 0.7); font-size: 12px;">PROJECTS START</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 프로젝트 상태 -->
+            <div style="background: rgba(255, 255, 255, 0.03); padding: 16px; border-radius: 12px;">
+              <h4 style="margin: 0 0 12px 0; font-size: 13px; color: rgba(255, 255, 255, 0.5); text-transform: uppercase; letter-spacing: 0.5px;">PROJECT STATUS</h4>
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div>
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                    <span style="color: #e8e8e8; font-size: 13px;">Summer Campaign</span>
+                    <span style="color: rgba(255, 193, 7, 0.9); font-size: 12px;">In progress</span>
+                  </div>
+                  <div style="background: rgba(255, 255, 255, 0.1); height: 6px; border-radius: 3px; overflow: hidden;">
+                    <div style="background: linear-gradient(90deg, #FFC107, #FFD54F); width: 65%; height: 100%;"></div>
+                  </div>
+                </div>
+                <div>
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                    <span style="color: #e8e8e8; font-size: 13px;">Website Redesign</span>
+                    <span style="color: rgba(76, 175, 80, 0.9); font-size: 12px;">Completed</span>
+                  </div>
+                  <div style="background: rgba(255, 255, 255, 0.1); height: 6px; border-radius: 3px; overflow: hidden;">
+                    <div style="background: linear-gradient(90deg, #4CAF50, #81C784); width: 100%; height: 100%;"></div>
+                  </div>
+                </div>
+                <div>
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                    <span style="color: #e8e8e8; font-size: 13px;">Mobile App Beta</span>
+                    <span style="color: rgba(244, 67, 54, 0.9); font-size: 12px;">Overdue</span>
+                  </div>
+                  <div style="background: rgba(255, 255, 255, 0.1); height: 6px; border-radius: 3px; overflow: hidden;">
+                    <div style="background: linear-gradient(90deg, #F44336, #E57373); width: 40%; height: 100%;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 팀 활동 -->
+            <div style="background: rgba(255, 255, 255, 0.03); padding: 16px; border-radius: 12px;">
+              <h4 style="margin: 0 0 12px 0; font-size: 13px; color: rgba(255, 255, 255, 0.5); text-transform: uppercase; letter-spacing: 0.5px;">TEAM ACTIVITY</h4>
+              <div style="display: flex; flex-direction: column; gap: 10px;">
+                <div style="display: flex; gap: 10px; align-items: start;">
+                  <div style="width: 6px; height: 6px; background: #2196F3; border-radius: 50%; margin-top: 6px; flex-shrink: 0;"></div>
+                  <div>
+                    <div style="color: #e8e8e8; font-size: 13px; margin-bottom: 2px;">Sarah completed design review</div>
+                    <div style="color: rgba(255, 255, 255, 0.4); font-size: 11px;">2 hours ago</div>
+                  </div>
+                </div>
+                <div style="display: flex; gap: 10px; align-items: start;">
+                  <div style="width: 6px; height: 6px; background: #4CAF50; border-radius: 50%; margin-top: 6px; flex-shrink: 0;"></div>
+                  <div>
+                    <div style="color: #e8e8e8; font-size: 13px; margin-bottom: 2px;">New milestone achieved</div>
+                    <div style="color: rgba(255, 255, 255, 0.4); font-size: 11px;">5 hours ago</div>
+                  </div>
+                </div>
+                <div style="display: flex; gap: 10px; align-items: start;">
+                  <div style="width: 6px; height: 6px; background: #FFC107; border-radius: 50%; margin-top: 6px; flex-shrink: 0;"></div>
+                  <div>
+                    <div style="color: #e8e8e8; font-size: 13px; margin-bottom: 2px;">Meeting scheduled for tomorrow</div>
+                    <div style="color: rgba(255, 255, 255, 0.4); font-size: 11px;">1 day ago</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 메시지 템플릿 -->
+  <!-- 사용자 메시지 템플릿 -->
+  <template id="userMessageTemplate">
+    <div class="chat-message user">
+      <div class="message-content"></div>
+      <div class="user-message-footer">
+        <div class="message-time"></div>
+        <button class="message-action-btn copy-btn" title="복사">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+            <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+          </svg>
+        </button>
+        <button class="message-action-btn edit-btn" title="수정">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 20h9"/>
+            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+          </svg>
+        </button>
+        <button class="message-action-btn delete-btn" title="삭제">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </template>
+
+  <!-- AI 메시지 템플릿 -->
+  <template id="assistantMessageTemplate">
+    <div class="chat-message assistant">
+      <div class="message-content"></div>
+      <div class="message-actions">
+        <button class="message-action-btn copy-btn" title="복사">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+            <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+          </svg>
+        </button>
+        <button class="message-action-btn like-btn" title="좋아요">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3zM7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3"/>
+          </svg>
+        </button>
+        <button class="message-action-btn dislike-btn" title="싫어요">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3zm7-13h2.67A2.31 2.31 0 0122 4v7a2.31 2.31 0 01-2.33 2H17"/>
+          </svg>
+        </button>
+        <button class="message-action-btn bookmark-btn" title="북마크">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/>
+          </svg>
+        </button>
+        <button class="message-action-btn retry-btn" title="재생성">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="23 4 23 10 17 10"/>
+            <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </template>
+
+  <!-- Gooey 효과용 SVG 필터 -->
+  <svg style="position:absolute;width:0;height:0;">
+    <defs>
+      <filter id="gooey">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="blur"/>
+        <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -10" result="gooey"/>
+      </filter>
+    </defs>
+  </svg>
+
+  <!-- 타이핑 인디케이터 템플릿 (끈적끈적 글로우 점) -->
+  <template id="typingIndicatorTemplate">
+    <div class="chat-message assistant typing-indicator">
+      <div class="message-content">
+        <div class="typing-dots">
+          <div class="os1-loader">
+            <div class="dot"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- 외부 링크 팝업 모달 -->
+  <div class="external-link-modal" id="externalLinkModal">
+    <div class="external-link-backdrop"></div>
+    <div class="external-link-dialog">
+      <h3 class="external-link-title">링크 열기</h3>
+      <p class="external-link-desc">아래의 링크로 이동합니다.</p>
+      <div class="external-link-url" id="externalLinkUrl"></div>
+      <div class="external-link-actions">
+        <button class="external-link-btn cancel" id="externalLinkCancel">취소</button>
+        <button class="external-link-btn confirm" id="externalLinkConfirm">열기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Prism.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-jsx.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+</body>
+</html>
