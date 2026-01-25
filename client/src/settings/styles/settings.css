@@ -2500,3 +2500,37 @@ textarea.settings-field-input {
     justify-content: flex-start;
   }
 }
+
+/* 라우팅 안내 메시지 */
+.routing-notice {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 8px;
+}
+
+.routing-notice-icon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.routing-notice-content {
+  flex: 1;
+}
+
+.routing-notice-title {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.9);
+}
+
+.routing-notice-desc {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: rgba(0, 0, 0, 0.65);
+}
