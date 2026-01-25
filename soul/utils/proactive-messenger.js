@@ -323,6 +323,28 @@ class ProactiveMessenger {
   }
 
   /**
+   * 즉시 메시지 발송 (외부 호출용)
+   */
+  async sendNow({ type = 'custom', title = '', message, priority = 'normal', action = null }) {
+    if (!this.io) {
+      console.error('[ProactiveMessenger] Socket.io not initialized');
+      return false;
+    }
+
+    this.io.emit('proactive_message', {
+      type: type,
+      title: title,
+      message: message,
+      priority: priority,
+      action: action,
+      timestamp: new Date().toISOString()
+    });
+
+    console.log(`[ProactiveMessenger] Sent now: "${message}"`);
+    return true;
+  }
+
+  /**
    * 마지막 메시지 시간 가져오기
    */
   async _getLastMessageTime() {

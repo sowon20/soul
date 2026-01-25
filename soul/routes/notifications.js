@@ -20,6 +20,7 @@ const {
 } = require('../utils/notification-manager');
 const { getGreetingSystem } = require('../utils/greeting-system');
 const { getEventListener } = require('../utils/event-listener');
+const { getProactiveMessenger } = require('../utils/proactive-messenger');
 
 /**
  * GET /api/notifications
@@ -532,6 +533,44 @@ router.post('/events/session-start', async (req, res) => {
     });
   } catch (error) {
     console.error('Error triggering session start:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/notifications/send
+ * 즉시 메시지 발송 (선제 메시지 테스트용)
+ */
+router.post('/send', async (req, res) => {
+  try {
+    const { type = 'custom', title = '', message, priority = 'normal', action = null } = req.body;
+
+    if (!message) {
+      return res.status(400).json({
+        success: false,
+        error: 'message is required'
+      });
+    }
+
+    const messenger = await getProactiveMessenger();
+    if (!messenger) {
+      return res.status(500).json({
+        success: false,
+        error: 'ProactiveMessenger not initialized'
+      });
+    }
+
+    const result = await messenger.sendNow({ type, title, message, priority, action });
+
+    res.json({
+      success: result,
+      message: result ? 'Message sent' : 'Failed to send'
+    });
+  } catch (error) {
+    console.error('Error sending proactive message:', error);
     res.status(500).json({
       success: false,
       error: error.message
