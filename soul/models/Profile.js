@@ -24,7 +24,7 @@ const customFieldSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['text', 'number', 'date', 'tag', 'list', 'url', 'select'],
+    enum: ['text', 'number', 'date', 'tag', 'list', 'url', 'select', 'textarea'],
     default: 'text'
   },
   // select 타입일 경우 선택 가능한 옵션들
