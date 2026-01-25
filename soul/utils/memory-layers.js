@@ -312,6 +312,158 @@ class MiddleTermMemory {
       return { sessionCount: 0, cachedCount: 0 };
     }
   }
+
+  // ==================== 주간 요약 ====================
+
+  /**
+   * 주간 요약 경로 생성
+   */
+  _getWeeklySummaryPath(year, month, weekNum) {
+    const monthStr = String(month).padStart(2, '0');
+    const dir = path.join(process.cwd(), 'memory', 'summaries', `${year}-${monthStr}`);
+    return {
+      dir,
+      file: path.join(dir, `week-${weekNum}.json`)
+    };
+  }
+
+  /**
+   * 주간 요약 저장
+   */
+  async saveWeeklySummary(year, month, weekNum, summaryData) {
+    try {
+      const { dir, file } = this._getWeeklySummaryPath(year, month, weekNum);
+      await fs.mkdir(dir, { recursive: true });
+      
+      const data = {
+        year,
+        month,
+        weekNum,
+        summary: summaryData.summary || '',
+        highlights: summaryData.highlights || [],
+        topics: summaryData.topics || [],
+        emotions: summaryData.emotions || [],
+        messageCount: summaryData.messageCount || 0,
+        createdAt: new Date()
+      };
+
+      await fs.writeFile(file, JSON.stringify(data, null, 2));
+      console.log(`[WeeklySummary] Saved: ${year}-${month} week ${weekNum}`);
+      return data;
+    } catch (error) {
+      console.error('[WeeklySummary] Save error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 주간 요약 로드
+   */
+  async loadWeeklySummary(year, month, weekNum) {
+    try {
+      const { file } = this._getWeeklySummaryPath(year, month, weekNum);
+      const content = await fs.readFile(file, 'utf-8');
+      return JSON.parse(content);
+    } catch (error) {
+      if (error.code === 'ENOENT') return null;
+      console.error('[WeeklySummary] Load error:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 최근 주간 요약 목록 (컨텍스트 주입용)
+   */
+  async getRecentWeeklySummaries(count = 4) {
+    try {
+      const summariesRoot = path.join(process.cwd(), 'memory', 'summaries');
+      
+      // 폴더가 없으면 빈 배열 반환
+      try {
+        await fs.access(summariesRoot);
+      } catch {
+        return [];
+      }
+
+      const monthDirs = await fs.readdir(summariesRoot);
+      const allSummaries = [];
+
+      // 모든 월 폴더 순회
+      for (const monthDir of monthDirs.sort().reverse()) {
+        if (!monthDir.match(/^\d{4}-\d{2}$/)) continue;
+        
+        const monthPath = path.join(summariesRoot, monthDir);
+        const files = await fs.readdir(monthPath);
+        
+        for (const file of files.sort().reverse()) {
+          if (!file.endsWith('.json')) continue;
+          
+          const content = await fs.readFile(path.join(monthPath, file), 'utf-8');
+          allSummaries.push(JSON.parse(content));
+          
+          if (allSummaries.length >= count) break;
+        }
+        
+        if (allSummaries.length >= count) break;
+      }
+
+      return allSummaries;
+    } catch (error) {
+      console.error('[WeeklySummary] getRecent error:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 주간 요약 생성 (Alba 사용)
+   * @param {Array} messages - 해당 주의 메시지 배열
+   * @param {Object} weekInfo - { year, month, weekNum }
+   */
+  async generateWeeklySummary(messages, weekInfo) {
+    if (!messages || messages.length === 0) {
+      return null;
+    }
+
+    try {
+      const { getAlbaWorker } = require('./alba-worker');
+      const alba = await getAlbaWorker();  // await 추가, initialize 자동 호출됨
+
+      const prompt = `다음은 일주일간의 대화 내용입니다. 주간 요약을 작성해주세요.
+
+대화 내용:
+${messages.map(m => `[${m.role}] ${m.content}`).join('\n').substring(0, 3000)}
+
+다음 JSON 형식으로 응답하세요:
+{
+  "summary": "한 문단으로 된 주간 요약",
+  "highlights": ["중요한 이벤트나 결정 1", "2", "3"],
+  "topics": ["주요 화제 1", "2"],
+  "emotions": ["전반적인 감정 톤"]
+}`;
+
+      const result = await alba._callAI(
+        '대화 내용을 분석하여 주간 요약을 생성하는 AI입니다. JSON 형식으로만 응답하세요.',
+        prompt
+      );
+
+      if (!result) return null;
+
+      // JSON 파싱
+      const jsonMatch = result.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) return null;
+
+      const parsed = JSON.parse(jsonMatch[0]);
+      parsed.messageCount = messages.length;
+
+      // 저장
+      await this.saveWeeklySummary(weekInfo.year, weekInfo.month, weekInfo.weekNum, parsed);
+      
+      return parsed;
+    } catch (error) {
+      console.error('[WeeklySummary] Generate error:', error);
+      return null;
+    }
+  }
 }
 
 /**

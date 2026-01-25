@@ -30,9 +30,11 @@
 - thinking UI 추가 (임시 스타일 - 작은 회색 글씨)
 - **localDate 버그 수정** - 이중 타임존 적용 문제 (Git: 0874863)
 - **thinking 설정 버그 수정** - lightThinking/mediumThinking/heavyThinking 적용 (Git: 69fa1da)
+- **Phase 1.5 메모리 압축 검증 완료** - Alba API키 DB 로드 수정 (Git: f3774cd)
+  - 80/10/10 밀도 압축 정상 동작 확인
+  - L2: 오래된 메시지 초압축, L1: 중간 요약, L0: 최근 원본
 
 ### 🔜 다음 작업 후보
-- Phase 1.5 메모리 밀도 압축 검증
 - 중기 메모리 (주간 요약) 구현
 - thinking UI 디자인 개선
 
