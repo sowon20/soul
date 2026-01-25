@@ -275,6 +275,24 @@ class ConversationPipeline {
       const { getArchiver } = require('./conversation-archiver');
       const archiver = getArchiver(this.memoryConfig?.storagePath || './memory');
       
+      // 0.1 PendingEvent 매니저 가져오기
+      const { getPendingEventManager } = require('./pending-event');
+      const pendingEventManager = await getPendingEventManager(this.memoryConfig?.storagePath || './memory');
+      
+      // 0.2 복귀 체크 (이전에 떠남 이벤트가 있었으면)
+      let returnEvent = null;
+      const timeContext = pendingEventManager.generateTimeContext();
+      if (timeContext) {
+        returnEvent = await pendingEventManager.recordReturn({ content: userMessage });
+      }
+      
+      // 0.3 떠남 이벤트 감지
+      let departureEvent = null;
+      const departure = pendingEventManager.detectDeparture({ content: userMessage });
+      if (departure.detected) {
+        departureEvent = await pendingEventManager.recordDeparture({ content: userMessage }, departure);
+      }
+      
       // 마지막 메시지 시간 가져오기 (침묵 시간 계산용)
       let lastMessageTime = null;
       const recentMessages = this.memoryManager.shortTerm?.messages || [];
@@ -308,6 +326,11 @@ class ConversationPipeline {
           sessionId,
           sessionDuration,
           messageIndex
+        },
+        eventMeta: {
+          returnEvent: returnEvent?.interpretation || null,
+          departureEvent: departureEvent ? { type: departureEvent.type, reason: departureEvent.reason } : null,
+          timeContext
         }
       }, lastMessageTime, timezone);
 

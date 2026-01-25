@@ -149,6 +149,13 @@ class ConversationArchiver {
         meta.messageIndex = message.sessionMeta.messageIndex;
       }
       
+      // 이벤트 메타 병합 (복귀/떠남 이벤트)
+      if (message.eventMeta) {
+        meta.returnEvent = message.eventMeta.returnEvent;
+        meta.departureEvent = message.eventMeta.departureEvent;
+        meta.pendingTimeContext = message.eventMeta.timeContext;
+      }
+      
       // 저장할 메시지 객체
       const archiveEntry = {
         role: message.role,
@@ -224,11 +231,21 @@ class ConversationArchiver {
         const recentPair = dayMessages.slice(-2);
         const lastIndex = dayMessages.length - 1;
         
-        // 시간 맥락 문자열
+        // 시간 맥락 문자열 (복귀 이벤트 포함)
         const lastMsg = dayMessages[lastIndex];
-        const timeContext = lastMsg.meta 
+        let timeContext = lastMsg.meta 
           ? `${lastMsg.meta.timeOfDay}, ${lastMsg.meta.dayOfWeek}` 
           : '';
+        
+        // 복귀 이벤트 맥락 추가
+        if (lastMsg.meta?.returnEvent?.message) {
+          timeContext += `, ${lastMsg.meta.returnEvent.message}`;
+        }
+        
+        // 떠남 이벤트 맥락 추가
+        if (lastMsg.meta?.departureEvent) {
+          timeContext += `, ${lastMsg.meta.departureEvent.type}하러 간다고 함`;
+        }
         
         // aiMemo 생성
         const aiMemo = await alba.generateAiMemo(recentPair, { timeContext });
