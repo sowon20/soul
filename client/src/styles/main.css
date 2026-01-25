@@ -2821,21 +2821,19 @@ body {
 
 /* Socket Connection Indicator */
 .socket-indicator {
-  position: fixed;
-  bottom: 20px;
-  left: 20px;
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: #ff4444;
-  box-shadow: 0 0 8px rgba(255, 68, 68, 0.5);
-  z-index: 9999;
+  box-shadow: 0 0 6px rgba(255, 68, 68, 0.5);
   transition: background 0.3s, box-shadow 0.3s;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .socket-indicator.connected {
   background: #44ff88;
-  box-shadow: 0 0 8px rgba(68, 255, 136, 0.5);
+  box-shadow: 0 0 6px rgba(68, 255, 136, 0.5);
 }
 
 @keyframes slideInRight {

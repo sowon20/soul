@@ -5,6 +5,7 @@
 
 class SoulSocketClient {
   constructor() {
+    console.log('🔌 SoulSocketClient 생성됨');
     this.socket = null;
     this.connected = false;
     this.notificationPermission = null;
@@ -14,6 +15,8 @@ class SoulSocketClient {
    * 연결 초기화
    */
   async init() {
+    console.log('🔌 SoulSocketClient.init() 시작');
+    
     // 알림 권한 요청
     await this._requestNotificationPermission();
 
@@ -27,12 +30,24 @@ class SoulSocketClient {
   _connect() {
     // 백엔드 서버로 연결 (프론트엔드와 포트 다름)
     const backendUrl = window.location.origin.replace(':3080', ':3001');
+    console.log('🔌 Socket.io 연결 시도:', backendUrl);
     
-    this.socket = io(backendUrl, {
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000
-    });
+    // io 함수 체크
+    if (typeof io === 'undefined') {
+      console.error('❌ Socket.io 라이브러리 로드 안됨');
+      return;
+    }
+    
+    try {
+      this.socket = io(backendUrl, {
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000
+      });
+    } catch (e) {
+      console.error('❌ Socket.io 연결 실패:', e);
+      return;
+    }
 
     this.socket.on('connect', () => {
       console.log('🔌 Socket connected');
