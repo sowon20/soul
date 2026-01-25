@@ -6,10 +6,12 @@
  * - 메시지 올 때마다 실시간으로 JSON 파일에 저장
  * - 장기 메모리 = 영구 원문 보관 (절대 삭제/압축 안 함)
  * - 월별 폴더 / 일별 파일 구조
+ * - 알바 연동: aiMemo, 태그 자동 생성
  */
 
 const fs = require('fs').promises;
 const path = require('path');
+const { getAlbaWorker } = require('./alba-worker');
 
 class ConversationArchiver {
   constructor(basePath = './memory') {
@@ -175,6 +177,12 @@ class ConversationArchiver {
       await fs.writeFile(filePath, JSON.stringify(dayMessages, null, 2), 'utf-8');
       
       console.log(`[Archiver] Saved to ${filePath} (${dayMessages.length} messages)`);
+      
+      // 알바 작업: assistant 메시지일 때 aiMemo, 태그 생성 (비동기)
+      if (message.role === 'assistant' && dayMessages.length >= 2) {
+        this._scheduleAlbaWork(filePath, dayMessages);
+      }
+      
       return archiveEntry;
     } catch (error) {
       console.error('[Archiver] Save failed:', error.message);
@@ -201,6 +209,49 @@ class ConversationArchiver {
   async searchByTags(tags, startDate, endDate) {
     // TODO: Phase 1.5.3에서 구현
     return [];
+  }
+
+  /**
+   * 알바 작업 스케줄링 (비동기 백그라운드)
+   */
+  _scheduleAlbaWork(filePath, dayMessages) {
+    // 비동기로 실행 (응답 블로킹 안 함)
+    setImmediate(async () => {
+      try {
+        const alba = await getAlbaWorker();
+        
+        // 최근 2개 메시지 (user + assistant)
+        const recentPair = dayMessages.slice(-2);
+        const lastIndex = dayMessages.length - 1;
+        
+        // 시간 맥락 문자열
+        const lastMsg = dayMessages[lastIndex];
+        const timeContext = lastMsg.meta 
+          ? `${lastMsg.meta.timeOfDay}, ${lastMsg.meta.dayOfWeek}` 
+          : '';
+        
+        // aiMemo 생성
+        const aiMemo = await alba.generateAiMemo(recentPair, { timeContext });
+        
+        // 태그 생성 (user 메시지 기준)
+        const userMsg = recentPair.find(m => m.role === 'user');
+        const tags = userMsg ? await alba.generateTags(userMsg.content) : [];
+        
+        // 파일 업데이트 (마지막 메시지에 aiMemo, 태그 추가)
+        if (aiMemo || tags.length > 0) {
+          const content = await fs.readFile(filePath, 'utf-8');
+          const messages = JSON.parse(content);
+          
+          if (aiMemo) messages[lastIndex].aiMemo = aiMemo;
+          if (tags.length > 0) messages[lastIndex].tags = tags;
+          
+          await fs.writeFile(filePath, JSON.stringify(messages, null, 2), 'utf-8');
+          console.log(`[Archiver/Alba] Updated: aiMemo=${!!aiMemo}, tags=${tags.length}`);
+        }
+      } catch (error) {
+        console.error('[Archiver/Alba] Work failed:', error.message);
+      }
+    });
   }
 }
 
