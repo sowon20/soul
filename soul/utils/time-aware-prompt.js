@@ -7,9 +7,11 @@
  * - 마지막 대화 시점 정보
  * - 시간대별 톤 가이드
  * - 진행 중 이벤트 정보
+ * - 기념일/특별한 날 인지
  */
 
 const { getPendingEventManager } = require('./pending-event');
+const ProfileModel = require('../models/Profile');
 
 class TimeAwarePromptBuilder {
   constructor() {
@@ -128,7 +130,151 @@ class TimeAwarePromptBuilder {
 ${pendingInfo.isOverdue ? `- ⚠️ 예상보다 ${pendingInfo.overdueBy} 지남` : ''}`);
     }
 
+    // 5. 기념일/특별한 날 체크
+    const specialDay = await this._checkSpecialDay(localTime, timezone);
+    if (specialDay) {
+      parts.push(`## 🎉 특별한 날!
+${specialDay.map(s => `- ${s.type}: ${s.message}`).join('\n')}`);
+    }
+
     return parts.join('\n\n');
+  }
+
+  /**
+   * 기념일/특별한 날 체크
+   */
+  async _checkSpecialDay(localTime, timezone) {
+    const specials = [];
+    const today = new Date();
+    const month = today.getMonth() + 1;
+    const day = today.getDate();
+    const todayStr = `${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+    try {
+      // 프로필에서 기념일 필드들 가져오기
+      const profile = await ProfileModel.getActiveProfile();
+      if (!profile?.fields) return null;
+
+      // 생일 체크
+      const birthday = profile.fields.find(f => 
+        f.key === 'birthday' || f.key === '생일' || f.key === 'birth_date'
+      );
+      if (birthday?.value) {
+        const bday = this._extractMonthDay(birthday.value);
+        if (bday === todayStr) {
+          specials.push({ type: '🎂 생일', message: '오늘 생일이야! 축하해줘!' });
+        } else {
+          const daysUntil = this._daysUntilDate(bday);
+          if (daysUntil > 0 && daysUntil <= 7) {
+            specials.push({ type: '🎂 생일 예정', message: `${daysUntil}일 후 생일` });
+          }
+        }
+      }
+
+      // 기념일 체크 (anniversary, 기념일 키워드)
+      const anniversaries = profile.fields.filter(f => 
+        f.key.includes('anniversary') || f.key.includes('기념일') || f.key.includes('기념')
+      );
+      for (const ann of anniversaries) {
+        if (ann.value) {
+          const annDay = this._extractMonthDay(ann.value);
+          if (annDay === todayStr) {
+            specials.push({ type: `💕 ${ann.key}`, message: '오늘이야!' });
+          }
+        }
+      }
+
+    } catch (e) {
+      // 프로필 로드 실패시 무시
+    }
+
+    // 공휴일/시즌 체크
+    const holidays = this._checkHolidays(month, day);
+    specials.push(...holidays);
+
+    return specials.length > 0 ? specials : null;
+  }
+
+  /**
+   * 날짜에서 MM-DD 추출
+   */
+  _extractMonthDay(dateStr) {
+    // 다양한 형식 지원: YYYY-MM-DD, MM/DD, M월 D일 등
+    const str = String(dateStr);
+    
+    // YYYY-MM-DD 또는 MM-DD
+    const isoMatch = str.match(/(\d{1,2})-(\d{1,2})$/);
+    if (isoMatch) {
+      return `${String(isoMatch[1]).padStart(2, '0')}-${String(isoMatch[2]).padStart(2, '0')}`;
+    }
+    
+    // MM/DD
+    const slashMatch = str.match(/(\d{1,2})\/(\d{1,2})/);
+    if (slashMatch) {
+      return `${String(slashMatch[1]).padStart(2, '0')}-${String(slashMatch[2]).padStart(2, '0')}`;
+    }
+    
+    // M월 D일
+    const korMatch = str.match(/(\d{1,2})월\s*(\d{1,2})일/);
+    if (korMatch) {
+      return `${String(korMatch[1]).padStart(2, '0')}-${String(korMatch[2]).padStart(2, '0')}`;
+    }
+    
+    return null;
+  }
+
+  /**
+   * 특정 날짜까지 남은 일수
+   */
+  _daysUntilDate(mmdd) {
+    if (!mmdd) return -1;
+    const [month, day] = mmdd.split('-').map(Number);
+    const now = new Date();
+    const thisYear = now.getFullYear();
+    
+    let target = new Date(thisYear, month - 1, day);
+    if (target < now) {
+      target = new Date(thisYear + 1, month - 1, day);
+    }
+    
+    return Math.ceil((target - now) / (1000 * 60 * 60 * 24));
+  }
+
+  /**
+   * 공휴일/시즌 체크
+   */
+  _checkHolidays(month, day) {
+    const holidays = [];
+    
+    // 한국 주요 공휴일 (양력)
+    const koreanHolidays = {
+      '01-01': '🎊 새해',
+      '03-01': '🇰🇷 삼일절',
+      '05-05': '👶 어린이날',
+      '06-06': '🎖️ 현충일',
+      '08-15': '🇰🇷 광복절',
+      '10-03': '🇰🇷 개천절',
+      '10-09': '📚 한글날',
+      '12-25': '🎄 크리스마스'
+    };
+    
+    const todayStr = `${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    if (koreanHolidays[todayStr]) {
+      holidays.push({ type: koreanHolidays[todayStr], message: '오늘이야!' });
+    }
+    
+    // 특별 시즌
+    if (month === 2 && day === 14) {
+      holidays.push({ type: '💝 발렌타인데이', message: '오늘이야!' });
+    }
+    if (month === 3 && day === 14) {
+      holidays.push({ type: '🍬 화이트데이', message: '오늘이야!' });
+    }
+    if (month === 11 && day === 11) {
+      holidays.push({ type: '🍫 빼빼로데이', message: '오늘이야!' });
+    }
+    
+    return holidays;
   }
 
   /**
