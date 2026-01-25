@@ -214,15 +214,19 @@ export class AISettings {
       // 서버에서 라우팅 설정 로드
       const response = await this.apiClient.get('/config/routing');
       if (response && response.light) {
-        // 새 형식 (serviceId 포함) 또는 이전 형식 (modelId만)
+        // 새 형식 (serviceId + thinking 포함) 또는 이전 형식 (modelId만)
         this.routingConfig = {
           light: response.light?.modelId || response.light,
           medium: response.medium?.modelId || response.medium,
           heavy: response.heavy?.modelId || response.heavy,
-          // serviceId 정보도 저장
+          // serviceId 정보
           lightService: response.light?.serviceId || null,
           mediumService: response.medium?.serviceId || null,
-          heavyService: response.heavy?.serviceId || null
+          heavyService: response.heavy?.serviceId || null,
+          // thinking 설정
+          lightThinking: response.light?.thinking || false,
+          mediumThinking: response.medium?.thinking || false,
+          heavyThinking: response.heavy?.thinking || false
         };
       }
     } catch (error) {

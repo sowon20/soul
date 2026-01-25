@@ -28,6 +28,8 @@
 - 채팅 타임아웃 60초로 증가
 - 시간 정보 "실시간" 명시 (AI 혼동 방지)
 - thinking UI 추가 (임시 스타일 - 작은 회색 글씨)
+- **localDate 버그 수정** - 이중 타임존 적용 문제 (Git: 0874863)
+- **thinking 설정 버그 수정** - lightThinking/mediumThinking/heavyThinking 적용 (Git: 69fa1da)
 
 ### 🔜 다음 작업 후보
 - Phase 1.5 메모리 밀도 압축 검증
