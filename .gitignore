@@ -53,3 +53,11 @@ mcp/google-home/appletv-credentials.json
 # IDE settings
 .vscode/
 memory/mongodb/
+
+# Docker volumes & generated data
+data/
+soul-db.tar.gz
+soul-backup/
+
+# Docker build cache
+.dockerignore
