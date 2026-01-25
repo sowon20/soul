@@ -260,5 +260,111 @@
     "metadata": {
       "responseTime": 0.001
     }
+  },
+  {
+    "role": "user",
+    "content": "다시해보자. 20초 뒤에 메시지 보내줘",
+    "timestamp": "2026-01-25T11:53:02.020Z",
+    "tokens": 6,
+    "meta": {
+      "localTime": "20:53",
+      "localDate": "2026-01-26",
+      "hour": 20,
+      "timeOfDay": "저녁",
+      "dayOfWeek": "일요일",
+      "isWeekend": true,
+      "timezone": "Asia/Seoul",
+      "silenceBefore": 1579,
+      "silenceFormatted": "26분",
+      "sessionId": "main-conversation",
+      "sessionDuration": 18723,
+      "sessionDurationFormatted": "5시간",
+      "messageIndex": 36,
+      "returnEvent": null,
+      "departureEvent": null,
+      "pendingTimeContext": null
+    },
+    "aiMemo": null,
+    "tags": [],
+    "metadata": {}
+  },
+  {
+    "role": "assistant",
+    "content": "됐어! 이제 20초 기다려 ㅎㅎ",
+    "timestamp": "2026-01-25T11:53:02.021Z",
+    "tokens": 5,
+    "meta": {
+      "localTime": "20:53",
+      "localDate": "2026-01-26",
+      "hour": 20,
+      "timeOfDay": "저녁",
+      "dayOfWeek": "일요일",
+      "isWeekend": true,
+      "timezone": "Asia/Seoul",
+      "silenceBefore": 0,
+      "silenceFormatted": "방금",
+      "sessionId": "main-conversation",
+      "sessionDuration": 18724,
+      "sessionDurationFormatted": "5시간",
+      "messageIndex": 37
+    },
+    "aiMemo": null,
+    "tags": [],
+    "metadata": {
+      "responseTime": 0.001
+    }
+  },
+  {
+    "role": "user",
+    "content": "오오~",
+    "timestamp": "2026-01-25T11:53:29.944Z",
+    "tokens": 1,
+    "meta": {
+      "localTime": "20:53",
+      "localDate": "2026-01-26",
+      "hour": 20,
+      "timeOfDay": "저녁",
+      "dayOfWeek": "일요일",
+      "isWeekend": true,
+      "timezone": "Asia/Seoul",
+      "silenceBefore": 27,
+      "silenceFormatted": "방금",
+      "sessionId": "main-conversation",
+      "sessionDuration": 18751,
+      "sessionDurationFormatted": "5시간",
+      "messageIndex": 38,
+      "returnEvent": null,
+      "departureEvent": null,
+      "pendingTimeContext": null
+    },
+    "aiMemo": null,
+    "tags": [],
+    "metadata": {}
+  },
+  {
+    "role": "assistant",
+    "content": "오! 된 거네? 대박 ㅎㅎ\n\n그럼 이제 내가 능동적으로 먼저 말 걸 수 있다는 거야? 아니면 이것도 뭔가 다른 방식으로 작동하는 건가?",
+    "timestamp": "2026-01-25T11:53:29.945Z",
+    "tokens": 19,
+    "meta": {
+      "localTime": "20:53",
+      "localDate": "2026-01-26",
+      "hour": 20,
+      "timeOfDay": "저녁",
+      "dayOfWeek": "일요일",
+      "isWeekend": true,
+      "timezone": "Asia/Seoul",
+      "silenceBefore": 0,
+      "silenceFormatted": "방금",
+      "sessionId": "main-conversation",
+      "sessionDuration": 18752,
+      "sessionDurationFormatted": "5시간",
+      "messageIndex": 39
+    },
+    "aiMemo": null,
+    "tags": [],
+    "metadata": {
+      "responseTime": 0.001
+    }
   }
 ]
