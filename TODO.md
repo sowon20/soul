@@ -31,12 +31,13 @@
 - **localDate 버그 수정** - 이중 타임존 적용 문제 (Git: 0874863)
 - **thinking 설정 버그 수정** - lightThinking/mediumThinking/heavyThinking 적용 (Git: 69fa1da)
 - **Phase 1.5 메모리 압축 검증 완료** - Alba API키 DB 로드 수정 (Git: f3774cd)
-  - 80/10/10 밀도 압축 정상 동작 확인
-  - L2: 오래된 메시지 초압축, L1: 중간 요약, L0: 최근 원본
+- **중기 메모리 (주간 요약) 구현** - MiddleTermMemory에 주간 요약 메서드 추가 (Git: 3824c6e)
+- **thinking UI 디자인 개선** - 아이콘, 배경색, 둥근 테두리 (Git: 9ccbd08)
+- **thinking 토글 안내 수정** - 미지원 모델 안내 문구 (Git: 83d453d)
 
 ### 🔜 다음 작업 후보
-- 중기 메모리 (주간 요약) 구현
-- thinking UI 디자인 개선
+- 컨텍스트 빌드 시 주간 요약 자동 주입
+- thinking 접기/펼치기 기능
 
 # Soul AI - TODO & 작업 이력
 

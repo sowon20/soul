@@ -248,11 +248,26 @@ export class ChatManager {
         const thinkingText = thinkingMatch[1].trim();
         displayContent = message.content.replace(/<thinking>[\s\S]*?<\/thinking>/, '').trim();
         
-        // thinking 블록 추가
-        const thinkingDiv = document.createElement('div');
-        thinkingDiv.className = 'ai-thinking';
-        thinkingDiv.textContent = '💭 ' + thinkingText;
-        content.appendChild(thinkingDiv);
+        // thinking 토글 컨테이너
+        const thinkingContainer = document.createElement('div');
+        thinkingContainer.className = 'ai-thinking-container';
+        
+        // 토글 버튼
+        const toggleBtn = document.createElement('button');
+        toggleBtn.className = 'ai-thinking-toggle';
+        toggleBtn.innerHTML = '💭 <span>생각 과정</span>';
+        toggleBtn.onclick = () => {
+          thinkingContainer.classList.toggle('expanded');
+        };
+        
+        // thinking 내용
+        const thinkingContent = document.createElement('div');
+        thinkingContent.className = 'ai-thinking-content';
+        thinkingContent.textContent = thinkingText;
+        
+        thinkingContainer.appendChild(toggleBtn);
+        thinkingContainer.appendChild(thinkingContent);
+        content.appendChild(thinkingContainer);
       }
       
       const renderedContent = window.marked ? window.marked.parse(displayContent) : this.escapeHtml(displayContent);

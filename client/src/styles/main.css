@@ -2858,20 +2858,46 @@ body {
   }
 }
 
-/* AI Thinking 블록 */
-.ai-thinking {
-  font-size: 0.8rem;
-  color: rgba(180, 180, 200, 0.8);
+/* AI Thinking 토글 */
+.ai-thinking-container {
   margin-bottom: 12px;
+}
+
+.ai-thinking-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(100, 100, 140, 0.15);
+  border: 1px solid rgba(140, 140, 180, 0.3);
+  border-radius: 16px;
+  color: rgba(180, 180, 200, 0.9);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ai-thinking-toggle:hover {
+  background: rgba(100, 100, 140, 0.25);
+}
+
+.ai-thinking-toggle span {
+  font-size: 0.75rem;
+}
+
+.ai-thinking-content {
+  display: none;
+  margin-top: 8px;
   padding: 10px 14px;
   background: rgba(100, 100, 140, 0.08);
   border-left: 3px solid rgba(140, 140, 180, 0.4);
   border-radius: 0 8px 8px 0;
+  font-size: 0.8rem;
+  color: rgba(180, 180, 200, 0.8);
   white-space: pre-wrap;
   line-height: 1.5;
 }
 
-.ai-thinking::before {
-  content: '💭 ';
-  opacity: 0.7;
+.ai-thinking-container.expanded .ai-thinking-content {
+  display: block;
 }
