@@ -90,7 +90,8 @@ class TimeAwarePromptBuilder {
     const parts = [];
 
     // 1. 현재 시간 정보
-    parts.push(`## 현재 시간 정보
+    parts.push(`## 현재 시간 정보 (실시간)
+⚠️ 아래 시간은 이 메시지가 전송되는 "지금 이 순간"입니다. 과거 기록이 아닙니다.
 - 시각: ${localTime.formatted} (${timeOfDay})
 - 요일: ${localTime.dayOfWeek}
 - 주말: ${localTime.isWeekend ? '예' : '아니오'}`);
