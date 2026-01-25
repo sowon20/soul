@@ -66,6 +66,28 @@ const BUILTIN_TOOLS = [
     }
   },
   {
+    name: 'update_scheduled_message',
+    description: '예약된 메시지의 시간이나 내용을 수정합니다.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        schedule_id: {
+          type: 'number',
+          description: '수정할 예약 ID'
+        },
+        message: {
+          type: 'string',
+          description: '새 메시지 내용 (변경 시)'
+        },
+        delay_seconds: {
+          type: 'number',
+          description: '지금부터 몇 초 후로 변경할지'
+        }
+      },
+      required: ['schedule_id']
+    }
+  },
+  {
     name: 'list_scheduled_messages',
     description: '현재 예약된 메시지 목록을 보여줍니다.',
     input_schema: {
@@ -154,6 +176,47 @@ async function executeBuiltinTool(toolName, input) {
         success: true, 
         count: list.length,
         scheduled: list 
+      };
+    }
+
+    case 'update_scheduled_message': {
+      const scheduleId = input.schedule_id;
+      const scheduled = scheduledMessages.get(scheduleId);
+      
+      if (!scheduled) {
+        return { success: false, error: `예약 ID ${scheduleId}를 찾을 수 없습니다` };
+      }
+      
+      // 기존 타이머 취소
+      clearTimeout(scheduled.timeoutId);
+      
+      // 새 값 적용
+      const newMessage = input.message || scheduled.message;
+      const newDelaySeconds = input.delay_seconds || 60;
+      const newSendAt = new Date(Date.now() + newDelaySeconds * 1000);
+      
+      const newTimeoutId = setTimeout(async () => {
+        const msg = await getProactiveMessenger();
+        if (msg) {
+          await msg.sendNow({ 
+            type: 'scheduled', 
+            message: newMessage 
+          });
+        }
+        scheduledMessages.delete(scheduleId);
+        console.log(`[Scheduled] Sent #${scheduleId}: "${newMessage}"`);
+      }, newDelaySeconds * 1000);
+      
+      scheduledMessages.set(scheduleId, {
+        timeoutId: newTimeoutId,
+        message: newMessage,
+        sendAt: newSendAt.toISOString(),
+        delaySeconds: newDelaySeconds
+      });
+      
+      return { 
+        success: true, 
+        message: `예약 #${scheduleId} 수정됨: ${newDelaySeconds}초 후 "${newMessage}"` 
       };
     }
 
