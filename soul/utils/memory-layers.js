@@ -13,6 +13,9 @@
 const path = require('path');
 const fs = require('fs').promises;
 
+// 메모리 스토리지 경로 (환경 변수 또는 기본값)
+const MEMORY_STORAGE_PATH = process.env.MEMORY_STORAGE_PATH || path.join(process.cwd(), 'memory');
+
 /**
  * 단기 메모리 (Short-Term Memory)
  * - 최근 50개 메시지 유지
@@ -320,7 +323,7 @@ class MiddleTermMemory {
    */
   _getWeeklySummaryPath(year, month, weekNum) {
     const monthStr = String(month).padStart(2, '0');
-    const dir = path.join(process.cwd(), 'memory', 'summaries', `${year}-${monthStr}`);
+    const dir = path.join(MEMORY_STORAGE_PATH, 'summaries', `${year}-${monthStr}`);
     return {
       dir,
       file: path.join(dir, `week-${weekNum}.json`)
@@ -376,7 +379,7 @@ class MiddleTermMemory {
    */
   async getRecentWeeklySummaries(count = 4) {
     try {
-      const summariesRoot = path.join(process.cwd(), 'memory', 'summaries');
+      const summariesRoot = path.join(MEMORY_STORAGE_PATH, 'summaries');
       
       // 폴더가 없으면 빈 배열 반환
       try {
@@ -1053,5 +1056,6 @@ module.exports = {
   LongTermMemory,
   MemoryManager,
   getMemoryManager,
-  resetMemoryManager
+  resetMemoryManager,
+  MEMORY_STORAGE_PATH
 };

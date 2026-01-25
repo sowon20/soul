@@ -26,6 +26,7 @@ services:
       - NODE_ENV=production
       - MONGODB_URI=mongodb://mongodb:27017/soul
       - PORT=3001
+      - MEMORY_STORAGE_PATH=/app/memory
     volumes:
       - ./soul:/app                    # 소스코드 실시간 반영
       - /app/node_modules              # node_modules는 컨테이너 것 사용

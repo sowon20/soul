@@ -37,6 +37,7 @@
 - **thinking 접기/펼치기** - 버튼 클릭으로 토글 (Git: f8af03c)
 - **recall_memory 도구 추가** - AI가 자율적으로 과거 기억 조회 (builtin-tools.js)
 - **주간 요약 자동 트리거** - 7일 경과 or 100메시지 시 Alba가 백그라운드 생성
+- **메모리 스토리지 경로 환경 변수화** - MEMORY_STORAGE_PATH로 통합 관리
 
 ### 🔜 다음 작업 후보
 - 스트리밍 중 thinking 자동 펼침/완료 시 접기
