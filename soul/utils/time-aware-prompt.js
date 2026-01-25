@@ -11,6 +11,7 @@
  */
 
 const { getPendingEventManager } = require('./pending-event');
+const { getConversationFlowTracker } = require('./conversation-flow');
 const ProfileModel = require('../models/Profile');
 
 class TimeAwarePromptBuilder {
@@ -136,6 +137,15 @@ ${pendingInfo.isOverdue ? `- ⚠️ 예상보다 ${pendingInfo.overdueBy} 지남
       parts.push(`## 🎉 특별한 날!
 ${specialDay.map(s => `- ${s.type}: ${s.message}`).join('\n')}`);
     }
+
+    // 6. 대화 흐름
+    try {
+      const flowTracker = getConversationFlowTracker();
+      const flowSection = flowTracker.buildPromptSection();
+      if (flowSection) {
+        parts.push(`## 대화 흐름\n${flowSection}`);
+      }
+    } catch (e) {}
 
     return parts.join('\n\n');
   }

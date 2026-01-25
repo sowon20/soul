@@ -304,6 +304,11 @@ class ConversationPipeline {
       const { getPendingEventManager } = require('./pending-event');
       const pendingEventManager = await getPendingEventManager(this.memoryConfig?.storagePath || './memory');
       
+      // 0.1.1 대화 흐름 추적
+      const { getConversationFlowTracker } = require('./conversation-flow');
+      const flowTracker = getConversationFlowTracker();
+      flowTracker.processMessage({ content: userMessage, role: 'user' });
+      
       // 0.2 복귀 체크 (이전에 떠남 이벤트가 있었으면)
       let returnEvent = null;
       const timeContext = pendingEventManager.generateTimeContext();
