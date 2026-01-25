@@ -16,9 +16,19 @@ FROM nginx:alpine
 
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Nginx 설정 (SPA용)
+# Nginx 설정 (SPA + API 프록시)
 RUN echo 'server { \
     listen 80; \
+    location /api/ { \
+        proxy_pass http://soul-backend:3001/api/; \
+        proxy_http_version 1.1; \
+        proxy_set_header Upgrade $http_upgrade; \
+        proxy_set_header Connection "upgrade"; \
+        proxy_set_header Host $host; \
+        proxy_set_header X-Real-IP $remote_addr; \
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
+        proxy_set_header X-Forwarded-Proto $scheme; \
+    } \
     location / { \
         root /usr/share/nginx/html; \
         try_files $uri $uri/ /index.html; \
