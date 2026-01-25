@@ -240,8 +240,23 @@ export class ChatManager {
 
       // Set content (with markdown support)
       const content = messageDiv.querySelector('.message-content');
-      const renderedContent = window.marked ? window.marked.parse(message.content) : this.escapeHtml(message.content);
-      content.innerHTML = renderedContent;
+      
+      // thinking 태그 분리
+      let displayContent = message.content;
+      const thinkingMatch = message.content.match(/<thinking>([\s\S]*?)<\/thinking>/);
+      if (thinkingMatch) {
+        const thinkingText = thinkingMatch[1].trim();
+        displayContent = message.content.replace(/<thinking>[\s\S]*?<\/thinking>/, '').trim();
+        
+        // thinking 블록 추가
+        const thinkingDiv = document.createElement('div');
+        thinkingDiv.className = 'ai-thinking';
+        thinkingDiv.textContent = '💭 ' + thinkingText;
+        content.appendChild(thinkingDiv);
+      }
+      
+      const renderedContent = window.marked ? window.marked.parse(displayContent) : this.escapeHtml(displayContent);
+      content.innerHTML = (thinkingMatch ? content.innerHTML : '') + renderedContent;
 
       // Process code blocks - add copy button and syntax highlighting
       this.processCodeBlocks(content, message.content);

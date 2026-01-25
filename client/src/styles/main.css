@@ -2857,3 +2857,13 @@ body {
     opacity: 0;
   }
 }
+
+/* AI Thinking 블록 - 임시 스타일 */
+.ai-thinking {
+  font-size: 0.75rem;
+  color: rgba(150, 150, 150, 0.6);
+  margin-bottom: 8px;
+  padding: 4px 8px;
+  border-left: 2px solid rgba(150, 150, 150, 0.3);
+  white-space: pre-wrap;
+}
