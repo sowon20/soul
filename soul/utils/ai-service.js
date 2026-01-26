@@ -63,17 +63,21 @@ class AnthropicService extends AIService {
    * mcp_1234567890__execute -> 터미널 > execute
    */
   formatToolName(name) {
+    console.log(`[formatToolName] Raw name: ${name}`);
+    
     // MCP 도구: mcp_{timestamp}__{server}__{tool} 형식
     const mcpMatch = name.match(/^mcp_\d+__(.+?)__(.+)$/);
     if (mcpMatch) {
       const [, serverKey, toolName] = mcpMatch;
       const serverName = this.mcpServerNames[serverKey] || serverKey;
+      console.log(`[formatToolName] Matched server: ${serverKey} -> ${serverName}, tool: ${toolName}`);
       return `${serverName} > ${toolName}`;
     }
     
     // 일반 MCP: mcp_{timestamp}__{tool} 형식
     const simpleMatch = name.match(/^mcp_\d+__(.+)$/);
     if (simpleMatch) {
+      console.log(`[formatToolName] Simple match: ${simpleMatch[1]}`);
       return simpleMatch[1];
     }
     
