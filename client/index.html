@@ -200,41 +200,7 @@
         <!-- MacOS Dock 영역 -->
         <div class="dock-test-area">
           <div class="dock">
-            <div class="dock-item" data-name="Soul">
-              <div class="icon">
-                <img src="./src/assets/soul-icon.webp" alt="Soul" />
-              </div>
-            </div>
-            <div class="dock-item" data-name="MCP">
-              <div class="icon">
-                <img src="./src/assets/mcp-icon.webp" alt="MCP" />
-              </div>
-            </div>
-            <div class="dock-item" data-name="스마트홈">
-              <div class="icon">
-                <img src="./src/assets/smarthome-icon.webp" alt="스마트홈" />
-              </div>
-            </div>
-            <div class="dock-item" data-name="폴더">
-              <div class="icon">
-                <img src="./src/assets/folder-icon.webp" alt="폴더" />
-              </div>
-            </div>
-            <div class="dock-item" data-name="체크리스트">
-              <div class="icon">
-                <img src="./src/assets/checklist-icon.webp" alt="체크리스트" />
-              </div>
-            </div>
-            <div class="dock-item" data-name="고양이">
-              <div class="icon">
-                <img src="./src/assets/cat-icon.webp" alt="고양이" />
-              </div>
-            </div>
-            <div class="dock-item" data-name="사용자">
-              <div class="icon">
-                <img src="./src/assets/user-icon.webp" alt="사용자" />
-              </div>
-            </div>
+            <!-- DB에서 동적 로드 -->
           </div>
         </div>
 
@@ -288,99 +254,10 @@
       <div class="card canvas-panel hide" id="canvasPanel">
         <div class="canvas-resizer" id="canvasResizer"></div>
         <div class="canvas-header">
-          <h3>Canvas</h3>
+          <div class="canvas-tabs" id="canvasTabs"></div>
           <button class="close-panel-btn" id="closeCanvasPanelBtn">✕</button>
         </div>
-        <div class="canvas-content">
-          <div style="display: flex; flex-direction: column; gap: 16px;">
-            <!-- 오늘의 이벤트 섹션 -->
-            <div style="background: rgba(255, 255, 255, 0.03); padding: 16px; border-radius: 12px;">
-              <h4 style="margin: 0 0 12px 0; font-size: 13px; color: rgba(255, 255, 255, 0.5); text-transform: uppercase; letter-spacing: 0.5px;">TODAY'S EVENTS</h4>
-              <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                  <div style="width: 32px; height: 32px; background: rgba(255, 193, 7, 0.2); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #FFC107; font-weight: 600; font-size: 14px;">4</div>
-                  <span style="color: rgba(255, 255, 255, 0.7); font-size: 12px;">MILESTONES</span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                  <div style="width: 32px; height: 32px; background: rgba(33, 150, 243, 0.2); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #2196F3; font-weight: 600; font-size: 14px;">12</div>
-                  <span style="color: rgba(255, 255, 255, 0.7); font-size: 12px;">TASKS</span>
-                </div>
-              </div>
-              <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                  <div style="width: 32px; height: 32px; background: rgba(76, 175, 80, 0.2); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #4CAF50; font-weight: 600; font-size: 14px;">3</div>
-                  <span style="color: rgba(255, 255, 255, 0.7); font-size: 12px;">MEETINGS</span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                  <div style="width: 32px; height: 32px; background: rgba(233, 30, 99, 0.2); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #E91E63; font-weight: 600; font-size: 14px;">2</div>
-                  <span style="color: rgba(255, 255, 255, 0.7); font-size: 12px;">PROJECTS START</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- 프로젝트 상태 -->
-            <div style="background: rgba(255, 255, 255, 0.03); padding: 16px; border-radius: 12px;">
-              <h4 style="margin: 0 0 12px 0; font-size: 13px; color: rgba(255, 255, 255, 0.5); text-transform: uppercase; letter-spacing: 0.5px;">PROJECT STATUS</h4>
-              <div style="display: flex; flex-direction: column; gap: 12px;">
-                <div>
-                  <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-                    <span style="color: #e8e8e8; font-size: 13px;">Summer Campaign</span>
-                    <span style="color: rgba(255, 193, 7, 0.9); font-size: 12px;">In progress</span>
-                  </div>
-                  <div style="background: rgba(255, 255, 255, 0.1); height: 6px; border-radius: 3px; overflow: hidden;">
-                    <div style="background: linear-gradient(90deg, #FFC107, #FFD54F); width: 65%; height: 100%;"></div>
-                  </div>
-                </div>
-                <div>
-                  <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-                    <span style="color: #e8e8e8; font-size: 13px;">Website Redesign</span>
-                    <span style="color: rgba(76, 175, 80, 0.9); font-size: 12px;">Completed</span>
-                  </div>
-                  <div style="background: rgba(255, 255, 255, 0.1); height: 6px; border-radius: 3px; overflow: hidden;">
-                    <div style="background: linear-gradient(90deg, #4CAF50, #81C784); width: 100%; height: 100%;"></div>
-                  </div>
-                </div>
-                <div>
-                  <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-                    <span style="color: #e8e8e8; font-size: 13px;">Mobile App Beta</span>
-                    <span style="color: rgba(244, 67, 54, 0.9); font-size: 12px;">Overdue</span>
-                  </div>
-                  <div style="background: rgba(255, 255, 255, 0.1); height: 6px; border-radius: 3px; overflow: hidden;">
-                    <div style="background: linear-gradient(90deg, #F44336, #E57373); width: 40%; height: 100%;"></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 팀 활동 -->
-            <div style="background: rgba(255, 255, 255, 0.03); padding: 16px; border-radius: 12px;">
-              <h4 style="margin: 0 0 12px 0; font-size: 13px; color: rgba(255, 255, 255, 0.5); text-transform: uppercase; letter-spacing: 0.5px;">TEAM ACTIVITY</h4>
-              <div style="display: flex; flex-direction: column; gap: 10px;">
-                <div style="display: flex; gap: 10px; align-items: start;">
-                  <div style="width: 6px; height: 6px; background: #2196F3; border-radius: 50%; margin-top: 6px; flex-shrink: 0;"></div>
-                  <div>
-                    <div style="color: #e8e8e8; font-size: 13px; margin-bottom: 2px;">Sarah completed design review</div>
-                    <div style="color: rgba(255, 255, 255, 0.4); font-size: 11px;">2 hours ago</div>
-                  </div>
-                </div>
-                <div style="display: flex; gap: 10px; align-items: start;">
-                  <div style="width: 6px; height: 6px; background: #4CAF50; border-radius: 50%; margin-top: 6px; flex-shrink: 0;"></div>
-                  <div>
-                    <div style="color: #e8e8e8; font-size: 13px; margin-bottom: 2px;">New milestone achieved</div>
-                    <div style="color: rgba(255, 255, 255, 0.4); font-size: 11px;">5 hours ago</div>
-                  </div>
-                </div>
-                <div style="display: flex; gap: 10px; align-items: start;">
-                  <div style="width: 6px; height: 6px; background: #FFC107; border-radius: 50%; margin-top: 6px; flex-shrink: 0;"></div>
-                  <div>
-                    <div style="color: #e8e8e8; font-size: 13px; margin-bottom: 2px;">Meeting scheduled for tomorrow</div>
-                    <div style="color: rgba(255, 255, 255, 0.4); font-size: 11px;">1 day ago</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <div class="canvas-content" id="canvasContent"></div>
       </div>
     </div>
   </div>

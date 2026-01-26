@@ -298,8 +298,11 @@ export class ChatManager {
       let displayContent = message.content;
       const thinkingMatch = message.content.match(/<thinking>([\s\S]*?)<\/thinking>/);
       if (thinkingMatch) {
-        displayContent = message.content.replace(/<thinking>[\s\S]*?<\/thinking>/, '').trim();
+        displayContent = displayContent.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim();
       }
+      
+      // tool_use 태그 분리
+      displayContent = displayContent.replace(/<tool_use>[\s\S]*?<\/tool_use>/g, '').trim();
       
       const renderedContent = window.marked ? window.marked.parse(displayContent) : this.escapeHtml(displayContent);
       content.innerHTML = renderedContent;
@@ -331,6 +334,36 @@ export class ChatManager {
         thinkingContainer.appendChild(toggleBtn);
         thinkingContainer.appendChild(thinkingContent);
         content.insertBefore(thinkingContainer, content.firstChild);
+      }
+
+      // tool_use 태그 처리 (MCP 도구 사용 표시)
+      const toolUseMatches = message.content.matchAll(/<tool_use>([\s\S]*?)<\/tool_use>/g);
+      for (const toolMatch of toolUseMatches) {
+        const toolText = toolMatch[1].trim();
+        
+        // 도구 사용 컨테이너
+        const toolContainer = document.createElement('div');
+        toolContainer.className = 'ai-tool-container';
+        
+        // 토글 버튼
+        const toolToggleBtn = document.createElement('button');
+        toolToggleBtn.type = 'button';
+        toolToggleBtn.className = 'ai-tool-toggle';
+        toolToggleBtn.innerHTML = '🔧 <span>도구 사용</span>';
+        toolToggleBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          this.parentElement.classList.toggle('expanded');
+        });
+        
+        // 도구 내용
+        const toolContent = document.createElement('div');
+        toolContent.className = 'ai-tool-content';
+        toolContent.textContent = toolText;
+        
+        toolContainer.appendChild(toolToggleBtn);
+        toolContainer.appendChild(toolContent);
+        content.insertBefore(toolContainer, content.firstChild);
       }
 
       // Process code blocks - add copy button and syntax highlighting

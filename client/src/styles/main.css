@@ -1741,8 +1741,9 @@ body {
   position: relative;
   transition: all 0.3s ease-out;
   z-index: 5;
-  padding: 24px 0 24px 24px !important;
+  padding: 24px 0 24px 12px !important;
   box-shadow: none;
+  overflow: hidden;
 }
 
 /* 화면이 작을 때 최소 너비 줄이기 */
@@ -1876,7 +1877,6 @@ body {
   align-items: center;
   padding-bottom: 16px;
   padding-right: 24px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   position: relative;
   z-index: 1;
 }
@@ -1902,18 +1902,78 @@ body {
   color: #ffffff;
 }
 
-.canvas-content {
+/* 캔버스 탭 시스템 */
+.canvas-tabs {
+  display: flex;
+  gap: 4px;
   flex: 1;
-  overflow-y: auto;
-  padding-top: 16px;
-  padding-right: 24px;
-  position: relative;
-  z-index: 1;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.canvas-tabs::-webkit-scrollbar { display: none; }
+
+.canvas-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+.canvas-tab:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.canvas-tab.active {
+  background: #f5a862;
+  color: #1a1918;
+  border-color: #f5a862;
+}
+.canvas-tab-close {
+  font-size: 14px;
+  opacity: 0.6;
+  cursor: pointer;
+  margin-left: 2px;
+}
+.canvas-tab-close:hover {
+  opacity: 1;
+}
+.canvas-tab.active .canvas-tab-close {
+  color: #1a1918;
 }
 
-/* 오른쪽 패널 스크롤바 */
+.canvas-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.canvas-iframe.active {
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.canvas-content {
+  flex: 1;
+  padding: 0;
+  position: relative;
+  z-index: 1;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+  overflow: hidden;
+}
+
 .canvas-content::-webkit-scrollbar {
-  width: 6px;
+  width: 4px;
 }
 
 .canvas-content::-webkit-scrollbar-track {
@@ -1921,18 +1981,12 @@ body {
 }
 
 .canvas-content::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
 }
 
 .canvas-content::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
-}
-
-/* Firefox */
-.canvas-content {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  background: rgba(255, 255, 255, 0.4);
 }
 
 /* 마크다운 코드 블록 */
@@ -2720,6 +2774,50 @@ body {
   --s: 1.1;
 }
 
+/* 독 편집 모드 */
+.dock.edit-mode .dock-item:not(.fixed) {
+  animation: dockShake 0.3s ease-in-out infinite;
+  cursor: grab;
+}
+
+.dock.edit-mode .dock-item {
+  --s: 1 !important;
+}
+
+.dock.edit-mode .dock-item:not(.fixed):active {
+  cursor: grabbing;
+  animation: none;
+}
+
+.dock.edit-mode .dock-item.dragging {
+  opacity: 0.5;
+}
+
+@keyframes dockShake {
+  0%, 100% { transform: rotate(-2deg); }
+  50% { transform: rotate(2deg); }
+}
+
+.dock-item-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  background: #ff5555;
+  color: white;
+  border-radius: 50%;
+  font-size: 12px;
+  line-height: 18px;
+  text-align: center;
+  cursor: pointer;
+  z-index: 10;
+}
+
+.dock-item-remove:hover {
+  background: #ff3333;
+}
+
 /* Logo Title Styles */
 .neomorphic-title {
   margin: 0 0 16px 0;
@@ -2899,5 +2997,50 @@ body {
 }
 
 .ai-thinking-container.expanded .ai-thinking-content {
+  display: block;
+}
+
+
+/* AI Tool Use 토글 */
+.ai-tool-container {
+  margin-bottom: 12px;
+}
+
+.ai-tool-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(251, 191, 36, 0.15);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: 16px;
+  color: rgba(251, 191, 36, 0.9);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ai-tool-toggle:hover {
+  background: rgba(251, 191, 36, 0.25);
+}
+
+.ai-tool-toggle span {
+  font-size: 0.75rem;
+}
+
+.ai-tool-content {
+  display: none;
+  margin-top: 8px;
+  padding: 10px 14px;
+  background: rgba(251, 191, 36, 0.08);
+  border-left: 3px solid rgba(251, 191, 36, 0.4);
+  border-radius: 0 8px 8px 0;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.8);
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.ai-tool-container.expanded .ai-tool-content {
   display: block;
 }

@@ -860,54 +860,589 @@ class SoulApp {
   }
 
   /**
-   * MacOS Dock 근접 기반 확대 효과
+   * MacOS 스타일 Dock 초기화 - DB에서 아이템 로드
    */
-  initMacosDock() {
-    const dock = document.querySelector('.macos-dock');
-    const dockItems = document.querySelectorAll('.dock-item');
-
-    if (!dock || !dockItems.length) {
+  async initMacosDock() {
+    const dock = document.querySelector('.dock');
+    if (!dock) {
       console.log('❌ MacOS Dock 요소를 찾을 수 없음');
       return;
     }
 
-    console.log('✅ MacOS Dock 효과 등록');
+    // DB에서 독 아이템 로드
+    try {
+      const response = await fetch('/api/config/dock');
+      if (response.ok) {
+        this.dockItems = await response.json();
+        this.renderDock();
+      }
+    } catch (error) {
+      console.error('독 설정 로드 실패:', error);
+    }
 
-    const baseSize = 22; // 기본 아이콘 크기
-    const maxSize = 54; // 최대 아이콘 크기 (22 * 1.6 * 1.5)
-    const proximityRange = 120; // 영향 범위 (px)
+    console.log('✅ MacOS Dock 초기화 완료');
+  }
 
-    dock.addEventListener('mousemove', (e) => {
-      const dockRect = dock.getBoundingClientRect();
-      const mouseX = e.clientX - dockRect.left;
+  /**
+   * 독 렌더링
+   */
+  renderDock() {
+    const dock = document.querySelector('.dock');
+    if (!dock || !this.dockItems) return;
 
-      dockItems.forEach(item => {
-        const itemRect = item.getBoundingClientRect();
-        const itemCenterX = itemRect.left + itemRect.width / 2 - dockRect.left;
+    // order 기준 정렬
+    const sorted = [...this.dockItems].sort((a, b) => a.order - b.order);
+    
+    dock.innerHTML = sorted.map(item => `
+      <div class="dock-item ${item.fixed ? 'fixed' : ''}" data-id="${item.id}" data-name="${item.name}" draggable="${!item.fixed && this.dockEditMode}">
+        <div class="icon">
+          <img src="./src/assets/${item.icon}" alt="${item.name}" />
+        </div>
+        ${this.dockEditMode && !item.fixed ? '<div class="dock-item-remove">×</div>' : ''}
+      </div>
+    `).join('');
 
-        // 마우스와 아이콘 중심 사이의 거리 계산
-        const distance = Math.abs(mouseX - itemCenterX);
+    // 클릭/롱프레스 이벤트 등록
+    dock.querySelectorAll('.dock-item').forEach(el => {
+      let pressTimer = null;
+      
+      // 롱프레스 시작
+      el.addEventListener('mousedown', (e) => {
+        if (this.dockEditMode) return;
+        pressTimer = setTimeout(() => {
+          this.enterDockEditMode();
+        }, 600);
+      });
+      
+      el.addEventListener('mouseup', () => clearTimeout(pressTimer));
+      el.addEventListener('mouseleave', () => clearTimeout(pressTimer));
+      
+      // 터치 지원
+      el.addEventListener('touchstart', (e) => {
+        if (this.dockEditMode) return;
+        pressTimer = setTimeout(() => {
+          this.enterDockEditMode();
+        }, 600);
+      });
+      el.addEventListener('touchend', () => clearTimeout(pressTimer));
+      
+      // 클릭
+      el.addEventListener('click', (e) => {
+        if (this.dockEditMode) return;
+        const id = el.dataset.id;
+        const item = this.dockItems.find(d => d.id === id);
+        if (item) this.handleDockClick(item);
+      });
+      
+      // 삭제 버튼
+      const removeBtn = el.querySelector('.dock-item-remove');
+      if (removeBtn) {
+        removeBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.removeDockItem(el.dataset.id);
+        });
+      }
+    });
 
-        // 거리 기반 스케일 계산 (가까울수록 크게)
-        let scale = 1;
-        if (distance < proximityRange) {
-          const factor = 1 - (distance / proximityRange);
-          // 부드러운 곡선 (ease-out quad)
-          const easedFactor = 1 - Math.pow(1 - factor, 2);
-          scale = 1 + (easedFactor * 1.45); // 1.0 ~ 2.45 범위
+    // 편집 모드일 때 드래그앤드롭
+    if (this.dockEditMode) {
+      this.setupDockDragDrop(dock);
+    }
+  }
+
+  // 독 편집 모드 상태
+  dockEditMode = false;
+
+  /**
+   * 독 편집 모드 진입
+   */
+  enterDockEditMode() {
+    this.dockEditMode = true;
+    document.querySelector('.dock')?.classList.add('edit-mode');
+    this.renderDock();
+    
+    // 아이콘 외 영역 클릭하면 편집 모드 종료
+    const exitHandler = (e) => {
+      if (!e.target.closest('.dock-item')) {
+        this.exitDockEditMode();
+        document.removeEventListener('click', exitHandler);
+      }
+    };
+    setTimeout(() => document.addEventListener('click', exitHandler), 100);
+  }
+
+  /**
+   * 독 편집 모드 종료
+   */
+  exitDockEditMode() {
+    this.dockEditMode = false;
+    document.querySelector('.dock')?.classList.remove('edit-mode');
+    this.renderDock();
+    this.saveDockOrder();
+  }
+
+  /**
+   * 독 드래그앤드롭 설정
+   */
+  setupDockDragDrop(dock) {
+    let draggedEl = null;
+
+    dock.querySelectorAll('.dock-item:not(.fixed)').forEach(el => {
+      el.addEventListener('dragstart', (e) => {
+        draggedEl = el;
+        el.classList.add('dragging');
+      });
+
+      el.addEventListener('dragend', () => {
+        el.classList.remove('dragging');
+        draggedEl = null;
+      });
+
+      el.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        if (!draggedEl || draggedEl === el || el.classList.contains('fixed')) return;
+        
+        const rect = el.getBoundingClientRect();
+        const midX = rect.left + rect.width / 2;
+        
+        if (e.clientX < midX) {
+          el.parentNode.insertBefore(draggedEl, el);
+        } else {
+          el.parentNode.insertBefore(draggedEl, el.nextSibling);
         }
+      });
+    });
+  }
 
-        const translateY = -(scale - 1) * 12; // 스케일에 비례한 상승
+  /**
+   * 독 아이템 삭제
+   */
+  removeDockItem(id) {
+    this.dockItems = this.dockItems.filter(item => item.id !== id);
+    this.renderDock();
+    this.saveDockOrder();
+  }
 
-        item.style.transform = `translateY(${translateY}px) scale(${scale})`;
+  /**
+   * 독 순서 저장
+   */
+  async saveDockOrder() {
+    const dock = document.querySelector('.dock');
+    if (!dock) return;
+
+    const newOrder = [];
+    dock.querySelectorAll('.dock-item').forEach((el, idx) => {
+      const item = this.dockItems.find(d => d.id === el.dataset.id);
+      if (item) {
+        item.order = idx;
+        newOrder.push(item);
+      }
+    });
+
+    try {
+      await fetch('/api/config/dock', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: newOrder })
+      });
+    } catch (e) {
+      console.error('독 순서 저장 실패:', e);
+    }
+  }
+
+  /**
+   * 독 아이템 클릭 핸들러
+   */
+  handleDockClick(item) {
+    if (item.url) {
+      // MCP UI가 있으면 캔버스에 열기
+      this.openCanvasPanel(item.id, item.url, item.name);
+    } else {
+      // 특수 기능
+      switch (item.id) {
+        case 'terminal':
+          console.log('터미널 열기 (미구현)');
+          break;
+        case 'mic':
+          console.log('마이크 열기 (미구현)');
+          break;
+        case 'settings':
+          this.openSettingsInCanvas();
+          break;
+        default:
+          console.log('미구현 독 기능:', item.id);
+      }
+    }
+  }
+
+  /**
+   * 설정 페이지를 캔버스에 열기
+   */
+  openSettingsInCanvas() {
+    const panel = document.getElementById('canvasPanel');
+    const tabsContainer = document.getElementById('canvasTabs');
+    const content = document.getElementById('canvasContent');
+    
+    if (!panel || !tabsContainer || !content) return;
+
+    // 이미 열려있으면 활성화만
+    if (this.canvasTabs.find(t => t.type === 'settings')) {
+      this.activateCanvasTab('settings');
+      panel.classList.remove('hide');
+      return;
+    }
+
+    // 설정 컨테이너 생성
+    const settingsContainer = document.createElement('div');
+    settingsContainer.id = 'canvas-settings';
+    settingsContainer.className = 'canvas-iframe active';
+    settingsContainer.style.cssText = 'position: absolute; top: 0; left: 0; right: 0; bottom: 0; overflow-y: auto; padding: 0; box-sizing: border-box; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.3) transparent;';
+    
+    content.appendChild(settingsContainer);
+    
+    // MCP 설정 렌더링
+    this.renderMcpSettingsInCanvas(settingsContainer);
+
+    this.canvasTabs.push({ type: 'settings', title: 'MCP 설정' });
+    this.activateCanvasTab('settings');
+    panel.classList.remove('hide');
+  }
+
+  /**
+   * 캔버스에 MCP 설정 렌더링
+   */
+  async renderMcpSettingsInCanvas(container) {
+    container.innerHTML = '<div style="color: white; padding: 20px;">로딩 중...</div>';
+    
+    try {
+      const response = await fetch('/api/mcp/servers');
+      const data = await response.json();
+      const servers = data.servers || [];
+
+      container.innerHTML = `
+        <div style="color: white; padding-right: 8px;">
+          <h2 style="margin: 0 0 16px 0; font-size: 1.2rem;">MCP 서버 설정</h2>
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            ${servers.map(s => `
+              <div style="background: rgba(255,255,255,0.1); border-radius: 12px; padding: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <div>
+                    <div style="font-weight: 600;">${s.type === 'built-in' ? 'Soul MCP' : s.name}</div>
+                    <div style="font-size: 0.8rem; opacity: 0.7;">${s.description || ''}</div>
+                    <span style="display: inline-block; margin-top: 6px; font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; background: ${s.type === 'built-in' ? 'rgba(74, 222, 128, 0.2)' : 'rgba(251, 191, 36, 0.2)'}; color: ${s.type === 'built-in' ? '#4ade80' : '#fbbf24'};">
+                      ${s.type === 'built-in' ? '기본 내장' : '외부'}
+                    </span>
+                  </div>
+                  ${s.type !== 'built-in' ? `
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <span style="font-size: 0.75rem; background: ${s.showInDock ? '#4ade80' : '#666'}; padding: 2px 8px; border-radius: 4px;">
+                      ${s.showInDock ? '독 표시' : '숨김'}
+                    </span>
+                    <button class="canvas-mcp-edit" data-id="${s.id}" style="background: #4285f4; color: white; border: none; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 0.8rem;">
+                      편집
+                    </button>
+                  </div>
+                  ` : ''}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+
+      // 편집 버튼 이벤트
+      container.querySelectorAll('.canvas-mcp-edit').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const serverId = btn.dataset.id;
+          const server = servers.find(s => s.id === serverId);
+          if (server) {
+            this.showMcpEditModal(server, container);
+          }
+        });
+      });
+    } catch (e) {
+      container.innerHTML = `<div style="color: #ff6b6b; padding: 20px;">설정을 불러오는데 실패했습니다.</div>`;
+    }
+  }
+
+  /**
+   * MCP 편집 모달 (캔버스용)
+   */
+  showMcpEditModal(server, container) {
+    const icons = [
+      'checklist-icon.webp', 'smarthome-icon.webp', 'cat-icon.webp',
+      'terminal-icon.webp', 'mic-icon.webp', 'setup-icom.webp',
+      'mcp-icon.webp', 'folder-icon.webp', 'user-icon.webp'
+    ];
+
+    const modal = document.createElement('div');
+    modal.className = 'mcp-edit-modal';
+    modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 10000; display: flex; align-items: center; justify-content: center;';
+    
+    modal.innerHTML = `
+      <div style="background: #2a2a3e; border-radius: 16px; padding: 20px; width: 90%; max-width: 400px; max-height: 80vh; overflow-y: auto; color: white;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <h3 style="margin: 0; font-size: 1.1rem;">MCP 서버 편집</h3>
+          <button class="modal-close" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: white;">×</button>
+        </div>
+        <form id="mcpEditForm" style="display: flex; flex-direction: column; gap: 12px;">
+          <div>
+            <label style="font-size: 0.85rem; opacity: 0.7;">이름</label>
+            <input type="text" name="name" value="${server.name}" style="width: 100%; padding: 8px; border: 1px solid #444; border-radius: 8px; background: #1a1a2e; color: white; box-sizing: border-box;">
+          </div>
+          <div>
+            <label style="font-size: 0.85rem; opacity: 0.7;">설명</label>
+            <input type="text" name="description" value="${server.description || ''}" placeholder="서버 설명" style="width: 100%; padding: 8px; border: 1px solid #444; border-radius: 8px; background: #1a1a2e; color: white; box-sizing: border-box;">
+          </div>
+          <div>
+            <label style="font-size: 0.85rem; opacity: 0.7;">UI 페이지 URL</label>
+            <input type="text" name="uiUrl" value="${server.uiUrl || ''}" placeholder="https://..." style="width: 100%; padding: 8px; border: 1px solid #444; border-radius: 8px; background: #1a1a2e; color: white; box-sizing: border-box;">
+          </div>
+          <div>
+            <label style="font-size: 0.85rem; opacity: 0.7;">아이콘</label>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;">
+              ${icons.map(icon => `
+                <div class="icon-option" data-icon="${icon}" style="width: 40px; height: 40px; border: 2px solid ${server.icon === icon ? '#4285f4' : '#444'}; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; background: ${server.icon === icon ? 'rgba(66,133,244,0.2)' : '#1a1a2e'};">
+                  <img src="./src/assets/${icon}" style="width: 28px; height: 28px;">
+                </div>
+              `).join('')}
+            </div>
+            <input type="hidden" name="icon" value="${server.icon || ''}">
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <input type="checkbox" name="showInDock" id="showInDock" ${server.showInDock ? 'checked' : ''}>
+            <label for="showInDock">독(Dock)에 표시</label>
+          </div>
+          <button type="submit" style="padding: 10px; background: #4285f4; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 0.95rem;">저장</button>
+        </form>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // 아이콘 선택
+    modal.querySelectorAll('.icon-option').forEach(opt => {
+      opt.addEventListener('click', () => {
+        modal.querySelectorAll('.icon-option').forEach(o => {
+          o.style.border = '2px solid #444';
+          o.style.background = '#1a1a2e';
+        });
+        opt.style.border = '2px solid #4285f4';
+        opt.style.background = 'rgba(66,133,244,0.2)';
+        modal.querySelector('input[name="icon"]').value = opt.dataset.icon;
       });
     });
 
-    dock.addEventListener('mouseleave', () => {
-      dockItems.forEach(item => {
-        item.style.transform = 'translateY(0) scale(1)';
-      });
+    // 닫기
+    modal.querySelector('.modal-close').addEventListener('click', () => modal.remove());
+    modal.addEventListener('mousedown', (e) => { if (e.target === modal) modal.remove(); });
+
+    // 저장
+    modal.querySelector('#mcpEditForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const updates = {
+        name: formData.get('name'),
+        description: formData.get('description'),
+        uiUrl: formData.get('uiUrl'),
+        icon: formData.get('icon'),
+        showInDock: formData.get('showInDock') === 'on'
+      };
+
+      if (updates.showInDock && !updates.uiUrl) {
+        alert('독에 표시하려면 UI 페이지 URL을 입력해주세요.');
+        return;
+      }
+
+      try {
+        await fetch(`/api/mcp/servers/${server.id}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates)
+        });
+        modal.remove();
+        // 목록 새로고침
+        this.renderMcpSettingsInCanvas(container);
+        // 독 업데이트
+        await this.updateDockFromMcp();
+      } catch (err) {
+        alert('저장 실패: ' + err.message);
+      }
     });
+  }
+
+  /**
+   * 독 새로고침
+   */
+  async refreshDock() {
+    try {
+      const response = await fetch('/api/config/dock');
+      if (response.ok) {
+        this.dockItems = await response.json();
+        this.renderDock();
+      }
+    } catch (e) {
+      console.error('독 새로고침 실패:', e);
+    }
+  }
+
+  /**
+   * MCP 설정 기반 독 업데이트
+   */
+  async updateDockFromMcp() {
+    try {
+      // MCP 서버 목록 가져오기
+      const mcpRes = await fetch('/api/mcp/servers');
+      const mcpData = await mcpRes.json();
+      const mcpServers = mcpData.servers || [];
+
+      // showInDock && uiUrl 있는 서버만 독에 추가
+      const mcpDockItems = mcpServers
+        .filter(s => s.showInDock && s.uiUrl)
+        .map((s, i) => ({
+          id: s.id,
+          name: s.name,
+          icon: s.icon || 'mcp-icon.webp',
+          url: s.uiUrl,
+          order: i
+        }));
+
+      // 설정은 항상 마지막에 고정
+      const settingsItem = {
+        id: 'settings',
+        name: '설정',
+        icon: 'setup-icom.webp',
+        url: null,
+        order: 999,
+        fixed: true
+      };
+
+      const newDockItems = [...mcpDockItems, settingsItem];
+
+      // DB에 저장
+      await fetch('/api/config/dock', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: newDockItems })
+      });
+
+      // 로컬 상태 업데이트 및 렌더링
+      this.dockItems = newDockItems;
+      this.renderDock();
+    } catch (e) {
+      console.error('독 업데이트 실패:', e);
+    }
+  }
+
+  // 캔버스 탭 상태
+  canvasTabs = [];
+  activeCanvasTab = null;
+
+  /**
+   * 캔버스 패널에 MCP UI 열기 (탭 시스템)
+   */
+  openCanvasPanel(type, url, name) {
+    const panel = document.getElementById('canvasPanel');
+    const tabsContainer = document.getElementById('canvasTabs');
+    const content = document.getElementById('canvasContent');
+    
+    if (!panel || !tabsContainer || !content) {
+      console.log('❌ 캔버스 패널 없음');
+      return;
+    }
+
+    // 이름 우선, 없으면 기본 매핑, 없으면 type
+    const title = name || type;
+
+    // 이미 열린 탭인지 확인
+    const existingTab = this.canvasTabs.find(t => t.type === type);
+    if (existingTab) {
+      this.activateCanvasTab(type);
+      panel.classList.remove('hide');
+      return;
+    }
+
+    // 새 탭 추가
+    this.canvasTabs.push({ type, title, url });
+    
+    // iframe 생성
+    const iframe = document.createElement('iframe');
+    iframe.className = 'canvas-iframe';
+    iframe.id = `canvas-iframe-${type}`;
+    iframe.src = url;
+    content.appendChild(iframe);
+
+    // 탭 활성화
+    this.activateCanvasTab(type);
+    this.renderCanvasTabs();
+    
+    // 패널 열기
+    panel.classList.remove('hide');
+    console.log('✅ 캔버스 탭 열림:', type);
+  }
+
+  /**
+   * 탭 활성화
+   */
+  activateCanvasTab(type) {
+    this.activeCanvasTab = type;
+    
+    // 모든 iframe 숨기고 선택된 것만 표시
+    document.querySelectorAll('.canvas-iframe').forEach(iframe => {
+      iframe.classList.remove('active');
+    });
+    // 설정은 별도 ID
+    const activeIframe = type === 'settings' 
+      ? document.getElementById('canvas-settings')
+      : document.getElementById(`canvas-iframe-${type}`);
+    if (activeIframe) activeIframe.classList.add('active');
+    
+    this.renderCanvasTabs();
+  }
+
+  /**
+   * 탭 닫기
+   */
+  closeCanvasTab(type) {
+    const idx = this.canvasTabs.findIndex(t => t.type === type);
+    if (idx === -1) return;
+
+    // iframe 제거 (설정은 별도 ID)
+    const iframe = type === 'settings'
+      ? document.getElementById('canvas-settings')
+      : document.getElementById(`canvas-iframe-${type}`);
+    if (iframe) iframe.remove();
+
+    // 탭 배열에서 제거
+    this.canvasTabs.splice(idx, 1);
+
+    // 탭이 없으면 패널 닫기
+    if (this.canvasTabs.length === 0) {
+      document.getElementById('canvasPanel')?.classList.add('hide');
+      this.activeCanvasTab = null;
+    } else if (this.activeCanvasTab === type) {
+      // 닫은 탭이 활성탭이었으면 다른 탭 활성화
+      const newActive = this.canvasTabs[Math.max(0, idx - 1)];
+      this.activateCanvasTab(newActive.type);
+    }
+    
+    this.renderCanvasTabs();
+  }
+
+  /**
+   * 탭 바 렌더링
+   */
+  renderCanvasTabs() {
+    const tabsContainer = document.getElementById('canvasTabs');
+    if (!tabsContainer) return;
+
+    tabsContainer.innerHTML = this.canvasTabs.map(tab => `
+      <div class="canvas-tab ${tab.type === this.activeCanvasTab ? 'active' : ''}" 
+           onclick="soulApp.activateCanvasTab('${tab.type}')">
+        <span>${tab.title}</span>
+        <span class="canvas-tab-close" onclick="event.stopPropagation(); soulApp.closeCanvasTab('${tab.type}')">×</span>
+      </div>
+    `).join('');
   }
 
 }

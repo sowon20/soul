@@ -91,6 +91,9 @@ class AnthropicService extends AIService {
 
     let response = await this.client.messages.create(params);
 
+    // 도구 사용 정보 수집
+    const toolUsageInfo = [];
+
     // 도구 호출 루프 처리
     while (response.stop_reason === 'tool_use' && toolExecutor) {
       const toolUseBlocks = response.content.filter(block => block.type === 'tool_use');
@@ -100,6 +103,14 @@ class AnthropicService extends AIService {
       for (const toolUse of toolUseBlocks) {
         console.log(`[Tool] Executing: ${toolUse.name}`, toolUse.input);
         const result = await toolExecutor(toolUse.name, toolUse.input);
+        
+        // 도구 사용 정보 저장
+        toolUsageInfo.push({
+          name: toolUse.name,
+          input: toolUse.input,
+          result: typeof result === 'string' ? result : JSON.stringify(result)
+        });
+        
         toolResults.push({
           type: 'tool_result',
           tool_use_id: toolUse.id,
@@ -122,20 +133,30 @@ class AnthropicService extends AIService {
       response = await this.client.messages.create(params);
     }
 
-    // 최종 응답 추출 (thinking + text)
+    // 최종 응답 추출 (thinking + tool_use + text)
     const thinkingBlock = response.content.find(block => block.type === 'thinking');
     const textBlock = response.content.find(block => block.type === 'text');
 
     const textContent = textBlock ? textBlock.text : '';
-
-    // thinking이 있으면 메타데이터와 함께 반환
+    
+    // 응답 조립
+    let finalResponse = '';
+    
+    // thinking이 있으면 추가
     if (thinkingBlock) {
       console.log(`[Anthropic] Thinking content length: ${thinkingBlock.thinking.length}`);
-      // thinking 내용을 특수 마커로 감싸서 반환 (프론트엔드에서 파싱)
-      return `<thinking>${thinkingBlock.thinking}</thinking>\n\n${textContent}`;
+      finalResponse += `<thinking>${thinkingBlock.thinking}</thinking>\n\n`;
     }
-
-    return textContent;
+    
+    // 도구 사용 정보가 있으면 추가
+    if (toolUsageInfo.length > 0) {
+      const toolSummary = toolUsageInfo.map(t => `${t.name}: ${JSON.stringify(t.input)}`).join('\n');
+      finalResponse += `<tool_use>${toolSummary}</tool_use>\n\n`;
+    }
+    
+    finalResponse += textContent;
+    
+    return finalResponse;
   }
 
   async analyzeConversation(messages) {

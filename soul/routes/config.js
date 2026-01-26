@@ -410,4 +410,39 @@ router.put('/routing', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/config/dock
+ * 독 아이템 목록 조회
+ */
+router.get('/dock', async (req, res) => {
+  try {
+    const defaultDock = [
+      { id: 'settings', name: '설정', icon: 'setup-icom.webp', url: null, order: 0, fixed: true }
+    ];
+    const dockItems = await configManager.getConfigValue('dock_items', defaultDock);
+    res.json(dockItems);
+  } catch (error) {
+    console.error('Error reading dock config:', error);
+    res.status(500).json({ error: 'Internal Server Error', message: error.message });
+  }
+});
+
+/**
+ * PUT /api/config/dock
+ * 독 아이템 목록 저장
+ */
+router.put('/dock', async (req, res) => {
+  try {
+    const { items } = req.body;
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ error: 'Bad Request', message: 'items must be an array' });
+    }
+    const dockItems = await configManager.setConfigValue('dock_items', items, 'Dock items configuration');
+    res.json(dockItems);
+  } catch (error) {
+    console.error('Error saving dock config:', error);
+    res.status(500).json({ error: 'Internal Server Error', message: error.message });
+  }
+});
+
 module.exports = router;

@@ -21,7 +21,6 @@ export class AppSettings {
         <!-- 서브 탭 -->
         <div class="app-settings-tabs">
           <button class="app-tab active" data-tab="theme">🎨 테마</button>
-          <button class="app-tab" data-tab="mcp">🔌 MCP 서버</button>
         </div>
         
         <!-- 탭 컨텐츠 -->
@@ -376,6 +375,13 @@ export class AppSettings {
     const server = this.mcpServers.find(s => s.id === serverId);
     if (!server) return;
 
+    // 아이콘 목록
+    const icons = [
+      'checklist-icon.webp', 'smarthome-icon.webp', 'cat-icon.webp',
+      'terminal-icon.webp', 'mic-icon.webp', 'setup-icom.webp',
+      'mcp-icon.webp', 'folder-icon.webp', 'user-icon.webp'
+    ];
+
     const modal = document.createElement('div');
     modal.className = 'mcp-modal';
     modal.innerHTML = `
@@ -394,6 +400,28 @@ export class AppSettings {
               <label>SSE URL</label>
               <input type="url" name="url" value="${server.url || ''}" required>
             </div>
+            <div class="form-group">
+              <label>UI 페이지 URL (독 클릭 시 열림)</label>
+              <input type="url" name="uiUrl" value="${server.uiUrl || ''}" placeholder="https://example.com/ui/">
+            </div>
+            <div class="form-group">
+              <label>아이콘</label>
+              <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;">
+                ${icons.map(icon => `
+                  <div class="icon-option" data-icon="${icon}" 
+                    style="width: 40px; height: 40px; border: 2px solid ${server.icon === icon ? '#4285f4' : '#ddd'}; 
+                    border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+                    background: ${server.icon === icon ? '#e3f2fd' : '#f9f9f9'};">
+                    <img src="./src/assets/${icon}" style="width: 28px; height: 28px;" alt="${icon}">
+                  </div>
+                `).join('')}
+              </div>
+              <input type="hidden" name="icon" value="${server.icon || ''}">
+            </div>
+            <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" name="showInDock" id="showInDock" ${server.showInDock ? 'checked' : ''}>
+              <label for="showInDock" style="margin: 0;">독(Dock)에 표시</label>
+            </div>
             <div class="form-actions">
               <button type="button" class="btn-cancel">취소</button>
               <button type="submit" class="btn-save">저장</button>
@@ -404,6 +432,19 @@ export class AppSettings {
     `;
 
     document.body.appendChild(modal);
+
+    // 아이콘 선택 이벤트
+    modal.querySelectorAll('.icon-option').forEach(opt => {
+      opt.addEventListener('click', () => {
+        modal.querySelectorAll('.icon-option').forEach(o => {
+          o.style.border = '2px solid #ddd';
+          o.style.background = '#f9f9f9';
+        });
+        opt.style.border = '2px solid #4285f4';
+        opt.style.background = '#e3f2fd';
+        modal.querySelector('input[name="icon"]').value = opt.dataset.icon;
+      });
+    });
 
     // 닫기
     modal.querySelector('.mcp-modal-close').addEventListener('click', () => modal.remove());
@@ -416,19 +457,63 @@ export class AppSettings {
       const formData = new FormData(e.target);
       const updates = {
         name: formData.get('name'),
-        url: formData.get('url')
+        url: formData.get('url'),
+        uiUrl: formData.get('uiUrl'),
+        icon: formData.get('icon'),
+        showInDock: formData.get('showInDock') === 'on'
       };
 
+      // 독에 표시하려면 UI URL 필수
+      if (updates.showInDock && !updates.uiUrl) {
+        alert('독에 표시하려면 UI 페이지 URL을 입력해주세요.');
+        return;
+      }
+
       try {
-        await this.apiClient.put('/mcp/servers/' + serverId, updates);
+        await this.apiClient.post('/mcp/servers/' + serverId, updates);
         // 로컬 데이터 업데이트
         Object.assign(server, updates);
         modal.remove();
         this.renderServerList(document.getElementById('mcpServerList'));
+        
+        // 독 업데이트
+        await this.updateDock();
       } catch (e) {
         console.error('서버 수정 실패:', e);
         alert('서버 수정에 실패했습니다: ' + e.message);
       }
     });
+  }
+
+  /**
+   * 독 업데이트
+   */
+  async updateDock() {
+    try {
+      const dockItems = this.mcpServers
+        .filter(s => s.showInDock && s.uiUrl)
+        .map((s, idx) => ({
+          id: s.id,
+          name: s.name,
+          icon: s.icon || 'mcp-icon.webp',
+          url: s.uiUrl,
+          order: idx
+        }));
+
+      // 설정은 항상 마지막에 고정
+      dockItems.push({ id: 'settings', name: '설정', icon: 'setup-icom.webp', url: null, order: 999, fixed: true });
+
+      await fetch('/api/config/dock', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: dockItems })
+      });
+
+      if (window.soulApp) {
+        window.soulApp.initMacosDock();
+      }
+    } catch (error) {
+      console.error('독 업데이트 실패:', error);
+    }
   }
 }
