@@ -121,6 +121,13 @@ export class AISettings {
             <p class="settings-section-desc">AI의 기본 성격과 역할을 정의합니다.</p>
             ${this.renderPromptSettings()}
           </section>
+
+          <!-- 자기학습 규칙 -->
+          <section class="settings-section">
+            <h3 class="settings-section-title">자기학습 규칙</h3>
+            <p class="settings-section-desc">대화에서 배운 것들이 자동으로 적용됩니다.</p>
+            ${await this.renderSelfRules()}
+          </section>
         </div>
 
         <!-- 저장 상태 표시 -->
@@ -3040,5 +3047,56 @@ export class AISettings {
     setTimeout(() => {
       statusEl.style.display = 'none';
     }, 3000);
+  }
+
+  /**
+   * 자기학습 규칙 렌더링
+   */
+  async renderSelfRules() {
+    try {
+      const response = await this.apiClient.get('/self-rules');
+      const rules = response.rules || [];
+      
+      if (rules.length === 0) {
+        return `
+          <div class="self-rules-empty">
+            <p style="color: rgba(255,255,255,0.5); font-size: 0.875rem;">
+              아직 학습된 규칙이 없습니다.
+            </p>
+          </div>
+        `;
+      }
+      
+      const categoryLabels = {
+        system: '🖥️ 시스템',
+        coding: '💻 코딩',
+        daily: '☀️ 일상',
+        personality: '🎭 성격',
+        user: '👤 사용자',
+        general: '📝 일반'
+      };
+      
+      return `
+        <div class="self-rules-list">
+          ${rules.map(rule => `
+            <div class="self-rule-item" data-rule-id="${rule._id}">
+              <div class="self-rule-header">
+                <span class="self-rule-category">${categoryLabels[rule.category] || rule.category}</span>
+                <span class="self-rule-priority">우선순위 ${rule.priority}</span>
+                <span class="self-rule-usage">사용 ${rule.useCount}회</span>
+              </div>
+              <div class="self-rule-content">${rule.rule}</div>
+              ${rule.context ? `<div class="self-rule-context">💡 ${rule.context}</div>` : ''}
+            </div>
+          `).join('')}
+        </div>
+        <p style="color: rgba(255,255,255,0.4); font-size: 0.75rem; margin-top: 12px;">
+          총 ${rules.length}개 규칙 · 대화할 때 자동으로 시스템 프롬프트에 포함됩니다
+        </p>
+      `;
+    } catch (error) {
+      console.error('Failed to load self rules:', error);
+      return `<p style="color: #f87171;">규칙을 불러오는 중 오류가 발생했습니다.</p>`;
+    }
   }
 }

@@ -3044,3 +3044,54 @@ body {
 .ai-tool-container.expanded .ai-tool-content {
   display: block;
 }
+
+
+/* 자기학습 규칙 */
+.self-rules-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.self-rule-item {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.self-rule-header {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 0.75rem;
+}
+
+.self-rule-category {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.self-rule-priority {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.self-rule-usage {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.self-rule-content {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.self-rule-context {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.75rem;
+}
