@@ -126,6 +126,10 @@ export class MCPManager {
             style="flex: 1; padding: 0.5rem; background: ${server.id === 'google-home' ? '#f5f5f5' : '#4285f4'}; color: ${server.id === 'google-home' ? '#333' : 'white'}; border: ${server.id === 'google-home' ? '1px solid #ddd' : 'none'}; border-radius: 6px; cursor: pointer; font-size: 0.8rem;">
             📋 도구 목록
           </button>
+          <button class="btn-edit" data-server-id="${server.id}"
+            style="padding: 0.5rem; background: #f5f5f5; color: #333; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; font-size: 0.8rem;">
+            ✏️
+          </button>
         </div>
       </div>
     `;
@@ -314,5 +318,175 @@ export class MCPManager {
         this.renderToolsPanel(server, tools);
       });
     });
+
+    // 편집 버튼
+    this.container.querySelectorAll('.btn-edit').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const serverId = e.target.dataset.serverId;
+        const server = this.servers.find(s => s.id === serverId);
+        this.openEditModal(server);
+      });
+    });
+  }
+
+  /**
+   * MCP 서버 편집 모달
+   */
+  openEditModal(server) {
+    const existingModal = document.getElementById('mcpEditModal');
+    if (existingModal) existingModal.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'mcpEditModal';
+    modal.style.cssText = `
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5); z-index: 10000;
+      display: flex; align-items: center; justify-content: center;
+    `;
+
+    // 아이콘 목록 (assets 폴더의 아이콘들)
+    const icons = [
+      'checklist-icon.webp', 'smarthome-icon.webp', 'cat-icon.webp',
+      'terminal-icon.webp', 'mic-icon.webp', 'setup-icom.webp',
+      'mcp-icon.webp', 'folder-icon.webp', 'user-icon.webp'
+    ];
+
+    modal.innerHTML = `
+      <div style="background: white; border-radius: 16px; padding: 1.5rem; width: 90%; max-width: 400px; max-height: 80vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <h3 style="margin: 0; font-size: 1.1rem;">MCP 서버 편집</h3>
+          <button id="closeEditModal" style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">×</button>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 1rem;">
+          <!-- 이름 -->
+          <div>
+            <label style="font-size: 0.85rem; color: #666; display: block; margin-bottom: 0.25rem;">이름</label>
+            <input type="text" id="editName" value="${server.name}" 
+              style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 8px; font-size: 0.9rem; box-sizing: border-box;">
+          </div>
+
+          <!-- URL -->
+          <div>
+            <label style="font-size: 0.85rem; color: #666; display: block; margin-bottom: 0.25rem;">URL (UI 페이지)</label>
+            <input type="text" id="editUrl" value="${server.uiUrl || ''}" placeholder="https://example.com/ui/"
+              style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 8px; font-size: 0.9rem; box-sizing: border-box;">
+          </div>
+
+          <!-- 아이콘 선택 -->
+          <div>
+            <label style="font-size: 0.85rem; color: #666; display: block; margin-bottom: 0.5rem;">아이콘</label>
+            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+              ${icons.map(icon => `
+                <div class="icon-option" data-icon="${icon}" 
+                  style="width: 48px; height: 48px; border: 2px solid ${server.icon === icon ? '#4285f4' : '#ddd'}; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; background: ${server.icon === icon ? '#e3f2fd' : '#f9f9f9'};">
+                  <img src="./src/assets/${icon}" style="width: 32px; height: 32px;" alt="${icon}">
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <!-- 독에 표시 -->
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <input type="checkbox" id="editShowInDock" ${server.showInDock ? 'checked' : ''} style="width: 18px; height: 18px;">
+            <label for="editShowInDock" style="font-size: 0.9rem;">독(Dock)에 표시</label>
+          </div>
+
+          <!-- 저장 버튼 -->
+          <button id="saveEdit" style="width: 100%; padding: 0.75rem; background: #4285f4; color: white; border: none; border-radius: 8px; font-size: 0.95rem; cursor: pointer;">
+            저장
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // 선택된 아이콘 저장
+    let selectedIcon = server.icon || icons[0];
+
+    // 아이콘 선택 이벤트
+    modal.querySelectorAll('.icon-option').forEach(opt => {
+      opt.addEventListener('click', () => {
+        modal.querySelectorAll('.icon-option').forEach(o => {
+          o.style.border = '2px solid #ddd';
+          o.style.background = '#f9f9f9';
+        });
+        opt.style.border = '2px solid #4285f4';
+        opt.style.background = '#e3f2fd';
+        selectedIcon = opt.dataset.icon;
+      });
+    });
+
+    // 닫기
+    modal.querySelector('#closeEditModal').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+
+    // 저장
+    modal.querySelector('#saveEdit').addEventListener('click', async () => {
+      const name = modal.querySelector('#editName').value;
+      const uiUrl = modal.querySelector('#editUrl').value;
+      const showInDock = modal.querySelector('#editShowInDock').checked;
+
+      await this.updateServer(server.id, { name, uiUrl, icon: selectedIcon, showInDock });
+      modal.remove();
+      
+      // 독에 표시 변경 시 독 업데이트
+      if (showInDock !== server.showInDock) {
+        await this.updateDock();
+      }
+    });
+  }
+
+  /**
+   * 서버 정보 업데이트
+   */
+  async updateServer(serverId, updates) {
+    try {
+      await this.apiClient.post(`/api/mcp/servers/${serverId}`, updates);
+      await this.loadServers();
+      this.renderUI();
+      this.attachEventListeners();
+    } catch (error) {
+      console.error('서버 업데이트 실패:', error);
+    }
+  }
+
+  /**
+   * 독 업데이트 (showInDock 기반)
+   */
+  async updateDock() {
+    try {
+      // showInDock이 true인 서버들로 독 구성
+      const dockItems = this.servers
+        .filter(s => s.showInDock && s.uiUrl)
+        .map((s, idx) => ({
+          id: s.id,
+          name: s.name,
+          icon: s.icon || 'mcp-icon.webp',
+          url: s.uiUrl,
+          order: idx
+        }));
+
+      // 고정 아이템 추가 (터미널, 마이크, 설정)
+      const fixedItems = [
+        { id: 'terminal', name: '터미널', icon: 'terminal-icon.webp', url: null, order: 100 },
+        { id: 'mic', name: '마이크', icon: 'mic-icon.webp', url: null, order: 101 },
+        { id: 'settings', name: '설정', icon: 'setup-icom.webp', url: null, order: 102 }
+      ];
+
+      await fetch('/api/config/dock', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: [...dockItems, ...fixedItems] })
+      });
+
+      // SoulApp 독 새로고침
+      if (window.soulApp) {
+        window.soulApp.initMacosDock();
+      }
+    } catch (error) {
+      console.error('독 업데이트 실패:', error);
+    }
   }
 }

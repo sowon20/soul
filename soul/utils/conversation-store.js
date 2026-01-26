@@ -5,10 +5,36 @@ const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
 
+// 설정에서 메모리 경로 가져오기
+async function getMemoryPath() {
+  try {
+    const SystemConfig = require('../models/SystemConfig');
+    const config = await SystemConfig.findOne({ configKey: 'memory' });
+    if (config?.value?.storagePath) {
+      console.log('[ConversationStore] Using memory path:', config.value.storagePath);
+      return config.value.storagePath;
+    }
+  } catch (e) {
+    console.log('[ConversationStore] DB error, using default path');
+  }
+  return path.join(__dirname, '../../memory');
+}
+
 class ConversationStore {
   constructor(filePath) {
-    this.filePath = filePath || path.join(__dirname, '../../memory/conversations.jsonl');
+    this.filePath = filePath;
+    this.initialized = false;
+  }
+  
+  async init() {
+    if (this.initialized) return;
+    
+    if (!this.filePath) {
+      const memoryPath = await getMemoryPath();
+      this.filePath = path.join(memoryPath, 'conversations.jsonl');
+    }
     this.ensureFile();
+    this.initialized = true;
   }
 
   /**
@@ -28,7 +54,12 @@ class ConversationStore {
    * 메시지 저장 (append)
    */
   async saveMessage(message) {
-    const timestamp = message.timestamp || new Date().toISOString();
+    await this.init();
+    let timestamp = message.timestamp || new Date().toISOString();
+    // Date 객체면 ISO 문자열로 변환
+    if (timestamp instanceof Date) {
+      timestamp = timestamp.toISOString();
+    }
     const id = message.id || `${timestamp.replace(/[:.]/g, '-')}_${message.role}`;
     
     const line = JSON.stringify({
@@ -51,6 +82,7 @@ class ConversationStore {
    * 최근 N개 메시지 로드 (역순)
    */
   async getRecentMessages(limit = 50) {
+    await this.init();
     const lines = await this.readLastLines(limit);
     return lines.map(line => {
       try {
@@ -66,6 +98,7 @@ class ConversationStore {
    * @param {string} beforeTimestamp - ISO timestamp
    */
   async getMessagesBefore(beforeTimestamp, limit = 20) {
+    await this.init();
     const allLines = await this.readAllLines();
     const beforeDate = new Date(beforeTimestamp);
     
@@ -91,6 +124,7 @@ class ConversationStore {
    * 특정 메시지 주변 로드 (검색 결과 이동용)
    */
   async getMessagesAround(messageId, limit = 40) {
+    await this.init();
     const allLines = await this.readAllLines();
     const halfLimit = Math.floor(limit / 2);
     
@@ -128,6 +162,7 @@ class ConversationStore {
    * 키워드 검색
    */
   async search(keywords, limit = 20) {
+    await this.init();
     const allLines = await this.readAllLines();
     const results = [];
     const keywordsLower = keywords.map(k => k.toLowerCase());
@@ -152,6 +187,7 @@ class ConversationStore {
    * 전체 라인 읽기
    */
   async readAllLines() {
+    await this.init();
     const content = fs.readFileSync(this.filePath, 'utf-8');
     return content.split('\n').filter(line => line.trim());
   }
@@ -160,6 +196,7 @@ class ConversationStore {
    * 마지막 N개 라인 읽기 (효율적)
    */
   async readLastLines(n) {
+    await this.init();
     return new Promise((resolve, reject) => {
       const lines = [];
       const fileStream = fs.createReadStream(this.filePath, { encoding: 'utf-8' });
@@ -183,6 +220,7 @@ class ConversationStore {
    * 총 메시지 수
    */
   async count() {
+    await this.init();
     const lines = await this.readAllLines();
     return lines.length;
   }

@@ -68,16 +68,49 @@ router.get('/servers', async (req, res) => {
     const toolsPath = path.join(mcpPath, 'tools');
     const toolFiles = await fs.readdir(toolsPath);
 
+    // 실제 도구 개수 세기
+    let hubTools = [];
+    for (const file of toolFiles) {
+      if (file.endsWith('.js')) {
+        try {
+          // require 캐시 삭제 후 다시 로드
+          const modulePath = path.join(toolsPath, file);
+          delete require.cache[require.resolve(modulePath)];
+          const toolModule = require(modulePath);
+          if (toolModule.tools && Array.isArray(toolModule.tools)) {
+            hubTools.push(...toolModule.tools.map(t => t.name));
+          }
+        } catch (e) {
+          console.error(`[MCP] Failed to load tool ${file}:`, e.message);
+          // axios 의존성 문제면 도구 정의만 파싱 (tools 배열 안에서만)
+          try {
+            const content = await fs.readFile(path.join(toolsPath, file), 'utf-8');
+            const toolsMatch = content.match(/tools:\s*\[([\s\S]*?)\]\s*\};/);
+            if (toolsMatch) {
+              const matches = toolsMatch[1].match(/name:\s*['"]([^'"]+)['"]/g);
+              if (matches) {
+                hubTools.push(...matches.map(m => m.match(/['"]([^'"]+)['"]/)[1]));
+              }
+            }
+          } catch {}
+        }
+      }
+    }
+
     const servers = [];
 
     // hub-server (기본 내장 서버) - 항상 표시
+    const hubConfig = config.servers?.['hub-server'] || {};
     servers.push({
       id: 'hub-server',
-      name: 'Soul Hub Server',
-      description: 'Soul의 내장 MCP 서버 - 메모리, 컨텍스트, NLP 도구 제공',
+      name: hubConfig.name || 'Soul Hub Server',
+      description: 'Soul 내장 MCP 서버 - 컨텍스트 도구 제공',
       type: 'built-in',
-      enabled: config.servers['hub-server']?.enabled ?? true,
-      tools: toolFiles.filter(f => f.endsWith('.js')).map(f => f.replace('.js', ''))
+      enabled: hubConfig.enabled ?? true,
+      tools: hubTools,
+      icon: hubConfig.icon,
+      uiUrl: hubConfig.uiUrl,
+      showInDock: hubConfig.showInDock ?? false
     });
 
     // 등록된 외부 서버들만 표시 (config 기반)
@@ -103,7 +136,10 @@ router.get('/servers', async (req, res) => {
           type: 'external',
           enabled: config.servers[serverId]?.enabled ?? true,
           tools,
-          url: serverInfo.url
+          url: serverInfo.url,
+          icon: serverInfo.icon,
+          uiUrl: serverInfo.uiUrl,
+          showInDock: serverInfo.showInDock ?? false
         });
       }
     }
@@ -140,7 +176,9 @@ router.get('/servers/:id/tools', async (req, res) => {
       for (const file of toolFiles) {
         if (file.endsWith('.js')) {
           try {
-            const toolModule = require(path.join(toolsPath, file));
+            const modulePath = path.join(toolsPath, file);
+            delete require.cache[require.resolve(modulePath)];
+            const toolModule = require(modulePath);
             if (toolModule.tools) {
               tools.push(...toolModule.tools.map(t => ({
                 name: t.name,
@@ -149,7 +187,21 @@ router.get('/servers/:id/tools', async (req, res) => {
               })));
             }
           } catch (error) {
-            console.error(`Error loading tool ${file}:`, error);
+            console.error(`Error loading tool ${file}:`, error.message);
+            // 파일 파싱으로 폴백
+            try {
+              const content = await fs.readFile(path.join(toolsPath, file), 'utf-8');
+              const toolsMatch = content.match(/tools:\s*\[([\s\S]*?)\]\s*\};/);
+              if (toolsMatch) {
+                const nameMatches = toolsMatch[1].matchAll(/name:\s*['"]([^'"]+)['"]/g);
+                const descMatches = toolsMatch[1].matchAll(/description:\s*['"]([^'"]+)['"]/g);
+                const names = [...nameMatches].map(m => m[1]);
+                const descs = [...descMatches].map(m => m[1]);
+                names.forEach((name, i) => {
+                  tools.push({ name, description: descs[i] || '', module: file.replace('.js', '') });
+                });
+              }
+            } catch {}
           }
         }
       }
@@ -336,6 +388,46 @@ router.post('/servers/:id/enable', async (req, res) => {
       success: false,
       error: error.message
     });
+  }
+});
+
+/**
+ * POST /api/mcp/servers/:id
+ * MCP 서버 정보 업데이트 (이름, 아이콘, UI URL, 독 표시 등)
+ */
+router.post('/servers/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description, icon, uiUrl, showInDock } = req.body;
+
+    const config = await loadServerConfig();
+
+    // 외부 서버인 경우 externalServers 업데이트
+    if (config.externalServers?.[id]) {
+      if (name !== undefined) config.externalServers[id].name = name;
+      if (description !== undefined) config.externalServers[id].description = description;
+      if (icon !== undefined) config.externalServers[id].icon = icon;
+      if (uiUrl !== undefined) config.externalServers[id].uiUrl = uiUrl;
+      if (showInDock !== undefined) config.externalServers[id].showInDock = showInDock;
+    } else {
+      // 내장 서버인 경우 servers에 저장
+      if (!config.servers) config.servers = {};
+      if (!config.servers[id]) config.servers[id] = {};
+      if (name !== undefined) config.servers[id].name = name;
+      if (description !== undefined) config.servers[id].description = description;
+      if (icon !== undefined) config.servers[id].icon = icon;
+      if (uiUrl !== undefined) config.servers[id].uiUrl = uiUrl;
+      if (showInDock !== undefined) config.servers[id].showInDock = showInDock;
+    }
+
+    await saveServerConfig(config);
+
+    console.log(`[MCP] Server ${id} updated:`, { name, description, icon, uiUrl, showInDock });
+
+    res.json({ success: true, server: id });
+  } catch (error) {
+    console.error('Error updating server:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
