@@ -46,6 +46,56 @@ class AnthropicService extends AIService {
     super(apiKey);
     this.client = new Anthropic({ apiKey });
     this.modelName = modelName;
+    
+    // MCP 서버 이름 매핑
+    this.mcpServerNames = {
+      'ssh-commander': '터미널',
+      'google-home': '스마트홈',
+      'todo': 'Todo',
+      'varampet': '바램펫',
+      'calendar': '캘린더',
+      'search': '검색'
+    };
+  }
+
+  /**
+   * 도구 이름을 읽기 좋게 변환
+   * mcp_1234567890__execute -> 터미널 > execute
+   */
+  formatToolName(name) {
+    // MCP 도구: mcp_{timestamp}__{server}__{tool} 형식
+    const mcpMatch = name.match(/^mcp_\d+__(.+?)__(.+)$/);
+    if (mcpMatch) {
+      const [, serverKey, toolName] = mcpMatch;
+      const serverName = this.mcpServerNames[serverKey] || serverKey;
+      return `${serverName} > ${toolName}`;
+    }
+    
+    // 일반 MCP: mcp_{timestamp}__{tool} 형식
+    const simpleMatch = name.match(/^mcp_\d+__(.+)$/);
+    if (simpleMatch) {
+      return simpleMatch[1];
+    }
+    
+    return name;
+  }
+
+  /**
+   * 도구 입력을 간결하게 변환
+   */
+  formatToolInput(input) {
+    if (!input) return '';
+    
+    // 명령어가 있으면 그것만
+    if (input.command) return input.command;
+    if (input.query) return input.query;
+    if (input.host && input.command) return `${input.host}: ${input.command}`;
+    
+    // 간단한 객체면 값들만
+    const values = Object.values(input).filter(v => typeof v === 'string' || typeof v === 'number');
+    if (values.length <= 2) return values.join(', ');
+    
+    return JSON.stringify(input);
   }
 
   async chat(messages, options = {}) {
@@ -150,7 +200,13 @@ class AnthropicService extends AIService {
     
     // 도구 사용 정보가 있으면 추가
     if (toolUsageInfo.length > 0) {
-      const toolSummary = toolUsageInfo.map(t => `${t.name}: ${JSON.stringify(t.input)}`).join('\n');
+      const toolSummary = toolUsageInfo.map(t => {
+        // 도구 이름 파싱: mcp_1234567890__execute -> execute (ssh-commander)
+        const friendlyName = this.formatToolName(t.name);
+        const inputStr = this.formatToolInput(t.input);
+        const resultStr = t.result ? t.result.substring(0, 200) : '';
+        return `${friendlyName}|${inputStr}|${resultStr}`;
+      }).join('\n');
       finalResponse += `<tool_use>${toolSummary}</tool_use>\n\n`;
     }
     

@@ -2917,3 +2917,48 @@ textarea.settings-field-input {
   color: rgba(0, 0, 0, 0.4);
   font-size: 0.75rem;
 }
+
+
+/* 자기학습 규칙 */
+.self-rules-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.self-rule-item {
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  padding: 12px;
+  color: rgba(0, 0, 0, 0.65);
+}
+
+.self-rule-header {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 0.75rem;
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.self-rule-category {
+  background: rgba(180, 83, 9, 0.12);
+  color: #b45309;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.self-rule-content {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: rgba(0, 0, 0, 0.65);
+}
+
+.self-rule-context {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  font-size: 0.75rem;
+  color: rgba(0, 0, 0, 0.4);
+}

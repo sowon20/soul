@@ -3060,7 +3060,7 @@ export class AISettings {
       if (rules.length === 0) {
         return `
           <div class="self-rules-empty">
-            <p style="color: rgba(255,255,255,0.5); font-size: 0.875rem;">
+            <p style="opacity: 0.5; font-size: 0.875rem;">
               아직 학습된 규칙이 없습니다.
             </p>
           </div>
@@ -3090,7 +3090,7 @@ export class AISettings {
             </div>
           `).join('')}
         </div>
-        <p style="color: rgba(255,255,255,0.4); font-size: 0.75rem; margin-top: 12px;">
+        <p style="color: rgba(0,0,0,0.4); font-size: 0.75rem; margin-top: 12px;">
           총 ${rules.length}개 규칙 · 대화할 때 자동으로 시스템 프롬프트에 포함됩니다
         </p>
       `;

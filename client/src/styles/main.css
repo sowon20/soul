@@ -3037,12 +3037,41 @@ body {
   border-radius: 0 8px 8px 0;
   font-size: 0.8rem;
   color: rgba(255, 255, 255, 0.8);
-  white-space: pre-wrap;
   line-height: 1.5;
 }
 
 .ai-tool-container.expanded .ai-tool-content {
   display: block;
+}
+
+.ai-tool-item {
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(251, 191, 36, 0.15);
+}
+
+.ai-tool-item:last-child {
+  border-bottom: none;
+}
+
+.tool-name {
+  font-weight: 500;
+  color: rgba(251, 191, 36, 0.95);
+  margin-bottom: 2px;
+}
+
+.tool-input {
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.tool-result {
+  margin-top: 4px;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.5);
+  background: rgba(0, 0, 0, 0.2);
+  padding: 4px 8px;
+  border-radius: 4px;
 }
 
 
@@ -3054,8 +3083,8 @@ body {
 }
 
 .self-rule-item {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 8px;
   padding: 12px;
 }
@@ -3068,22 +3097,21 @@ body {
 }
 
 .self-rule-category {
-  background: rgba(251, 191, 36, 0.15);
-  color: #fbbf24;
+  background: rgba(180, 83, 9, 0.15);
+  color: #b45309;
   padding: 2px 8px;
   border-radius: 4px;
 }
 
 .self-rule-priority {
-  color: rgba(255, 255, 255, 0.5);
+  opacity: 0.6;
 }
 
 .self-rule-usage {
-  color: rgba(255, 255, 255, 0.4);
+  opacity: 0.5;
 }
 
 .self-rule-content {
-  color: rgba(255, 255, 255, 0.9);
   font-size: 0.875rem;
   line-height: 1.5;
 }
@@ -3091,7 +3119,7 @@ body {
 .self-rule-context {
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.4);
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  opacity: 0.6;
   font-size: 0.75rem;
 }

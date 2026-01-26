@@ -340,6 +340,7 @@ export class ChatManager {
       const toolUseMatches = message.content.matchAll(/<tool_use>([\s\S]*?)<\/tool_use>/g);
       for (const toolMatch of toolUseMatches) {
         const toolText = toolMatch[1].trim();
+        const toolLines = toolText.split('\n').filter(l => l.trim());
         
         // 도구 사용 컨테이너
         const toolContainer = document.createElement('div');
@@ -349,17 +350,37 @@ export class ChatManager {
         const toolToggleBtn = document.createElement('button');
         toolToggleBtn.type = 'button';
         toolToggleBtn.className = 'ai-tool-toggle';
-        toolToggleBtn.innerHTML = '🔧 <span>도구 사용</span>';
+        toolToggleBtn.innerHTML = `🔧 <span>도구 사용 (${toolLines.length}개)</span>`;
         toolToggleBtn.addEventListener('click', function(e) {
           e.preventDefault();
           e.stopPropagation();
           this.parentElement.classList.toggle('expanded');
         });
         
-        // 도구 내용
+        // 도구 내용 (파싱해서 예쁘게)
         const toolContent = document.createElement('div');
         toolContent.className = 'ai-tool-content';
-        toolContent.textContent = toolText;
+        
+        toolLines.forEach(line => {
+          const parts = line.split('|');
+          const toolItem = document.createElement('div');
+          toolItem.className = 'ai-tool-item';
+          
+          if (parts.length >= 2) {
+            // 새 포맷: 이름|입력|결과
+            const [name, input, result] = parts;
+            toolItem.innerHTML = `
+              <div class="tool-name">${name}</div>
+              <div class="tool-input">${input || ''}</div>
+              ${result ? `<div class="tool-result">${result.substring(0, 100)}${result.length > 100 ? '...' : ''}</div>` : ''}
+            `;
+          } else {
+            // 구 포맷
+            toolItem.textContent = line;
+          }
+          
+          toolContent.appendChild(toolItem);
+        });
         
         toolContainer.appendChild(toolToggleBtn);
         toolContainer.appendChild(toolContent);
