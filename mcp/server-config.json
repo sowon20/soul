@@ -1,7 +1,34 @@
 {
   "servers": {
-    "google-home": {
+    "mcp_1769426615190": {
       "enabled": true
+    },
+    "mcp_1769427531346": {
+      "enabled": true
+    },
+    "mcp_1769427730815": {
+      "enabled": true
+    },
+    "mcp_1769427843591": {
+      "enabled": true
+    }
+  },
+  "externalServers": {
+    "mcp_1769426615190": {
+      "name": "스마트홈",
+      "url": "https://mcp.sowon.mooo.com/smarthome/sse"
+    },
+    "mcp_1769427531346": {
+      "name": "Todo list",
+      "url": "https://mcp.sowon.mooo.com/todo/sse"
+    },
+    "mcp_1769427730815": {
+      "name": "터미널",
+      "url": "https://mcp.sowon.mooo.com/ssh/sse"
+    },
+    "mcp_1769427843591": {
+      "name": "바램펫",
+      "url": "https://mcp.sowon.mooo.com/pet/sse"
     }
   }
 }

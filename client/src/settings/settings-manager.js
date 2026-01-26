@@ -30,9 +30,9 @@ export class SettingsManager {
             <span class="nav-icon">🤖</span>
             <span class="nav-label">AI 설정</span>
           </button>
-          <button class="settings-nav-item" data-page="theme">
-            <span class="nav-icon">🎨</span>
-            <span class="nav-label">테마</span>
+          <button class="settings-nav-item" data-page="app">
+            <span class="nav-icon">⚙️</span>
+            <span class="nav-label">앱설정</span>
           </button>
         </nav>
 
@@ -116,9 +116,9 @@ export class SettingsManager {
         ComponentClass = AISettings;
         break;
 
-      case 'theme':
-        const { ThemeSettings } = await import('./components/theme-settings.js');
-        ComponentClass = ThemeSettings;
+      case 'app':
+        const { AppSettings } = await import('./components/app-settings.js');
+        ComponentClass = AppSettings;
         break;
 
       default:

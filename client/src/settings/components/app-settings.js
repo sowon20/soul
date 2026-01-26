@@ -1,0 +1,434 @@
+/**
+ * 앱설정 UI 컴포넌트
+ * - 테마 설정
+ * - MCP 서버 관리
+ */
+
+export class AppSettings {
+  constructor() {
+    this.mcpServers = [];
+    this.currentSubPage = 'theme';
+  }
+
+  async render(container, apiClient) {
+    this.apiClient = apiClient;
+    this.container = container;
+
+    container.innerHTML = `
+      <div class="app-settings">
+        <h2>⚙️ 앱설정</h2>
+        
+        <!-- 서브 탭 -->
+        <div class="app-settings-tabs">
+          <button class="app-tab active" data-tab="theme">🎨 테마</button>
+          <button class="app-tab" data-tab="mcp">🔌 MCP 서버</button>
+        </div>
+        
+        <!-- 탭 컨텐츠 -->
+        <div class="app-settings-content" id="appSettingsContent">
+          <!-- 동적 로드 -->
+        </div>
+      </div>
+    `;
+
+    this.attachEvents();
+    await this.loadSubPage('theme');
+  }
+
+  attachEvents() {
+    const tabs = this.container.querySelectorAll('.app-tab');
+    tabs.forEach(tab => {
+      tab.addEventListener('click', async () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        await this.loadSubPage(tab.dataset.tab);
+      });
+    });
+  }
+
+  async loadSubPage(tabName) {
+    this.currentSubPage = tabName;
+    const content = document.getElementById('appSettingsContent');
+
+    if (tabName === 'theme') {
+      this.renderThemeSettings(content);
+    } else if (tabName === 'mcp') {
+      await this.renderMCPSettings(content);
+    }
+  }
+
+  /**
+   * 테마 설정 렌더링
+   */
+  renderThemeSettings(container) {
+    container.innerHTML = `
+      <div class="theme-settings-section">
+        <h3>테마 선택</h3>
+        <div class="theme-options">
+          <label class="theme-option">
+            <input type="radio" name="theme" value="light" checked>
+            <span class="theme-preview light">☀️ 라이트</span>
+          </label>
+          <label class="theme-option">
+            <input type="radio" name="theme" value="dark">
+            <span class="theme-preview dark">🌙 다크</span>
+          </label>
+        </div>
+        <p class="theme-note">* 테마 기능은 준비 중입니다</p>
+      </div>
+    `;
+  }
+
+  /**
+   * MCP 서버 관리 렌더링
+   */
+  async renderMCPSettings(container) {
+    container.innerHTML = `
+      <div class="mcp-settings-section">
+        <div class="mcp-header">
+          <h3>MCP 서버 관리</h3>
+          <button class="mcp-add-btn" id="mcpAddBtn">+ 서버 추가</button>
+        </div>
+        
+        <div class="mcp-server-list" id="mcpServerList">
+          <div class="mcp-loading">서버 목록 로딩 중...</div>
+        </div>
+      </div>
+    `;
+
+    // 서버 추가 버튼 이벤트
+    document.getElementById('mcpAddBtn')?.addEventListener('click', () => {
+      this.showAddServerModal();
+    });
+
+    // 서버 목록 로드
+    await this.loadMCPServers();
+  }
+
+  /**
+   * MCP 서버 목록 로드
+   */
+  async loadMCPServers() {
+    const listContainer = document.getElementById('mcpServerList');
+    
+    try {
+      // API에서 서버 목록 가져오기
+      const response = await this.apiClient.get('/mcp/servers');
+      this.mcpServers = response?.servers || [];
+      this.renderServerList(listContainer);
+    } catch (error) {
+      console.error('MCP 서버 목록 로드 실패:', error);
+      listContainer.innerHTML = `
+        <div class="mcp-error">
+          <p>❌ 서버 목록을 불러올 수 없습니다</p>
+          <p class="error-detail">${error.message}</p>
+          <button class="mcp-retry-btn" onclick="location.reload()">🔄 새로고침</button>
+        </div>
+      `;
+    }
+  }
+
+  /**
+   * 서버 목록 렌더링
+   */
+  renderServerList(container) {
+    if (this.mcpServers.length === 0) {
+      container.innerHTML = `
+        <div class="mcp-empty">
+          <p>등록된 MCP 서버가 없습니다</p>
+          <button class="mcp-add-btn">+ 서버 추가</button>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = this.mcpServers.map(server => {
+      // 서버 타입에 따른 아이콘
+      const icon = server.type === 'built-in' ? '🔧' : '🔌';
+      // URL 표시 (port가 있으면 포트, 없으면 type 표시)
+      const urlDisplay = server.port ? `포트 ${server.port}` : (server.url || server.type);
+      // 도구 개수
+      const toolCount = server.tools?.length || 0;
+
+      return `
+        <div class="mcp-server-item ${server.enabled ? 'enabled' : 'disabled'}" data-id="${server.id}">
+          <div class="mcp-server-status">
+            <span class="status-dot ${server.enabled ? 'online' : 'offline'}"></span>
+          </div>
+          <div class="mcp-server-info">
+            <div class="mcp-server-name">${icon} ${server.name}</div>
+            <div class="mcp-server-meta">
+              <span class="mcp-badge ${server.type === 'built-in' ? 'builtin' : 'external'}">${server.type === 'built-in' ? '내장' : '외부'}</span>
+              <span class="mcp-badge tools">${toolCount}개 도구</span>
+              ${server.port ? `<span class="mcp-badge port">:${server.port}</span>` : ''}
+            </div>
+            <div class="mcp-server-desc">${server.description || ''}</div>
+          </div>
+          <div class="mcp-server-actions">
+            <label class="mcp-toggle">
+              <input type="checkbox" ${server.enabled ? 'checked' : ''} data-server-id="${server.id}">
+              <span class="toggle-slider"></span>
+            </label>
+            <button class="mcp-tools-btn" data-server-id="${server.id}" title="도구 목록">🔧</button>
+            ${server.type !== 'built-in' ? `<button class="mcp-edit-btn" data-server-id="${server.id}" title="수정">✏️</button>` : ''}
+            ${server.type !== 'built-in' ? `<button class="mcp-delete-btn" data-server-id="${server.id}" title="삭제">🗑️</button>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // 토글 이벤트
+    container.querySelectorAll('.mcp-toggle input').forEach(toggle => {
+      toggle.addEventListener('change', (e) => {
+        this.toggleServer(e.target.dataset.serverId, e.target.checked);
+      });
+    });
+
+    // 도구 목록 버튼 이벤트
+    container.querySelectorAll('.mcp-tools-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.showToolsList(btn.dataset.serverId);
+      });
+    });
+
+    // 수정 버튼 이벤트
+    container.querySelectorAll('.mcp-edit-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.showEditServerModal(btn.dataset.serverId);
+      });
+    });
+
+    // 삭제 버튼 이벤트
+    container.querySelectorAll('.mcp-delete-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.deleteServer(btn.dataset.serverId);
+      });
+    });
+  }
+
+  /**
+   * 서버 ON/OFF 토글
+   */
+  async toggleServer(serverId, enabled) {
+    const server = this.mcpServers.find(s => s.id === serverId);
+    if (server) {
+      server.enabled = enabled;
+      // API 호출로 저장
+      try {
+        await this.apiClient.put('/mcp/servers/' + serverId, { enabled });
+      } catch (e) {
+        console.error('서버 상태 저장 실패:', e);
+      }
+    }
+  }
+
+  /**
+   * 도구 목록 보기
+   */
+  async showToolsList(serverId) {
+    const server = this.mcpServers.find(s => s.id === serverId);
+    if (!server) return;
+
+    // 모달로 도구 목록 표시
+    const modal = document.createElement('div');
+    modal.className = 'mcp-modal';
+    modal.innerHTML = `
+      <div class="mcp-modal-content">
+        <div class="mcp-modal-header">
+          <h3>${server.name} 도구 목록</h3>
+          <button class="mcp-modal-close">✕</button>
+        </div>
+        <div class="mcp-modal-body">
+          <div class="mcp-tools-loading">도구 목록 로딩 중...</div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // 닫기 버튼
+    modal.querySelector('.mcp-modal-close').addEventListener('click', () => {
+      modal.remove();
+    });
+
+    // 바깥 클릭 시 닫기
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) modal.remove(); // 바깥 클릭시 닫힘
+    });
+
+    // 도구 목록 로드 (백엔드 API 사용)
+    try {
+      const response = await this.apiClient.get(`/mcp/servers/${serverId}/tools`);
+      const tools = response?.tools || [];
+
+      if (tools.length === 0) {
+        modal.querySelector('.mcp-modal-body').innerHTML = `
+          <div class="mcp-tools-empty">
+            <p>등록된 도구가 없습니다</p>
+          </div>
+        `;
+      } else {
+        modal.querySelector('.mcp-modal-body').innerHTML = `
+          <div class="mcp-tools-grid">
+            ${tools.map(tool => `
+              <div class="mcp-tool-item">
+                <div class="mcp-tool-name">🛠️ ${tool.name}</div>
+                <div class="mcp-tool-desc">${tool.description || '설명 없음'}</div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
+    } catch (error) {
+      modal.querySelector('.mcp-modal-body').innerHTML = `
+        <div class="mcp-tools-error">
+          <p>❌ 도구 목록 로드 실패</p>
+          <p class="error-detail">${error.message}</p>
+        </div>
+      `;
+    }
+  }
+
+  /**
+   * 서버 추가 모달
+   */
+  showAddServerModal() {
+    const modal = document.createElement('div');
+    modal.className = 'mcp-modal';
+    modal.innerHTML = `
+      <div class="mcp-modal-content">
+        <div class="mcp-modal-header">
+          <h3>MCP 서버 추가</h3>
+          <button class="mcp-modal-close">✕</button>
+        </div>
+        <div class="mcp-modal-body">
+          <form id="mcpAddForm" class="mcp-form">
+            <div class="form-group">
+              <label>서버 이름</label>
+              <input type="text" name="name" placeholder="예: Smart Home" required>
+            </div>
+            <div class="form-group">
+              <label>SSE URL</label>
+              <input type="url" name="url" placeholder="예: https://mcp.sowon.mooo.com/smarthome/sse" required>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn-cancel">취소</button>
+              <button type="submit" class="btn-save">추가</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // 닫기
+    modal.querySelector('.mcp-modal-close').addEventListener('click', () => modal.remove());
+    modal.querySelector('.btn-cancel').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+
+    // 폼 제출
+    modal.querySelector('#mcpAddForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const newServer = {
+        id: 'mcp_' + Date.now(),
+        name: formData.get('name'),
+        url: formData.get('url'),
+        enabled: true
+      };
+      
+      try {
+        await this.apiClient.post('/mcp/servers', newServer);
+        // 서버 목록 다시 로드 (도구 개수 포함)
+        await this.loadMCPServers();
+      } catch (e) {
+        console.error('서버 추가 실패:', e);
+      }
+
+      modal.remove();
+      this.renderServerList(document.getElementById('mcpServerList'));
+    });
+  }
+
+  /**
+   * 서버 삭제
+   */
+  async deleteServer(serverId) {
+    console.log('🗑️ 삭제 요청:', serverId);
+    if (!confirm('이 MCP 서버를 삭제하시겠습니까?')) return;
+
+    this.mcpServers = this.mcpServers.filter(s => s.id !== serverId);
+    
+    try {
+      await this.apiClient.delete('/mcp/servers/' + serverId);
+    } catch (e) {
+      console.error('서버 삭제 실패:', e);
+    }
+
+    this.renderServerList(document.getElementById('mcpServerList'));
+  }
+
+  /**
+   * 서버 수정 모달
+   */
+  showEditServerModal(serverId) {
+    const server = this.mcpServers.find(s => s.id === serverId);
+    if (!server) return;
+
+    const modal = document.createElement('div');
+    modal.className = 'mcp-modal';
+    modal.innerHTML = `
+      <div class="mcp-modal-content">
+        <div class="mcp-modal-header">
+          <h3>MCP 서버 수정</h3>
+          <button class="mcp-modal-close">✕</button>
+        </div>
+        <div class="mcp-modal-body">
+          <form id="mcpEditForm" class="mcp-form">
+            <div class="form-group">
+              <label>서버 이름</label>
+              <input type="text" name="name" value="${server.name || ''}" required>
+            </div>
+            <div class="form-group">
+              <label>SSE URL</label>
+              <input type="url" name="url" value="${server.url || ''}" required>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn-cancel">취소</button>
+              <button type="submit" class="btn-save">저장</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // 닫기
+    modal.querySelector('.mcp-modal-close').addEventListener('click', () => modal.remove());
+    modal.querySelector('.btn-cancel').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+
+    // 폼 제출
+    modal.querySelector('#mcpEditForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const updates = {
+        name: formData.get('name'),
+        url: formData.get('url')
+      };
+
+      try {
+        await this.apiClient.put('/mcp/servers/' + serverId, updates);
+        // 로컬 데이터 업데이트
+        Object.assign(server, updates);
+        modal.remove();
+        this.renderServerList(document.getElementById('mcpServerList'));
+      } catch (e) {
+        console.error('서버 수정 실패:', e);
+        alert('서버 수정에 실패했습니다: ' + e.message);
+      }
+    });
+  }
+}

@@ -938,20 +938,27 @@ export class AISettings {
         </div>
       </div>
 
-      <!-- 폴더 탐색 모달 -->
+      <!-- 폴더 탐색 모달 - 밀러 컬럼 스타일 -->
       <div class="folder-browser-modal" id="folderBrowserModal" style="display: none;">
-        <div class="folder-browser-content">
+        <div class="folder-browser-content miller-columns">
           <div class="folder-browser-header">
-            <h3>폴더 선택</h3>
+            <h3>📁 폴더 선택</h3>
             <button class="close-btn" id="closeFolderBrowser">✕</button>
           </div>
-          <div class="folder-browser-path" id="currentPathDisplay">/</div>
-          <div class="folder-browser-list" id="folderList">
-            <!-- 동적으로 채워짐 -->
+          
+          <!-- 현재 선택 경로 -->
+          <div class="folder-browser-current">
+            <span class="current-path-display" id="currentPathDisplay">/</span>
+            <button class="select-current-btn" id="selectCurrentFolder">✓ 여기 선택</button>
           </div>
+          
+          <!-- 밀러 컬럼 컨테이너 -->
+          <div class="miller-columns-container" id="millerColumns">
+            <!-- 동적으로 컬럼 추가됨 -->
+          </div>
+          
           <div class="folder-browser-actions">
-            <button class="settings-btn settings-btn-outline" id="folderBrowserBack">← 상위 폴더</button>
-            <button class="settings-btn settings-btn-primary" id="folderBrowserSelect">선택</button>
+            <span class="folder-browser-help">💡 클릭으로 탐색, 선택 후 "여기 선택"</span>
           </div>
         </div>
       </div>
@@ -998,21 +1005,115 @@ export class AISettings {
   openFolderBrowser(targetInputId) {
     this.folderBrowserTarget = targetInputId;
     this.currentBrowsePath = null;
+    this.millerColumns = []; // 컬럼 상태 초기화
     
     const modal = document.getElementById('folderBrowserModal');
     if (modal) {
+      // body로 이동 (stacking context 탈출)
+      document.body.appendChild(modal);
       modal.style.display = 'flex';
-      this.loadFolderContents(null); // 루트부터 시작
+      this.loadMillerColumn(null, 0); // 루트부터 시작
     }
   }
 
   /**
-   * 폴더 내용 로드
+   * 밀러 컬럼 로드
+   */
+  async loadMillerColumn(dirPath, columnIndex) {
+    try {
+      const container = document.getElementById('millerColumns');
+      const pathDisplay = document.getElementById('currentPathDisplay');
+      
+      if (!container) return;
+
+      // 이 컬럼 이후의 컬럼들 제거
+      while (container.children.length > columnIndex) {
+        container.removeChild(container.lastChild);
+      }
+      this.millerColumns = this.millerColumns.slice(0, columnIndex);
+
+      // 새 컬럼 생성
+      const column = document.createElement('div');
+      column.className = 'miller-column';
+      column.innerHTML = '<div class="loading">로딩...</div>';
+      container.appendChild(column);
+
+      const url = dirPath 
+        ? `/storage/browse?path=${encodeURIComponent(dirPath)}&foldersOnly=true`
+        : '/storage/browse/roots';
+      
+      const res = await this.apiClient.get(url);
+      
+      if (!res.success) {
+        column.innerHTML = `<div class="empty">오류</div>`;
+        return;
+      }
+
+      this.currentBrowsePath = dirPath;
+      this.millerColumns.push({ path: dirPath, items: res.items });
+      pathDisplay.textContent = dirPath || '/ (루트)';
+
+      // 컬럼 헤더
+      const headerText = dirPath ? dirPath.split('/').pop() : '루트';
+      
+      if (!res.items.length) {
+        column.innerHTML = `
+          <div class="miller-column-header">${headerText}</div>
+          <div class="empty">비어있음</div>
+        `;
+        return;
+      }
+
+      column.innerHTML = `
+        <div class="miller-column-header">${headerText}</div>
+        ${res.items.map(item => `
+          <div class="miller-item" data-path="${item.path}" data-is-dir="${item.isDirectory}">
+            <span class="miller-item-icon">${item.isDirectory ? '📁' : '📄'}</span>
+            <span class="miller-item-name">${item.name}</span>
+            ${item.isDirectory ? '<span class="miller-arrow">›</span>' : ''}
+          </div>
+        `).join('')}
+      `;
+
+      // 아이템 클릭 이벤트
+      column.querySelectorAll('.miller-item').forEach(item => {
+        item.addEventListener('click', () => {
+          // 현재 컬럼의 선택 해제
+          column.querySelectorAll('.miller-item').forEach(i => i.classList.remove('selected'));
+          item.classList.add('selected');
+          
+          const path = item.dataset.path;
+          const isDir = item.dataset.isDir === 'true';
+          
+          this.currentBrowsePath = path;
+          pathDisplay.textContent = path;
+          
+          if (isDir) {
+            // 다음 컬럼 로드
+            this.loadMillerColumn(path, columnIndex + 1);
+          }
+          
+          // 스크롤 오른쪽으로
+          container.scrollLeft = container.scrollWidth;
+        });
+      });
+
+      // 자동 스크롤
+      container.scrollLeft = container.scrollWidth;
+      
+    } catch (error) {
+      console.error('Failed to load miller column:', error);
+    }
+  }
+
+  /**
+   * 폴더 내용 로드 (구버전 - 호환용)
    */
   async loadFolderContents(dirPath) {
     try {
       const folderList = document.getElementById('folderList');
       const pathDisplay = document.getElementById('currentPathDisplay');
+      const breadcrumb = document.getElementById('folderBreadcrumb');
       
       if (!folderList) return;
       
@@ -1030,10 +1131,13 @@ export class AISettings {
       }
 
       this.currentBrowsePath = dirPath;
-      pathDisplay.textContent = dirPath || '루트';
+      pathDisplay.textContent = dirPath || '/ (루트)';
+
+      // 빵꾸판 네비게이션 렌더링
+      this.renderBreadcrumb(dirPath, breadcrumb);
 
       if (!res.items.length) {
-        folderList.innerHTML = '<div class="empty">폴더가 없습니다.</div>';
+        folderList.innerHTML = '<div class="empty">하위 폴더가 없습니다</div>';
         return;
       }
 
@@ -1041,13 +1145,13 @@ export class AISettings {
         <div class="folder-item" data-path="${item.path}">
           <span class="folder-icon">${item.isDirectory ? '📁' : '📄'}</span>
           <span class="folder-name">${item.name}</span>
+          <span class="folder-hint">더블클릭</span>
         </div>
       `).join('');
 
       // 폴더 클릭 이벤트
       folderList.querySelectorAll('.folder-item').forEach(item => {
         item.addEventListener('click', () => {
-          // 기존 선택 해제
           folderList.querySelectorAll('.folder-item').forEach(i => i.classList.remove('selected'));
           item.classList.add('selected');
         });
@@ -1066,7 +1170,56 @@ export class AISettings {
   }
 
   /**
-   * 폴더 선택 완료
+   * 빵꾸판 네비게이션 렌더링
+   */
+  renderBreadcrumb(dirPath, container) {
+    if (!container) return;
+    
+    if (!dirPath) {
+      container.innerHTML = '<span class="breadcrumb-item current">🏠 루트</span>';
+      return;
+    }
+    
+    const parts = dirPath.split('/').filter(p => p);
+    let html = '<span class="breadcrumb-item" data-path="">🏠</span>';
+    
+    let currentPath = '';
+    parts.forEach((part, i) => {
+      currentPath += '/' + part;
+      const isLast = i === parts.length - 1;
+      html += `<span class="breadcrumb-separator">›</span>`;
+      html += `<span class="breadcrumb-item ${isLast ? 'current' : ''}" data-path="${currentPath}">${part}</span>`;
+    });
+    
+    container.innerHTML = html;
+    
+    // 빵꾸판 클릭 이벤트
+    container.querySelectorAll('.breadcrumb-item:not(.current)').forEach(item => {
+      item.addEventListener('click', () => {
+        const path = item.dataset.path || null;
+        this.loadFolderContents(path);
+      });
+    });
+  }
+
+  /**
+   * 현재 폴더 선택
+   */
+  selectCurrentFolder() {
+    const path = this.currentBrowsePath;
+    
+    if (path && this.folderBrowserTarget) {
+      const input = document.getElementById(this.folderBrowserTarget);
+      if (input) {
+        input.value = path;
+      }
+    }
+    
+    this.closeFolderBrowser();
+  }
+
+  /**
+   * 폴더 선택 완료 (하위 폴더 선택시)
    */
   selectFolder() {
     const selected = document.querySelector('.folder-item.selected');
@@ -1554,8 +1707,10 @@ export class AISettings {
       });
     }
 
-    if (folderBrowserSelect) {
-      folderBrowserSelect.addEventListener('click', () => this.selectFolder());
+    // "여기 선택" 버튼
+    const selectCurrentFolder = container.querySelector('#selectCurrentFolder');
+    if (selectCurrentFolder) {
+      selectCurrentFolder.addEventListener('click', () => this.selectCurrentFolder());
     }
 
     // 스토리지 타입 로드

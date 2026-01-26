@@ -4,6 +4,7 @@
  *
  * Phase 5.4: 영속적 대화방 시스템
  * Phase 8: 스마트 라우팅 통합
+ * Phase 9: JSONL 기반 대화 저장
  */
 
 const express = require('express');
@@ -17,8 +18,12 @@ const { getPersonalityCore } = require('../utils/personality-core');
 const Role = require('../models/Role');
 const UsageStats = require('../models/UsageStats');
 const Message = require('../models/Message');
+const ConversationStore = require('../utils/conversation-store');
 const { loadMCPTools, executeMCPTool } = require('../utils/mcp-tools');
 const { builtinTools, executeBuiltinTool, isBuiltinTool } = require('../utils/builtin-tools');
+
+// JSONL 대화 저장소
+const conversationStore = new ConversationStore();
 
 /**
  * POST /api/chat
@@ -141,7 +146,7 @@ router.post('/', async (req, res) => {
       }
 
       // MCP 도구 로드 (스마트홈 등)
-      const mcpTools = loadMCPTools();
+      const mcpTools = await loadMCPTools();
       
       // 내장 도구 + MCP 도구 합치기
       const allTools = [...builtinTools, ...mcpTools];
@@ -362,31 +367,34 @@ router.post('/end', async (req, res) => {
 
 /**
  * GET /api/chat/history/:sessionId
- * 대화 히스토리 조회 (MongoDB 페이지네이션)
+ * 대화 히스토리 조회 (JSONL 기반)
  */
 router.get('/history/:sessionId', async (req, res) => {
   try {
     const { sessionId } = req.params;
-    const { limit = 50, before } = req.query;
+    const { limit = 50, before, around } = req.query;
     const limitNum = parseInt(limit);
 
     let messages;
 
-    if (before) {
+    if (around) {
+      // 특정 메시지 주변 조회 (검색 결과 이동용)
+      messages = await conversationStore.getMessagesAround(around, limitNum);
+    } else if (before) {
       // before 타임스탬프 이전의 메시지 조회
-      messages = await Message.getMessagesBefore(sessionId, before, limitNum);
+      messages = await conversationStore.getMessagesBefore(before, limitNum);
     } else {
       // 최근 메시지 조회
-      messages = await Message.getRecentMessages(sessionId, limitNum);
+      messages = await conversationStore.getRecentMessages(limitNum);
     }
 
     res.json({
       success: true,
       sessionId,
       messages: messages.map(m => ({
-        id: m._id,
+        id: m.id,
         role: m.role,
-        content: m.content,
+        content: m.text,
         timestamp: m.timestamp
       })),
       total: messages.length

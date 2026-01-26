@@ -1,10 +1,17 @@
 const memoryUtils = require('./memory');
 const smartSearchUtils = require('./smart-search');
+const Memory = require('../models/Memory');
+const path = require('path');
+const fs = require('fs').promises;
 
 /**
  * 검색 유틸리티
  */
 class SearchUtils {
+  constructor() {
+    this.memoryBasePath = process.env.MEMORY_STORAGE_PATH || './memory';
+  }
+
   /**
    * 기본 키워드 검색
    * @param {string} keyword - 검색 키워드
@@ -294,38 +301,306 @@ class SearchUtils {
   }
 
   /**
-   * 자연어 검색 (지능형 검색)
+   * 통합 검색 (모든 데이터 소스)
    */
   async smartSearch(naturalQuery, options = {}) {
-    // 오타 수정 및 동의어 확장
+    const { limit = 20 } = options;
+    
+    // 오타 수정
     const corrected = smartSearchUtils.fuzzyCorrection(naturalQuery);
-
-    // 자연어 파싱
     const { keywords, filters } = smartSearchUtils.convertToFilters(corrected);
-
-    // 맥락 기반 확장 (선택적)
-    const recentSearches = options.recentSearches || [];
-    const expanded = smartSearchUtils.expandContext(keywords.join(' '), recentSearches);
-
-    // 확장된 키워드로 검색 (OR 조건)
-    const searchParams = {
-      anyKeywords: options.useExpanded ? expanded.expandedKeywords : keywords,
-      ...filters,
-      ...options.additionalFilters
-    };
-
-    const result = await this.advancedSearch(searchParams);
-
+    const searchKeywords = keywords.length > 0 ? keywords : [corrected];
+    
+    const results = [];
+    
+    // 1. MongoDB 메시지 검색
+    try {
+      const messageResults = await this.searchMessages(searchKeywords, limit);
+      results.push(...messageResults);
+    } catch (e) {
+      console.error('메시지 검색 실패:', e.message);
+    }
+    
+    // 2. MongoDB 메모리 검색 (단기)
+    try {
+      const memoryResults = await this.searchMemories(searchKeywords, limit);
+      results.push(...memoryResults);
+    } catch (e) {
+      console.error('메모리 검색 실패:', e.message);
+    }
+    
+    // 3. 중기 메모리 (주간 요약) 검색
+    try {
+      const summaryResults = await this.searchSummaries(searchKeywords, limit);
+      results.push(...summaryResults);
+    } catch (e) {
+      console.error('요약 검색 실패:', e.message);
+    }
+    
+    // 4. 장기 메모리 (아카이브) 검색
+    try {
+      const archiveResults = await this.searchArchives(searchKeywords, limit);
+      results.push(...archiveResults);
+    } catch (e) {
+      console.error('아카이브 검색 실패:', e.message);
+    }
+    
+    // 5. 문서 검색
+    try {
+      const docResults = await this.searchDocuments(searchKeywords, limit);
+      results.push(...docResults);
+    } catch (e) {
+      console.error('문서 검색 실패:', e.message);
+    }
+    
+    // 관련도 + 날짜 기준 정렬
+    results.sort((a, b) => {
+      // 관련도 우선
+      if (b.relevance !== a.relevance) return b.relevance - a.relevance;
+      // 날짜 최신순
+      return new Date(b.date) - new Date(a.date);
+    });
+    
     return {
-      ...result,
+      total: results.length,
+      results: results.slice(0, limit),
       parsedQuery: {
         original: naturalQuery,
         corrected,
-        keywords,
-        filters,
-        expanded: options.useExpanded ? expanded.expandedKeywords : null
+        keywords: searchKeywords
       }
     };
+  }
+
+  /**
+   * JSONL 대화 검색
+   */
+  async searchMessages(keywords, limit = 10) {
+    const ConversationStore = require('./conversation-store');
+    const store = new ConversationStore();
+    
+    const messages = await store.search(keywords, limit);
+    
+    return messages.map(msg => ({
+      id: msg.id,
+      type: 'message',
+      typeLabel: '대화',
+      date: msg.timestamp,
+      topics: [],
+      preview: msg.text,  // 전체 텍스트 (프론트에서 컨텍스트 추출)
+      tags: msg.tags || [],
+      relevance: this.calculateRelevance(msg.text, keywords),
+      source: {
+        role: msg.role
+      }
+    }));
+  }
+
+  /**
+   * MongoDB 메모리 검색 (단기)
+   */
+  async searchMemories(keywords, limit = 10) {
+    const regex = keywords.map(k => new RegExp(k, 'i'));
+    
+    const memories = await Memory.find({
+      $or: [
+        { content: { $in: regex } },
+        { tags: { $in: regex } },
+        { category: { $in: regex } }
+      ]
+    })
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .lean();
+    
+    return memories.map(mem => ({
+      id: mem._id.toString(),
+      type: 'memory',
+      typeLabel: '메모리',
+      date: mem.createdAt,
+      topics: [mem.category || '메모리'],
+      preview: mem.content?.substring(0, 100) || '',
+      tags: mem.tags || [],
+      category: mem.category,
+      importance: mem.importance,
+      relevance: this.calculateRelevance(mem.content || '', keywords)
+    }));
+  }
+
+  /**
+   * 중기 메모리 (주간 요약) 검색
+   */
+  async searchSummaries(keywords, limit = 10) {
+    const summaryPath = path.join(this.memoryBasePath, 'summaries');
+    const results = [];
+    
+    try {
+      const files = await fs.readdir(summaryPath);
+      
+      for (const file of files) {
+        if (!file.endsWith('.json')) continue;
+        
+        const filePath = path.join(summaryPath, file);
+        const content = await fs.readFile(filePath, 'utf-8');
+        const data = JSON.parse(content);
+        
+        const text = JSON.stringify(data).toLowerCase();
+        const matches = keywords.some(k => text.includes(k.toLowerCase()));
+        
+        if (matches) {
+          results.push({
+            id: `summary-${file}`,
+            type: 'summary',
+            typeLabel: '주간요약',
+            date: data.createdAt || data.weekStart,
+            topics: data.topics || ['주간 요약'],
+            preview: data.summary?.substring(0, 100) || '',
+            tags: data.tags || [],
+            relevance: this.calculateRelevance(text, keywords)
+          });
+        }
+        
+        if (results.length >= limit) break;
+      }
+    } catch (e) {
+      // 폴더 없으면 무시
+    }
+    
+    return results;
+  }
+
+  /**
+   * 장기 메모리 (아카이브) 검색
+   */
+  async searchArchives(keywords, limit = 10) {
+    const archivePath = path.join(this.memoryBasePath, 'archives');
+    const results = [];
+    
+    try {
+      const years = await fs.readdir(archivePath);
+      
+      for (const year of years) {
+        const yearPath = path.join(archivePath, year);
+        const stat = await fs.stat(yearPath);
+        if (!stat.isDirectory()) continue;
+        
+        const files = await fs.readdir(yearPath);
+        
+        for (const file of files) {
+          if (!file.endsWith('.md') && !file.endsWith('.json')) continue;
+          
+          const filePath = path.join(yearPath, file);
+          const content = await fs.readFile(filePath, 'utf-8');
+          
+          const matches = keywords.some(k => 
+            content.toLowerCase().includes(k.toLowerCase())
+          );
+          
+          if (matches) {
+            results.push({
+              id: `archive-${year}-${file}`,
+              type: 'archive',
+              typeLabel: '아카이브',
+              date: this.extractDateFromFilename(file) || new Date().toISOString(),
+              topics: [file.replace(/\.(md|json)$/, '')],
+              preview: content.substring(0, 100),
+              tags: [],
+              relevance: this.calculateRelevance(content, keywords)
+            });
+          }
+          
+          if (results.length >= limit) break;
+        }
+        
+        if (results.length >= limit) break;
+      }
+    } catch (e) {
+      // 폴더 없으면 무시
+    }
+    
+    return results;
+  }
+
+  /**
+   * 문서 검색
+   */
+  async searchDocuments(keywords, limit = 10) {
+    const docsPath = path.join(this.memoryBasePath, 'documents');
+    const results = [];
+    
+    try {
+      const files = await fs.readdir(docsPath);
+      
+      for (const file of files) {
+        if (!file.endsWith('.json')) continue;
+        
+        const filePath = path.join(docsPath, file);
+        const content = await fs.readFile(filePath, 'utf-8');
+        const data = JSON.parse(content);
+        
+        const searchText = [
+          data.title,
+          data.content,
+          data.ocrText,
+          ...(data.tags || [])
+        ].filter(Boolean).join(' ').toLowerCase();
+        
+        const matches = keywords.some(k => searchText.includes(k.toLowerCase()));
+        
+        if (matches) {
+          results.push({
+            id: `doc-${file}`,
+            type: 'document',
+            typeLabel: '문서',
+            date: data.createdAt,
+            topics: [data.title || file],
+            preview: (data.content || data.ocrText || '').substring(0, 100),
+            tags: data.tags || [],
+            relevance: this.calculateRelevance(searchText, keywords)
+          });
+        }
+        
+        if (results.length >= limit) break;
+      }
+    } catch (e) {
+      // 폴더 없으면 무시
+    }
+    
+    return results;
+  }
+
+  /**
+   * 관련도 계산
+   */
+  calculateRelevance(text, keywords) {
+    if (!text) return 0;
+    const lowerText = text.toLowerCase();
+    let score = 0;
+    
+    for (const keyword of keywords) {
+      const lowerKeyword = keyword.toLowerCase();
+      // 정확히 일치
+      if (lowerText === lowerKeyword) score += 10;
+      // 포함
+      else if (lowerText.includes(lowerKeyword)) {
+        // 등장 횟수
+        const matches = (lowerText.match(new RegExp(lowerKeyword, 'g')) || []).length;
+        score += Math.min(matches * 2, 8);
+      }
+    }
+    
+    return score;
+  }
+
+  /**
+   * 파일명에서 날짜 추출
+   */
+  extractDateFromFilename(filename) {
+    const match = filename.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      return `${match[1]}-${match[2]}-${match[3]}T00:00:00.000Z`;
+    }
+    return null;
   }
 }
 

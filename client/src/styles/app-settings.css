@@ -1,0 +1,457 @@
+/* 앱설정 스타일 */
+
+.app-settings {
+  padding: 20px;
+}
+
+.app-settings h2 {
+  margin-bottom: 20px;
+  color: #333;
+}
+
+/* 서브 탭 */
+.app-settings-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #e0e0e0;
+  padding-bottom: 10px;
+}
+
+.app-tab {
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #666;
+  transition: all 0.2s;
+}
+
+.app-tab:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.app-tab.active {
+  background: #4a9eff;
+  color: white;
+}
+
+/* 테마 설정 */
+.theme-settings-section h3 {
+  margin-bottom: 15px;
+  font-size: 16px;
+}
+
+.theme-options {
+  display: flex;
+  gap: 15px;
+}
+
+.theme-option {
+  cursor: pointer;
+}
+
+.theme-option input {
+  display: none;
+}
+
+.theme-preview {
+  display: inline-block;
+  padding: 15px 25px;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.theme-preview.light {
+  background: #f5f5f5;
+  color: #333;
+}
+
+.theme-preview.dark {
+  background: #2d2d2d;
+  color: #fff;
+}
+
+.theme-option input:checked + .theme-preview {
+  border-color: #4a9eff;
+}
+
+.theme-note {
+  margin-top: 15px;
+  font-size: 12px;
+  color: #999;
+}
+
+/* MCP 설정 */
+.mcp-settings-section h3 {
+  margin: 0;
+}
+
+.mcp-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.mcp-add-btn {
+  padding: 8px 16px;
+  background: #4a9eff;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.mcp-add-btn:hover {
+  background: #3a8eef;
+}
+
+/* 서버 목록 */
+.mcp-server-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mcp-server-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 15px;
+  background: #f8f8f8;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+}
+
+.mcp-server-item.disabled {
+  opacity: 0.6;
+}
+
+.mcp-server-status {
+  margin-right: 12px;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.status-dot.online {
+  background: #4caf50;
+  box-shadow: 0 0 6px rgba(76, 175, 80, 0.5);
+}
+
+.status-dot.offline {
+  background: #9e9e9e;
+}
+
+.mcp-server-info {
+  flex: 1;
+}
+
+.mcp-server-name {
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 2px;
+}
+
+.mcp-server-url {
+  font-size: 12px;
+  color: #888;
+  font-family: monospace;
+}
+
+.mcp-server-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 토글 스위치 */
+.mcp-toggle {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 22px;
+}
+
+.mcp-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: 0.3s;
+  border-radius: 22px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+.mcp-toggle input:checked + .toggle-slider {
+  background-color: #4caf50;
+}
+
+.mcp-toggle input:checked + .toggle-slider:before {
+  transform: translateX(18px);
+}
+
+/* 액션 버튼 */
+.mcp-tools-btn,
+.mcp-delete-btn {
+  padding: 6px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  border-radius: 4px;
+}
+
+.mcp-tools-btn:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.mcp-delete-btn:hover {
+  background: rgba(255, 0, 0, 0.1);
+}
+
+/* 모달 */
+.mcp-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.mcp-modal-content {
+  background: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 450px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.mcp-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.mcp-modal-header h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.mcp-modal-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #999;
+}
+
+.mcp-modal-body {
+  padding: 20px;
+}
+
+/* 폼 */
+.mcp-form .form-group {
+  margin-bottom: 15px;
+}
+
+.mcp-form label {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 13px;
+  color: #666;
+}
+
+.mcp-form input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.btn-cancel {
+  padding: 8px 16px;
+  background: #e0e0e0;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.btn-save {
+  padding: 8px 16px;
+  background: #4a9eff;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* 로딩/에러 */
+.mcp-loading,
+.mcp-tools-loading {
+  text-align: center;
+  padding: 20px;
+  color: #888;
+}
+
+.mcp-tools-error {
+  text-align: center;
+  padding: 20px;
+  color: #f44336;
+}
+
+.error-detail {
+  font-size: 12px;
+  color: #999;
+  margin-top: 5px;
+}
+
+.mcp-note {
+  font-size: 12px;
+  color: #999;
+  margin-top: 10px;
+}
+
+.mcp-empty {
+  text-align: center;
+  padding: 40px;
+  color: #888;
+}
+
+.mcp-empty .mcp-add-btn {
+  margin-top: 15px;
+}
+
+
+/* 서버 메타 정보 */
+.mcp-server-meta {
+  display: flex;
+  gap: 6px;
+  margin: 4px 0;
+  flex-wrap: wrap;
+}
+
+.mcp-badge {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.mcp-badge.builtin {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.mcp-badge.external {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.mcp-badge.tools {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.mcp-badge.port {
+  background: #fce4ec;
+  color: #c2185b;
+  font-family: monospace;
+}
+
+.mcp-server-desc {
+  font-size: 12px;
+  color: #888;
+  margin-top: 4px;
+}
+
+
+/* 도구 목록 그리드 */
+.mcp-tools-grid {
+  display: grid;
+  gap: 10px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.mcp-tool-item {
+  background: #f8f8f8;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.mcp-tool-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.mcp-tool-desc {
+  font-size: 12px;
+  color: #666;
+}
+
+.mcp-tools-empty {
+  text-align: center;
+  padding: 30px;
+  color: #888;
+}
+
+.mcp-error {
+  text-align: center;
+  padding: 30px;
+}
+
+.mcp-retry-btn {
+  margin-top: 10px;
+  padding: 8px 16px;
+  background: #4a9eff;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}

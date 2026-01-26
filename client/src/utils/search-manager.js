@@ -189,26 +189,36 @@ export class SearchManager {
    * 개별 검색 결과 항목 렌더링
    */
   renderResultItem(result, query) {
-    // 백엔드 응답 구조에 맞게 처리
-    // topics 배열의 첫 번째 항목을 제목으로, 나머지를 미리보기로 사용
-    const topics = result.topics || [];
-    const title = this.highlightText(topics[0] || result.category || '제목 없음', query);
-    const previewTopics = topics.slice(1).join(', ');
-    const preview = this.highlightText(this.truncateText(previewTopics || result.category || '', 100), query);
+    // 타입 정보
+    const type = result.type || 'memory';
+    const typeLabel = result.typeLabel || '메모리';
+    const typeClass = type;
+    
+    // 날짜
     const date = result.date ? this.formatDate(result.date) : '';
+    
+    // 제목: 짧은 요약 또는 첫 줄
+    const firstLine = (result.preview || '').split('\n')[0];
+    const title = this.highlightText(this.truncateText(firstLine, 80), query);
+    
+    // 미리보기: 검색어 주변 컨텍스트 추출
+    const preview = this.getContextAroundQuery(result.preview || '', query, 150);
+    const highlightedPreview = this.highlightText(preview, query);
+    
+    // 태그
     const tags = result.tags || [];
-    const type = 'memory'; // 현재는 메모리 검색만 지원
-    const typeLabel = '메모리';
-    const typeClass = 'memory';
+    
+    // 역할 표시 (대화인 경우)
+    const roleLabel = result.source?.role === 'user' ? '👤' : result.source?.role === 'assistant' ? '🤖' : '';
 
     return `
       <div class="search-result-item" data-id="${result.id}" data-type="${type}">
         <div class="search-result-header">
-          <span class="search-result-type ${typeClass}">${typeLabel}</span>
+          <span class="search-result-type ${typeClass}">${roleLabel} ${typeLabel}</span>
           <span class="search-result-date">${date}</span>
         </div>
         <div class="search-result-title">${title}</div>
-        ${preview ? `<div class="search-result-preview">${preview}</div>` : ''}
+        ${highlightedPreview ? `<div class="search-result-preview">${highlightedPreview}</div>` : ''}
         ${tags.length > 0 ? `
           <div class="search-result-tags">
             ${tags.slice(0, 3).map(tag => `<span class="search-tag">${tag}</span>`).join('')}
@@ -216,6 +226,34 @@ export class SearchManager {
         ` : ''}
       </div>
     `;
+  }
+
+  /**
+   * 검색어 주변 컨텍스트 추출
+   */
+  getContextAroundQuery(text, query, maxLength = 150) {
+    if (!text || !query) return this.truncateText(text, maxLength);
+    
+    const lowerText = text.toLowerCase();
+    const lowerQuery = query.toLowerCase();
+    const index = lowerText.indexOf(lowerQuery);
+    
+    if (index === -1) {
+      // 검색어 못 찾으면 앞부분 반환
+      return this.truncateText(text, maxLength);
+    }
+    
+    // 검색어 주변 컨텍스트 추출
+    const contextStart = Math.max(0, index - 50);
+    const contextEnd = Math.min(text.length, index + query.length + 100);
+    
+    let context = text.substring(contextStart, contextEnd);
+    
+    // 앞뒤 ... 추가
+    if (contextStart > 0) context = '...' + context;
+    if (contextEnd < text.length) context = context + '...';
+    
+    return context;
   }
 
   /**
@@ -313,11 +351,63 @@ export class SearchManager {
     this.hideResults();
     this.searchInput.value = '';
 
-    if (type === 'memory' && resultData) {
-      // 검색 결과 데이터로 Canvas에 표시
+    if (type === 'message' && resultData) {
+      // 대화 메시지로 이동
+      this.scrollToMessage(resultData);
+    } else if (resultData) {
+      // 다른 타입(메모리, 아카이브 등)은 Canvas에 표시
       this.showMemoryInCanvas(resultData);
+    }
+  }
+
+  /**
+   * 해당 메시지로 스크롤 이동
+   */
+  async scrollToMessage(messageData) {
+    console.log('scrollToMessage 호출:', messageData.id);
+    
+    const messagesArea = document.getElementById('messagesArea');
+    if (!messagesArea) return;
+
+    // 이미 DOM에 있는지 확인
+    let messageEl = messagesArea.querySelector(`[data-message-id="${messageData.id}"]`);
+    console.log('DOM에서 찾음:', !!messageEl);
+    
+    if (!messageEl) {
+      // DOM에 없으면 해당 시점 메시지 로드 필요
+      const chatManager = window.soulApp?.chatManager;
+      console.log('chatManager:', !!chatManager);
+      
+      if (chatManager) {
+        // 해당 메시지 주변 로드
+        await chatManager.loadMessagesAround(messageData.id, messageData.date);
+        
+        // 다시 찾기
+        messageEl = messagesArea.querySelector(`[data-message-id="${messageData.id}"]`);
+        console.log('로드 후 DOM에서 찾음:', !!messageEl);
+      }
+    }
+
+    if (messageEl) {
+      // 스크롤 이동 (chatContainer가 스크롤 담당)
+      const scrollContainer = messagesArea.parentElement;
+      const messageTop = messageEl.offsetTop;
+      const containerHeight = scrollContainer.clientHeight;
+      
+      scrollContainer.scrollTo({
+        top: messageTop - containerHeight / 2,
+        behavior: 'smooth'
+      });
+      
+      // 하이라이트 효과
+      messageEl.classList.add('search-highlight-message');
+      setTimeout(() => {
+        messageEl.classList.remove('search-highlight-message');
+      }, 2000);
     } else {
-      console.log('대화 로드 기능은 추후 구현 예정');
+      console.log('메시지 못 찾음, Canvas로 표시');
+      // 못 찾으면 Canvas에 표시
+      this.showMemoryInCanvas(messageData);
     }
   }
 

@@ -134,6 +134,44 @@ messageSchema.statics.getMessagesBefore = async function(sessionId, beforeTimest
 };
 
 /**
+ * 특정 메시지 주변 조회 (검색 결과 이동용)
+ */
+messageSchema.statics.getMessagesAround = async function(sessionId, messageId, limit = 40) {
+  const mongoose = require('mongoose');
+  const ObjectId = mongoose.Types.ObjectId;
+  
+  // 해당 메시지 찾기
+  const targetMessage = await this.findById(messageId).lean();
+  if (!targetMessage) {
+    // ID로 못 찾으면 최근 메시지 반환
+    return this.getRecentMessages(sessionId, limit);
+  }
+  
+  const halfLimit = Math.floor(limit / 2);
+  
+  // 이전 메시지
+  const beforeMessages = await this.find({
+    sessionId,
+    timestamp: { $lt: targetMessage.timestamp }
+  })
+    .sort({ timestamp: -1 })
+    .limit(halfLimit)
+    .lean();
+  
+  // 이후 메시지 (타겟 포함)
+  const afterMessages = await this.find({
+    sessionId,
+    timestamp: { $gte: targetMessage.timestamp }
+  })
+    .sort({ timestamp: 1 })
+    .limit(halfLimit)
+    .lean();
+  
+  // 합쳐서 시간순 정렬
+  return [...beforeMessages.reverse(), ...afterMessages];
+};
+
+/**
  * 세션 메시지 전체 삭제
  */
 messageSchema.statics.clearSession = async function(sessionId) {

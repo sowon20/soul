@@ -2555,6 +2555,7 @@ textarea.settings-field-input {
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
+  color: #333;
 }
 
 .storage-type-option:hover:not(.disabled) {
@@ -2582,6 +2583,7 @@ textarea.settings-field-input {
 .storage-type-option .type-name {
   font-size: 0.875rem;
   font-weight: 500;
+  color: #333;
 }
 
 .storage-type-option .coming-soon {
@@ -2627,18 +2629,20 @@ textarea.settings-field-input {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 10000;
+  z-index: 99999;
 }
 
 .folder-browser-content {
   width: 90%;
   max-width: 500px;
-  max-height: 70vh;
+  max-height: 80vh;
   background: white;
   border-radius: 12px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  color: #333;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 }
 
 .folder-browser-header {
@@ -2647,12 +2651,14 @@ textarea.settings-field-input {
   align-items: center;
   padding: 1rem 1.25rem;
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  background: #f8f8f8;
 }
 
 .folder-browser-header h3 {
   margin: 0;
   font-size: 1rem;
   font-weight: 600;
+  color: #333;
 }
 
 .folder-browser-header .close-btn {
@@ -2662,19 +2668,90 @@ textarea.settings-field-input {
   cursor: pointer;
   opacity: 0.5;
   transition: opacity 0.2s;
+  color: #333;
 }
 
 .folder-browser-header .close-btn:hover {
   opacity: 1;
 }
 
-.folder-browser-path {
+/* 빵꾸판 네비게이션 */
+.folder-browser-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
   padding: 0.75rem 1.25rem;
   background: rgba(0, 0, 0, 0.03);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  flex-wrap: wrap;
+  min-height: 44px;
+}
+
+.breadcrumb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 4px;
+  font-size: 0.8125rem;
+  color: #4f46e5;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.breadcrumb-item:hover {
+  background: rgba(99, 102, 241, 0.2);
+}
+
+.breadcrumb-item.current {
+  background: #4f46e5;
+  color: white;
+  cursor: default;
+}
+
+.breadcrumb-separator {
+  color: rgba(0, 0, 0, 0.3);
+  font-size: 0.75rem;
+}
+
+/* 현재 위치 선택 버튼 */
+.folder-browser-current {
+  padding: 0.75rem 1.25rem;
+  background: rgba(34, 197, 94, 0.1);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.current-path-display {
+  flex: 1;
   font-size: 0.8125rem;
   font-family: monospace;
-  color: rgba(0, 0, 0, 0.7);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  color: #333;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.select-current-btn {
+  padding: 0.5rem 1rem;
+  background: #22c55e;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.select-current-btn:hover {
+  background: #16a34a;
 }
 
 .folder-browser-list {
@@ -2701,10 +2778,11 @@ textarea.settings-field-input {
 
 .folder-item.selected {
   background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.3);
 }
 
 .folder-icon {
-  font-size: 1.125rem;
+  font-size: 1.25rem;
 }
 
 .folder-name {
@@ -2713,13 +2791,26 @@ textarea.settings-field-input {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: #333;
+}
+
+.folder-hint {
+  font-size: 0.75rem;
+  color: rgba(0, 0, 0, 0.4);
 }
 
 .folder-browser-actions {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   padding: 1rem 1.25rem;
   border-top: 1px solid rgba(0, 0, 0, 0.1);
+  background: #f8f8f8;
+}
+
+.folder-browser-help {
+  font-size: 0.75rem;
+  color: rgba(0, 0, 0, 0.5);
 }
 
 .folder-browser-list .loading,
@@ -2733,4 +2824,96 @@ textarea.settings-field-input {
 
 .folder-browser-list .error {
   color: #ef4444;
+}
+
+
+/* 밀러 컬럼 스타일 (macOS Finder) */
+.miller-columns {
+  max-width: 700px;
+  width: 95%;
+}
+
+.miller-columns-container {
+  display: flex;
+  overflow-x: auto;
+  min-height: 280px;
+  max-height: 350px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  background: #fafafa;
+}
+
+.miller-column {
+  min-width: 180px;
+  max-width: 200px;
+  border-right: 1px solid rgba(0, 0, 0, 0.1);
+  overflow-y: auto;
+  flex-shrink: 0;
+  background: white;
+}
+
+.miller-column:last-child {
+  border-right: none;
+}
+
+.miller-column-header {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.5);
+  background: #f5f5f5;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  position: sticky;
+  top: 0;
+}
+
+.miller-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  transition: background 0.1s;
+  font-size: 0.8125rem;
+  color: #333;
+}
+
+.miller-item:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.miller-item.selected {
+  background: #3b82f6;
+  color: white;
+}
+
+.miller-item.selected .miller-arrow {
+  color: white;
+}
+
+.miller-item-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.miller-item-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.miller-arrow {
+  font-size: 0.75rem;
+  color: rgba(0, 0, 0, 0.3);
+  flex-shrink: 0;
+}
+
+.miller-column .loading,
+.miller-column .empty {
+  padding: 1rem;
+  text-align: center;
+  color: rgba(0, 0, 0, 0.4);
+  font-size: 0.75rem;
 }
