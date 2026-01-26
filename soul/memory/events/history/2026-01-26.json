@@ -1,0 +1,22 @@
+[
+  {
+    "type": "sleep",
+    "reason": "자야",
+    "userMessage": "오늘 너의 기억을 되살리고 자야겠다. ㅠㅠ",
+    "expectedDuration": 28800,
+    "minDuration": 14400,
+    "maxDuration": 43200,
+    "startedAt": "2026-01-26T19:49:04.058Z",
+    "expectedReturnAt": "2026-01-27T03:49:04.058Z",
+    "returnedAt": "2026-01-26T19:49:25.763Z",
+    "actualDuration": 21,
+    "interpretation": {
+      "status": "very_quick",
+      "message": "sleep치고 엄청 빨랐네",
+      "surprise": 0.8,
+      "actualFormatted": "방금",
+      "expectedFormatted": "8시간",
+      "ratio": 0.0007291666666666667
+    }
+  }
+]

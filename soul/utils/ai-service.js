@@ -141,9 +141,13 @@ class AnthropicService extends AIService {
 
     if (tools && tools.length > 0) {
       params.tools = tools;
+      console.log(`[Anthropic] Tools passed: ${tools.length} tools (${tools.map(t => t.name).join(', ')})`);
+    } else {
+      console.log(`[Anthropic] No tools passed!`);
     }
 
     let response = await this.client.messages.create(params);
+    console.log(`[Anthropic] stop_reason: ${response.stop_reason}, content types: ${response.content.map(b => b.type).join(', ')}`);
 
     // 도구 사용 정보 수집
     const toolUsageInfo = [];
@@ -202,17 +206,8 @@ class AnthropicService extends AIService {
       finalResponse += `<thinking>${thinkingBlock.thinking}</thinking>\n\n`;
     }
     
-    // 도구 사용 정보가 있으면 추가
-    if (toolUsageInfo.length > 0) {
-      const toolSummary = toolUsageInfo.map(t => {
-        // 도구 이름 파싱: mcp_1234567890__execute -> execute (ssh-commander)
-        const friendlyName = this.formatToolName(t.name);
-        const inputStr = this.formatToolInput(t.input);
-        const resultStr = t.result ? t.result.substring(0, 200) : '';
-        return `${friendlyName}|${inputStr}|${resultStr}`;
-      }).join('\n');
-      finalResponse += `<tool_use>${toolSummary}</tool_use>\n\n`;
-    }
+    // 도구 사용 정보는 소켓으로 이미 전송됨 - 텍스트에 포함하지 않음
+    // (이전에 <tool_use> 태그로 추가했으나, AI가 이를 학습해서 흉내내는 문제 발생)
     
     finalResponse += textContent;
     

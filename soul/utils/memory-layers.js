@@ -53,19 +53,21 @@ class ShortTermMemory {
   async initialize(sessionId = 'main-conversation') {
     this.sessionId = sessionId;
     try {
-      const Message = require('../models/Message');
-      const messages = await Message.getRecentMessages(sessionId, this.maxMessages);
+      // JSONL에서 메시지 로드
+      const ConversationStore = require('./conversation-store');
+      const store = new ConversationStore();
+      const messages = await store.getRecentMessages(this.maxMessages);
       this.messages = messages.map(m => ({
         role: m.role,
-        content: m.content,
+        content: m.text || m.content,
         timestamp: m.timestamp,
-        tokens: m.tokens || this._estimateTokens(m.content)
+        tokens: m.tokens || this._estimateTokens(m.text || m.content)
       }));
       this.totalTokens = this.messages.reduce((sum, m) => sum + (m.tokens || 0), 0);
       this.initialized = true;
-      console.log(`[ShortTermMemory] Loaded ${this.messages.length} messages from DB`);
+      console.log(`[ShortTermMemory] Loaded ${this.messages.length} messages from JSONL`);
     } catch (error) {
-      console.error('[ShortTermMemory] Failed to load from DB:', error.message);
+      console.error('[ShortTermMemory] Failed to load from JSONL:', error.message);
       this.initialized = true;
     }
   }
@@ -102,6 +104,7 @@ class ShortTermMemory {
    */
   async _saveToDb(message) {
     try {
+      console.log('[ShortTermMemory] Saving message to JSONL:', message.role);
       const ConversationStore = require('./conversation-store');
       const store = new ConversationStore();
       await store.saveMessage({
@@ -113,7 +116,9 @@ class ShortTermMemory {
         thought: message.thought || null,
         emotion: message.emotion || null
       });
+      console.log('[ShortTermMemory] Message saved successfully');
     } catch (error) {
+      console.error('[ShortTermMemory] _saveToDb error:', error);
       throw error;
     }
   }
@@ -430,7 +435,8 @@ class MiddleTermMemory {
         const files = await fs.readdir(monthPath);
         
         for (const file of files.sort().reverse()) {
-          if (!file.endsWith('.json')) continue;
+          // .json으로 끝나고, ._로 시작하지 않는 파일만 (macOS 메타데이터 제외)
+          if (!file.endsWith('.json') || file.startsWith('._')) continue;
           
           const content = await fs.readFile(path.join(monthPath, file), 'utf-8');
           allSummaries.push(JSON.parse(content));
@@ -976,25 +982,85 @@ class MemoryManager {
    * 메시지 추가 (모든 계층)
    */
   async addMessage(message, sessionId) {
+    // id 생성 (없으면)
+    if (!message.id) {
+      const timestamp = message.timestamp || new Date().toISOString();
+      const ts = typeof timestamp === 'string' ? timestamp : timestamp.toISOString();
+      message.id = `${ts.replace(/[:.]/g, '-')}_${message.role}`;
+    }
+
     // 1. 단기 메모리에 추가
     const added = this.shortTerm.add(message);
 
     this.messagesSinceArchive++;
     this.messagesSinceSummary++;
 
-    // 2. 자동 세션 요약
+    // 2. 백그라운드에서 태그/감정 분석 (비동기, 블로킹 안 함)
+    this._enrichMessageAsync(message, sessionId);
+
+    // 3. 자동 세션 요약
     if (this.messagesSinceSummary >= this.config.sessionSummaryInterval) {
       await this.summarizeSession(sessionId);
       this.messagesSinceSummary = 0;
     }
 
-    // 3. 자동 아카이브
+    // 4. 자동 아카이브
     if (this.config.autoArchive && this.messagesSinceArchive >= this.config.archiveThreshold) {
       await this.archiveOldMessages(sessionId);
       this.messagesSinceArchive = 0;
     }
 
     return added;
+  }
+
+  /**
+   * 메시지 메타데이터 보강 (백그라운드)
+   */
+  async _enrichMessageAsync(message, sessionId) {
+    try {
+      // 백그라운드 워커 역할 확인
+      const Role = require('../models/Role');
+      const bgWorker = await Role.findOne({ category: 'background', active: true });
+      
+      if (!bgWorker) {
+        // 백그라운드 워커가 없거나 비활성화면 스킵
+        return;
+      }
+      
+      const tasks = bgWorker.backgroundTasks || {};
+      if (!tasks.tagGeneration && !tasks.memoGeneration) {
+        // 태그/메모 둘 다 비활성화면 스킵
+        return;
+      }
+      
+      const { getAlbaWorker } = require('./alba-worker');
+      const alba = await getAlbaWorker();
+      
+      const content = message.text || message.content || '';
+      if (!content || content.length < 5) return;
+      
+      const recentMessages = this.shortTerm.getRecent(5);
+      const hour = new Date().getHours();
+      const timeContext = hour < 6 ? '새벽' : hour < 12 ? '아침' : hour < 18 ? '오후' : '저녁';
+      
+      // 활성화된 태스크만 실행
+      const [tags, aiMemo] = await Promise.all([
+        tasks.tagGeneration ? alba.generateTags(content, { timeContext }) : null,
+        tasks.memoGeneration && message.role === 'user' ? alba.generateAiMemo(recentMessages, { timeContext }) : null
+      ]);
+      
+      if (tags?.length > 0 || aiMemo) {
+        const ConversationStore = require('./conversation-store');
+        const store = new ConversationStore();
+        await store.updateMessage(message.id, {
+          tags: tags || [],
+          thought: aiMemo || null
+        });
+        console.log(`[MemoryManager] Enriched message: ${tags?.length || 0} tags, memo: ${!!aiMemo}`);
+      }
+    } catch (error) {
+      console.warn('[MemoryManager] Enrich failed (non-blocking):', error.message);
+    }
   }
 
   /**

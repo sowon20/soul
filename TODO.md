@@ -1,5 +1,64 @@
 ## 항상 작업 전 확인 / 작업 후 업데이트할 것! : 체크 및 중요메모
 
+---
+
+## 🔥🔥🔥 최우선 작업 (2026-01-27) - 벡터 검색 구현
+
+### 문제
+- recall_memory가 키워드 검색 → 의미적 유사도 못 찾음
+- "처음 만남" 검색해도 "첫 대화" 못 찾음
+- AI가 `<tool_use>` 태그를 텍스트로 흉내내는 버그 발견 → 수정 완료
+
+### 해결: ChromaDB + 임베딩 벡터 검색
+**예상 시간: 1-2시간**
+
+#### 1단계: ChromaDB 설치 (30분)
+- [ ] `pip install chromadb` (Python)
+- [ ] 또는 Docker: `docker run -p 8000:8000 chromadb/chroma`
+- [ ] Node.js 클라이언트 설치: `npm install chromadb`
+- [ ] 연결 테스트
+
+#### 2단계: 임베딩 모델 설정 (30분)
+- [ ] 선택지:
+  - `@xenova/transformers` (Node.js, 로컬, 무료)
+  - OpenAI embedding API (유료, 빠름)
+  - Anthropic 없음 → 다른 거 써야 함
+- [ ] 모델: `all-MiniLM-L6-v2` (384차원, 빠름) 권장
+- [ ] 테스트: 텍스트 → 벡터 변환 확인
+
+#### 3단계: 기존 메시지 마이그레이션 (30분)
+- [ ] `/Volumes/sowon-cloud/memory/conversations.jsonl` 읽기
+- [ ] 각 메시지 임베딩 생성
+- [ ] ChromaDB에 저장 (id, text, embedding, metadata)
+- [ ] 188개 메시지 처리
+
+#### 4단계: 저장 파이프라인 수정 (20분)
+- [ ] `memory-layers.js` addMessage() 수정
+- [ ] 메시지 저장 시 → 임베딩 생성 → ChromaDB 저장
+- [ ] 비동기로 처리 (응답 지연 방지)
+
+#### 5단계: recall_memory 벡터 검색으로 교체 (20분)
+- [ ] `builtin-tools.js` recallMemory() 수정
+- [ ] 쿼리 임베딩 → ChromaDB 유사도 검색
+- [ ] 상위 N개 반환 (기본 5개)
+- [ ] 메타데이터 포함 (timestamp, tags 등)
+
+#### 6단계: 테스트 (10분)
+- [ ] "처음 만남" → 첫 대화 찾기
+- [ ] "부감독" → 이름 지은 대화 찾기
+- [ ] 의미적 유사도 검색 확인
+
+### 오늘 수정한 버그
+- [x] AI가 `<tool_use>` 태그를 텍스트로 흉내내는 문제
+  - 원인: 과거 대화에 fake 태그 27개 저장됨 → AI가 학습
+  - 해결1: 시스템 프롬프트에 "텍스트로 태그 출력 금지" 하드코딩
+  - 해결2: 과거 대화에서 fake 태그 제거
+  - 해결3: ai-service.js에서 `<tool_use>` 응답 추가 제거
+- [x] recall_memory 경로 문제 (DB 연결 실패 시 기본 경로 사용)
+  - 해결: memoryManager에서 경로 직접 전달
+
+---
+
 ## 🚨 설계 원칙 (절대 규칙)
 
 ### 금지 사항

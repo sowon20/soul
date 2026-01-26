@@ -1984,9 +1984,10 @@ textarea.settings-field-input {
 }
 
 .alba-detail.expanded {
-  max-height: 500px;
+  max-height: 800px;
   padding: 1rem;
   border-top: 1px solid rgba(0, 0, 0, 0.08);
+  overflow-y: auto;
 }
 
 .alba-detail-row {
@@ -2919,46 +2920,114 @@ textarea.settings-field-input {
 }
 
 
-/* 자기학습 규칙 */
-.self-rules-list {
+/* 내면 메모 */
+.inner-notes-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-}
-
-.self-rule-item {
-  background: rgba(0, 0, 0, 0.03);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 8px;
-  padding: 12px;
-  color: rgba(0, 0, 0, 0.65);
-}
-
-.self-rule-header {
-  display: flex;
   gap: 8px;
-  margin-bottom: 8px;
-  font-size: 0.75rem;
-  color: rgba(0, 0, 0, 0.45);
 }
 
-.self-rule-category {
-  background: rgba(180, 83, 9, 0.12);
-  color: #b45309;
-  padding: 2px 8px;
-  border-radius: 4px;
+.inner-note-item {
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 8px;
 }
 
-.self-rule-content {
-  font-size: 0.875rem;
+.inner-note-text {
+  font-size: 0.9rem;
   line-height: 1.5;
   color: rgba(0, 0, 0, 0.65);
+  margin: 0;
 }
 
-.self-rule-context {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
+.inner-notes-empty {
+  padding: 16px;
+  text-align: center;
+}
+
+.inner-notes-empty p {
+  opacity: 0.5;
+  font-size: 0.875rem;
+  font-style: italic;
+  margin: 0;
+}
+
+.inner-notes-footer {
+  margin-top: 10px;
+  text-align: right;
   font-size: 0.75rem;
-  color: rgba(0, 0, 0, 0.4);
+  color: rgba(0, 0, 0, 0.35);
+}
+
+
+/* ===== 백그라운드 워커 태스크 설정 ===== */
+.alba-background-tasks {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.background-tasks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.background-task-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, rgba(147, 112, 219, 0.08), rgba(138, 43, 226, 0.05));
+  border: 1px solid rgba(147, 112, 219, 0.2);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.background-task-item:hover {
+  background: linear-gradient(135deg, rgba(147, 112, 219, 0.15), rgba(138, 43, 226, 0.1));
+  border-color: rgba(147, 112, 219, 0.4);
+}
+
+.background-task-item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #8b5cf6;
+}
+
+.background-task-item .task-icon {
+  font-size: 1.25rem;
+}
+
+.background-task-item .task-name {
+  font-weight: 500;
+  color: #1a1a1a !important;
+  min-width: 80px;
+}
+
+.background-task-item .task-desc {
+  font-size: 0.8rem;
+  color: #666 !important;
+  flex: 1;
+}
+
+/* 시스템 알바 optgroup 스타일 */
+.alba-category-select optgroup[label="시스템 알바"] {
+  background: linear-gradient(135deg, rgba(147, 112, 219, 0.1), rgba(138, 43, 226, 0.05));
+  color: #7c3aed;
+  font-weight: 600;
+}
+
+/* 백그라운드 카테고리 선택된 알바 아이템 */
+.alba-item[data-category="background"] {
+  border-left: 3px solid #8b5cf6;
+  background: linear-gradient(90deg, rgba(147, 112, 219, 0.05), transparent);
+}
+
+.alba-item[data-category="background"] .alba-icon {
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }

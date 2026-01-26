@@ -93,9 +93,18 @@ const roleSchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    enum: ['content', 'code', 'data', 'creative', 'technical', 'other'],
+    enum: ['content', 'code', 'data', 'creative', 'technical', 'other', 'background'],
     default: 'other'
   },
+  
+  // 백그라운드 워커 전용 설정
+  backgroundTasks: {
+    tagGeneration: { type: Boolean, default: false },      // 태그 생성
+    memoGeneration: { type: Boolean, default: false },     // 내면 메모 생성
+    compression: { type: Boolean, default: false },        // 대화 압축
+    weeklySummary: { type: Boolean, default: false }       // 주간 요약
+  },
+  
   tags: [{
     type: String
   }],

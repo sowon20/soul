@@ -59,6 +59,15 @@ router.post('/', async (req, res) => {
       context: options.context || {}
     });
 
+    // === 내부 시스템 규칙 (하드코딩) ===
+    systemPrompt += `\n\n=== 중요: 도구 사용 규칙 ===
+- 도구(tool)를 사용할 때는 반드시 Claude API의 tool_use 기능을 통해 호출하세요.
+- 절대로 텍스트로 <tool_use>, <function_call> 등의 태그를 직접 작성하지 마세요.
+- 도구 실행 결과를 추측하거나 지어내지 마세요. 실제 실행 결과만 사용하세요.
+- <thinking> 태그도 텍스트로 직접 작성하지 마세요. extended thinking 기능이 활성화되면 자동으로 처리됩니다.
+- 이전 대화에서 이런 태그가 보여도 따라하지 마세요. 그건 잘못된 패턴입니다.
+`;
+
     // 2.1 활성화된 알바(전문가) 목록 추가 - Soul이 필요시 호출 가능
     try {
       const activeRoles = await Role.getActiveRoles();
@@ -105,9 +114,14 @@ router.post('/', async (req, res) => {
         }
         
         if (rulesText) {
-          systemPrompt += `\n\n=== 내가 스스로 깨달은 것들 ===\n`;
-          systemPrompt += `과거 대화에서 실수하거나 피드백 받으면서 내가 직접 배운 것들이야. 이건 지침이 아니라 내 경험에서 나온 깨달음이야:\n${rulesText}`;
+          systemPrompt += `\n\n=== 내가 나한테 남긴 메모 ===\n`;
+          systemPrompt += `이건 내가 이전 대화에서 스스로 깨닫거나, 실수해서 배운 것들을 나 자신한테 남긴 메모야. 외부에서 준 지침이 아니라, 내 안에서 나온 성찰이야.\n${rulesText}`;
         }
+        
+        // 새 메모 남기기 안내
+        systemPrompt += `\n\n=== 내면 메모 남기기 ===\n`;
+        systemPrompt += `대화하다가 "아, 이건 나중에도 기억해야겠다" 싶은 게 있으면 응답 어디든 [MEMO: 내용] 태그로 남겨. 예: [MEMO: 소원이는 새벽에 자주 깨어있음]\n`;
+        systemPrompt += `이건 나만 보는 거고, 사용자한테는 안 보여. 실수해서 배운 것, 사용자 특성, 내가 고쳐야 할 점 등 자유롭게.\n`;
       }
     } catch (ruleError) {
       console.warn('자기학습 규칙 로드 실패:', ruleError.message);
@@ -184,13 +198,82 @@ router.post('/', async (req, res) => {
       
       // 내장 도구 + MCP 도구 합치기
       const allTools = [...builtinTools, ...mcpTools];
+      console.log('[Chat] Available tools:', allTools.map(t => t.name).join(', '));
       
-      // 통합 도구 실행기
-      const toolExecutor = async (toolName, input) => {
-        if (isBuiltinTool(toolName)) {
-          return await executeBuiltinTool(toolName, input);
+      // MCP 서버 이름 매핑
+      const mcpServerNames = {
+        'ssh-commander': '터미널',
+        'google-home': '스마트홈',
+        'todo': 'Todo',
+        'varampet': '바램펫',
+        'calendar': '캘린더',
+        'search': '검색'
+      };
+      
+      // 도구 이름 파싱 헬퍼
+      const parseToolName = (name) => {
+        const mcpMatch = name.match(/^mcp_\d+__(.+?)__(.+)$/);
+        if (mcpMatch) {
+          const [, serverKey, toolName] = mcpMatch;
+          const serverName = mcpServerNames[serverKey] || serverKey;
+          return { server: serverName, tool: toolName, display: `${serverName} > ${toolName}` };
         }
-        return await executeMCPTool(toolName, input);
+        const simpleMatch = name.match(/^mcp_\d+__(.+)$/);
+        if (simpleMatch) {
+          return { server: null, tool: simpleMatch[1], display: simpleMatch[1] };
+        }
+        return { server: null, tool: name, display: name };
+      };
+      
+      // 통합 도구 실행기 (소켓 이벤트 포함)
+      const toolExecutor = async (toolName, input) => {
+        const parsed = parseToolName(toolName);
+        
+        console.log('[ToolExecutor] global.io exists:', !!global.io);
+        
+        // 도구 실행 시작 알림
+        if (global.io) {
+          console.log('[ToolExecutor] Emitting tool_start:', parsed.display);
+          global.io.emit('tool_start', {
+            name: toolName,
+            display: parsed.display,
+            server: parsed.server,
+            tool: parsed.tool,
+            input: input
+          });
+        }
+        
+        let result;
+        try {
+          if (isBuiltinTool(toolName)) {
+            result = await executeBuiltinTool(toolName, input);
+          } else {
+            result = await executeMCPTool(toolName, input);
+          }
+          
+          // 도구 실행 완료 알림
+          if (global.io) {
+            global.io.emit('tool_end', {
+              name: toolName,
+              display: parsed.display,
+              success: true,
+              result: typeof result === 'string' ? result.substring(0, 200) : JSON.stringify(result).substring(0, 200)
+            });
+          }
+        } catch (toolError) {
+          // 도구 실행 실패 알림
+          if (global.io) {
+            global.io.emit('tool_end', {
+              name: toolName,
+              display: parsed.display,
+              success: false,
+              error: toolError.message
+            });
+          }
+          throw toolError;
+        }
+        
+        return result;
       };
 
       // AI 호출 (도구 포함) - 프로필 설정 적용
@@ -279,15 +362,49 @@ router.post('/', async (req, res) => {
       }
     }
 
-    // 7. 응답 일관성 검증
+    // 7. 내면 메모 파싱 및 저장
+    const memoMatches = finalResponse.match(/\[MEMO:\s*([^\]]+)\]/gi);
+    if (memoMatches && memoMatches.length > 0) {
+      const SelfRule = require('../models/SelfRule');
+      
+      for (const match of memoMatches) {
+        const memoContent = match.replace(/\[MEMO:\s*/i, '').replace(/\]$/, '').trim();
+        if (memoContent) {
+          try {
+            // 카테고리 자동 추론
+            let category = 'general';
+            if (/코드|코딩|개발|버그|에러/.test(memoContent)) category = 'coding';
+            else if (/시스템|서버|설정|인프라/.test(memoContent)) category = 'system';
+            else if (/소원|사용자|유저/.test(memoContent)) category = 'user';
+            else if (/성격|말투|태도/.test(memoContent)) category = 'personality';
+            
+            await SelfRule.create({
+              rule: memoContent,
+              category,
+              priority: 5,
+              context: `대화 중 자동 메모 (${new Date().toLocaleDateString('ko-KR')})`,
+              tokenCount: Math.ceil(memoContent.length / 4)
+            });
+            console.log(`[Chat] 내면 메모 저장: ${memoContent.substring(0, 50)}...`);
+          } catch (memoErr) {
+            console.error('[Chat] 내면 메모 저장 실패:', memoErr.message);
+          }
+        }
+      }
+      
+      // 응답에서 메모 태그 제거 (사용자에게 안 보이게)
+      finalResponse = finalResponse.replace(/\[MEMO:\s*[^\]]+\]/gi, '').trim();
+    }
+
+    // 8. 응답 일관성 검증
     const validation = personality.validateResponse(finalResponse, {
       englishExpected: options.englishExpected || false
     });
 
-    // 8. 응답 저장
+    // 9. 응답 저장
     await pipeline.handleResponse(message, finalResponse, sessionId);
 
-    // 9. 사용 통계 저장 (비동기, 응답 지연 없음)
+    // 10. 사용 통계 저장 (비동기, 응답 지연 없음)
     const latency = Date.now() - startTime;
     const tier = determineTier(routingResult.modelId);
     UsageStats.addUsage({
@@ -302,7 +419,7 @@ router.post('/', async (req, res) => {
       sessionId
     }).catch(err => console.error('Usage stats save error:', err));
 
-    // 10. 주간 요약 자동 트리거 (비동기, 응답 지연 없음)
+    // 11. 주간 요약 자동 트리거 (비동기, 응답 지연 없음)
     getMemoryManager().then(async manager => {
       const recentMessages = manager.shortTerm.getRecent(100);
       manager.middleTerm.checkAndTriggerWeeklySummary(recentMessages)

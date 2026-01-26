@@ -12,6 +12,9 @@ const io = new Server(server, {
   cors: { origin: '*' }
 });
 
+// 글로벌로 io 접근 가능하게 (도구 실행 상태 전송용)
+global.io = io;
+
 // MongoDB Connection
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/soul')
 .then(async () => {

@@ -224,6 +224,43 @@ class ConversationStore {
     const lines = await this.readAllLines();
     return lines.length;
   }
+
+  /**
+   * 메시지 업데이트 (태그, 감정 등 메타데이터)
+   */
+  async updateMessage(messageId, updates) {
+    await this.init();
+    const lines = await this.readAllLines();
+    let updated = false;
+    
+    const newLines = lines.map(line => {
+      try {
+        const msg = JSON.parse(line);
+        if (msg.id === messageId) {
+          updated = true;
+          return JSON.stringify({
+            ...msg,
+            ...updates,
+            tags: updates.tags || msg.tags || [],
+            thought: updates.thought !== undefined ? updates.thought : msg.thought,
+            emotion: updates.emotion !== undefined ? updates.emotion : msg.emotion
+          });
+        }
+        return line;
+      } catch {
+        return line;
+      }
+    });
+    
+    if (updated) {
+      fs.writeFileSync(this.filePath, newLines.join('\n') + '\n');
+      console.log(`[ConversationStore] Updated message ${messageId} with:`, updates);
+    } else {
+      console.log(`[ConversationStore] Message ${messageId} not found for update`);
+    }
+    
+    return updated;
+  }
 }
 
 module.exports = ConversationStore;

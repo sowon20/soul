@@ -11,6 +11,41 @@
 
 const Anthropic = require('@anthropic-ai/sdk');
 
+// 백그라운드 태스크별 고정 프롬프트
+const BACKGROUND_PROMPTS = {
+  tagGeneration: `메시지를 보고 검색용 태그 3-5개 생성해.
+규칙:
+- 한국어 명사 위주
+- 감정 태그 포함 (기쁨, 피로, 걱정, 설렘 등)
+- 주제 태그 포함 (코딩, 일상, 고민 등)
+- JSON 배열로만 출력
+예시: ["코딩", "피로", "버그"]`,
+
+  memoGeneration: `대화를 보고 짧은 내면 메모 작성해.
+규칙:
+- 1-2문장으로 짧게
+- 객관적 사실 + 주관적 느낌/해석 포함
+- 시간 맥락 반영 (새벽, 오랜만, 긴 대화 등)
+- 반말로 자연스럽게
+예시: "새벽 3시에 또 깨있네. 요즘 잠을 잘 못 자나봐"`,
+
+  compression: `대화를 압축해.
+규칙:
+- 감정, 톤, 관계 맥락 반드시 유지
+- 핵심 사실만 추출하지 말고, 분위기도 포함
+- 시간 맥락 유지 (새벽, 저녁 등)
+- 대화체 유지
+- 원문의 50% 정도 길이로`,
+
+  weeklySummary: `일주일간 대화 요약해.
+규칙:
+- 주요 주제/사건 정리
+- 감정 흐름
+- 중요 결정사항
+- 특이사항 (늦은 밤 대화, 긴 침묵 등)
+- 3-5문장으로`
+};
+
 class AlbaWorker {
   constructor(config = {}) {
     this.config = {
@@ -232,5 +267,6 @@ function resetAlbaWorker() {
 module.exports = {
   AlbaWorker,
   getAlbaWorker,
-  resetAlbaWorker
+  resetAlbaWorker,
+  BACKGROUND_PROMPTS
 };

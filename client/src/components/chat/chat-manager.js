@@ -98,9 +98,16 @@ export class ChatManager {
     // chatContainer가 실제 스크롤 담당
     const scrollContainer = this.messagesArea.parentElement;
     
+    // 로딩 인디케이터 생성
+    this.historyLoader = document.createElement('div');
+    this.historyLoader.className = 'history-loader';
+    this.historyLoader.innerHTML = '<span class="history-loader-spinner"></span> 이전 대화 불러오는 중...';
+    this.historyLoader.style.display = 'none';
+    this.messagesArea.insertBefore(this.historyLoader, this.messagesArea.firstChild);
+    
     scrollContainer.addEventListener('scroll', () => {
       // 스크롤이 맨 위에 거의 도달했을 때 과거 메시지 로드
-      if (scrollContainer.scrollTop < 100 && !this.isLoadingHistory && this.hasMoreHistory) {
+      if (scrollContainer.scrollTop < 150 && !this.isLoadingHistory && this.hasMoreHistory) {
         this.loadOlderMessages();
       }
     });
@@ -113,6 +120,13 @@ export class ChatManager {
     if (this.isLoadingHistory || !this.hasMoreHistory) return;
 
     this.isLoadingHistory = true;
+    
+    // 로딩 인디케이터 표시
+    if (this.historyLoader) {
+      this.historyLoader.style.display = 'flex';
+    }
+    
+    const scrollContainer = this.messagesArea.parentElement;
     const currentScrollHeight = this.messagesArea.scrollHeight;
 
     try {
@@ -155,6 +169,10 @@ export class ChatManager {
       this.hasMoreHistory = false;
     } finally {
       this.isLoadingHistory = false;
+      // 로딩 인디케이터 숨김
+      if (this.historyLoader) {
+        this.historyLoader.style.display = 'none';
+      }
     }
   }
 
@@ -895,6 +913,11 @@ export class ChatManager {
 
       // Hide typing indicator
       this.hideTypingIndicator();
+      
+      // 도구 실행 상태 영역 제거
+      if (window.soulApp?.socketClient) {
+        window.soulApp.socketClient.clearToolStatus();
+      }
 
       // Add assistant response
       const content = response.reply || response.message || '응답을 받지 못했습니다.';
@@ -910,6 +933,11 @@ export class ChatManager {
     } catch (error) {
       // Hide typing indicator
       this.hideTypingIndicator();
+      
+      // 도구 실행 상태 영역 제거
+      if (window.soulApp?.socketClient) {
+        window.soulApp.socketClient.clearToolStatus();
+      }
 
       // 오류 유형에 따른 친절한 메시지
       let errorContent;

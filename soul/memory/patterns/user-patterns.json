@@ -1,0 +1,26 @@
+{
+  "hourlyActivity": {
+    "4": 2
+  },
+  "dailyActivity": {
+    "2": 2
+  },
+  "weekendActivity": 0,
+  "weekdayActivity": 2,
+  "eventDurations": {
+    "sleep": {
+      "samples": [
+        21
+      ],
+      "avg": 21,
+      "min": 21,
+      "max": 21
+    }
+  },
+  "totalMessages": 2,
+  "lastMessageTime": "2026-01-26T19:49:25.762Z",
+  "createdAt": "2026-01-26T19:48:59.097Z",
+  "lastActiveHour": 4,
+  "lastActiveDay": 2,
+  "updatedAt": "2026-01-26T19:49:25.763Z"
+}

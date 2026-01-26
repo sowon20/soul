@@ -157,7 +157,10 @@ class ConversationPipeline {
   }
 
   /**
-   * 토큰 제한 내 메시지 가져오기 (역순)
+   * 토큰 제한 내 메시지 가져오기 (80/10/10 비율)
+   * 80% - 원문 (최신 대화)
+   * 10% - 느슨한 압축 (주간 요약)
+   * 10% - 강한 압축 (월간 요약 또는 오래된 요약)
    */
   async _getMessagesWithinTokenLimit(sessionId, maxTokens) {
     try {
@@ -165,13 +168,56 @@ class ConversationPipeline {
         return [];
       }
 
-      // 단기 메모리에서 역순으로 가져오기
-      const result = this.memoryManager.shortTerm.getWithinTokenLimit(maxTokens);
+      const messages = [];
+      
+      // 비율 계산
+      const rawTokenBudget = Math.floor(maxTokens * 0.8);      // 80% 원문
+      const summaryTokenBudget = Math.floor(maxTokens * 0.2);  // 20% 요약 (추후 10/10 분리)
 
-      return result.messages.map(m => ({
+      // 1. 원문 (80%) - 단기 메모리에서 최신 대화
+      const rawResult = this.memoryManager.shortTerm.getWithinTokenLimit(rawTokenBudget);
+      const rawMessages = rawResult.messages.map(m => ({
         role: m.role,
         content: m.content
       }));
+
+      // 2. 주간 요약 (20%) - 중기 메모리에서 요약
+      let summaryContent = '';
+      try {
+        const summaries = await this.memoryManager.middleTerm.getRecentWeeklySummaries(4);
+        if (summaries && summaries.length > 0) {
+          summaryContent = '\n=== 최근 기억 요약 ===\n';
+          for (const s of summaries) {
+            const weekLabel = `${s.year}년 ${s.month}월 ${s.weekNum}주차`;
+            summaryContent += `\n[${weekLabel}]\n`;
+            summaryContent += `${s.summary}\n`;
+            if (s.highlights && s.highlights.length > 0) {
+              summaryContent += `주요 내용: ${s.highlights.join(', ')}\n`;
+            }
+            if (s.topics && s.topics.length > 0) {
+              summaryContent += `주제: ${s.topics.join(', ')}\n`;
+            }
+          }
+          summaryContent += '\n=== 요약 끝 ===\n';
+        }
+      } catch (err) {
+        console.warn('[Pipeline] Failed to load weekly summaries:', err.message);
+      }
+
+      // 3. 요약이 있으면 시스템 메시지로 먼저 추가
+      if (summaryContent) {
+        messages.push({
+          role: 'system',
+          content: summaryContent
+        });
+      }
+
+      // 4. 원문 추가
+      messages.push(...rawMessages);
+
+      console.log(`[Pipeline] Context: ${rawMessages.length} raw messages + ${summaryContent ? 'summaries' : 'no summaries'}`);
+
+      return messages;
     } catch (error) {
       console.error('Error getting messages within token limit:', error);
       return [];

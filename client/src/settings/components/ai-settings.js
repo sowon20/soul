@@ -122,10 +122,10 @@ export class AISettings {
             ${this.renderPromptSettings()}
           </section>
 
-          <!-- 자기학습 규칙 -->
+          <!-- 내면 메모 -->
           <section class="settings-section">
-            <h3 class="settings-section-title">자기학습 규칙</h3>
-            <p class="settings-section-desc">대화에서 배운 것들이 자동으로 적용됩니다.</p>
+            <h3 class="settings-section-title">💭 내면 메모</h3>
+            <p class="settings-section-desc">내가 대화하면서 스스로 깨달은 것들. 다음 대화에서 자연스럽게 떠올라.</p>
             ${await this.renderSelfRules()}
           </section>
         </div>
@@ -607,6 +607,7 @@ export class AISettings {
 
           ${this.renderModeConfig(role)}
 
+          ${role.category !== 'background' ? `
           <div class="alba-detail-row alba-prompt-row">
             <label class="alba-label">시스템 프롬프트</label>
             <textarea class="alba-prompt-textarea"
@@ -618,19 +619,28 @@ export class AISettings {
               프롬프트 저장
             </button>
           </div>
+          ` : ''}
 
           <div class="alba-detail-row">
             <label class="alba-label">카테고리</label>
             <select class="alba-category-select" data-role-id="${role.roleId}">
-              <option value="content" ${role.category === 'content' ? 'selected' : ''}>✍️ 콘텐츠</option>
-              <option value="code" ${role.category === 'code' ? 'selected' : ''}>💻 코드</option>
-              <option value="data" ${role.category === 'data' ? 'selected' : ''}>📊 데이터</option>
-              <option value="creative" ${role.category === 'creative' ? 'selected' : ''}>🎨 크리에이티브</option>
-              <option value="technical" ${role.category === 'technical' ? 'selected' : ''}>🔧 기술</option>
-              <option value="other" ${role.category === 'other' ? 'selected' : ''}>🤖 기타</option>
+              <optgroup label="일반 알바">
+                <option value="content" ${role.category === 'content' ? 'selected' : ''}>✍️ 콘텐츠</option>
+                <option value="code" ${role.category === 'code' ? 'selected' : ''}>💻 코드</option>
+                <option value="data" ${role.category === 'data' ? 'selected' : ''}>📊 데이터</option>
+                <option value="creative" ${role.category === 'creative' ? 'selected' : ''}>🎨 크리에이티브</option>
+                <option value="technical" ${role.category === 'technical' ? 'selected' : ''}>🔧 기술</option>
+                <option value="other" ${role.category === 'other' ? 'selected' : ''}>🤖 기타</option>
+              </optgroup>
+              <optgroup label="시스템 알바">
+                <option value="background" ${role.category === 'background' ? 'selected' : ''}>⚙️ 백그라운드 워커 (24시간)</option>
+              </optgroup>
             </select>
           </div>
+          
+          ${role.category === 'background' ? this.renderBackgroundTasksConfig(role) : ''}
 
+          ${role.category !== 'background' ? `
           <div class="alba-detail-row alba-triggers-row">
             <label class="alba-label">트리거 키워드</label>
             <div class="alba-triggers-container">
@@ -651,6 +661,7 @@ export class AISettings {
               </div>
             </div>
           </div>
+          ` : ''}
 
           <div class="alba-detail-row alba-ai-settings">
             <div class="alba-ai-setting">
@@ -668,14 +679,6 @@ export class AISettings {
                      min="100" max="32000" step="100"
                      value="${role.maxTokens || 4096}">
             </div>
-          </div>
-
-          <div class="alba-detail-row">
-            <label class="alba-label">폴백 모델</label>
-            <select class="alba-fallback-select" data-role-id="${role.roleId}">
-              <option value="">없음</option>
-              ${this.renderModelOptions(role.fallbackModel)}
-            </select>
           </div>
 
           <div class="alba-detail-row alba-tags-row">
@@ -713,6 +716,56 @@ export class AISettings {
               </button>
             </div>
           </div>
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * 백그라운드 태스크 설정 렌더링
+   */
+  renderBackgroundTasksConfig(role) {
+    const tasks = role.backgroundTasks || {};
+    return `
+      <div class="alba-detail-row alba-background-tasks">
+        <label class="alba-label">담당 업무 (24시간 자동 실행)</label>
+        <div class="background-tasks-list">
+          <label class="background-task-item">
+            <input type="checkbox" 
+                   data-role-id="${role.roleId}" 
+                   data-task="tagGeneration"
+                   ${tasks.tagGeneration ? 'checked' : ''}>
+            <span class="task-icon">🏷️</span>
+            <span class="task-name">태그 생성</span>
+            <span class="task-desc">메시지마다 검색용 태그 자동 생성</span>
+          </label>
+          <label class="background-task-item">
+            <input type="checkbox" 
+                   data-role-id="${role.roleId}" 
+                   data-task="memoGeneration"
+                   ${tasks.memoGeneration ? 'checked' : ''}>
+            <span class="task-icon">📝</span>
+            <span class="task-name">내면 메모</span>
+            <span class="task-desc">AI 관점의 짧은 메모 기록</span>
+          </label>
+          <label class="background-task-item">
+            <input type="checkbox" 
+                   data-role-id="${role.roleId}" 
+                   data-task="compression"
+                   ${tasks.compression ? 'checked' : ''}>
+            <span class="task-icon">📦</span>
+            <span class="task-name">대화 압축</span>
+            <span class="task-desc">오래된 대화 자동 압축</span>
+          </label>
+          <label class="background-task-item">
+            <input type="checkbox" 
+                   data-role-id="${role.roleId}" 
+                   data-task="weeklySummary"
+                   ${tasks.weeklySummary ? 'checked' : ''}>
+            <span class="task-icon">📊</span>
+            <span class="task-name">주간 요약</span>
+            <span class="task-desc">매주 대화 내용 요약 생성</span>
+          </label>
         </div>
       </div>
     `;
@@ -1781,17 +1834,33 @@ export class AISettings {
 
     // 알바 카테고리 변경
     container.querySelectorAll('.alba-category-select').forEach(select => {
-      select.addEventListener('change', (e) => {
+      select.addEventListener('change', async (e) => {
         const roleId = e.target.dataset.roleId;
-        this.updateAlbaField(roleId, 'category', e.target.value);
+        this.expandedRoleId = roleId; // 확장 상태 유지
+        await this.updateAlbaField(roleId, 'category', e.target.value);
+        // 해당 알바 아이템만 다시 렌더링
+        const role = this.availableRoles.find(r => r.roleId === roleId);
+        if (role) {
+          const albaItem = container.querySelector(`.alba-item[data-role-id="${roleId}"]`);
+          if (albaItem) {
+            albaItem.outerHTML = this.renderAlbaItem(role);
+            this.attachEventListeners(container);
+          }
+        }
       });
     });
 
-    // 알바 폴백 모델 변경
-    container.querySelectorAll('.alba-fallback-select').forEach(select => {
-      select.addEventListener('change', (e) => {
+    // 백그라운드 태스크 체크박스 변경
+    container.querySelectorAll('.background-task-item input[type="checkbox"]').forEach(checkbox => {
+      checkbox.addEventListener('change', async (e) => {
         const roleId = e.target.dataset.roleId;
-        this.updateAlbaField(roleId, 'fallbackModel', e.target.value);
+        const taskName = e.target.dataset.task;
+        const role = this.availableRoles.find(r => r.roleId === roleId);
+        if (role) {
+          const backgroundTasks = role.backgroundTasks || {};
+          backgroundTasks[taskName] = e.target.checked;
+          await this.updateAlbaField(roleId, 'backgroundTasks', backgroundTasks);
+        }
       });
     });
 
@@ -3050,7 +3119,7 @@ export class AISettings {
   }
 
   /**
-   * 자기학습 규칙 렌더링
+   * 내면 메모 렌더링
    */
   async renderSelfRules() {
     try {
@@ -3059,44 +3128,27 @@ export class AISettings {
       
       if (rules.length === 0) {
         return `
-          <div class="self-rules-empty">
-            <p style="opacity: 0.5; font-size: 0.875rem;">
-              아직 학습된 규칙이 없습니다.
-            </p>
+          <div class="inner-notes-empty">
+            <p>아직 아무것도 떠오르지 않아...</p>
           </div>
         `;
       }
       
-      const categoryLabels = {
-        system: '🖥️ 시스템',
-        coding: '💻 코딩',
-        daily: '☀️ 일상',
-        personality: '🎭 성격',
-        user: '👤 사용자',
-        general: '📝 일반'
-      };
-      
       return `
-        <div class="self-rules-list">
+        <div class="inner-notes-list">
           ${rules.map(rule => `
-            <div class="self-rule-item" data-rule-id="${rule._id}">
-              <div class="self-rule-header">
-                <span class="self-rule-category">${categoryLabels[rule.category] || rule.category}</span>
-                <span class="self-rule-priority">우선순위 ${rule.priority}</span>
-                <span class="self-rule-usage">사용 ${rule.useCount}회</span>
-              </div>
-              <div class="self-rule-content">${rule.rule}</div>
-              ${rule.context ? `<div class="self-rule-context">💡 ${rule.context}</div>` : ''}
+            <div class="inner-note-item">
+              <p class="inner-note-text">${rule.rule}</p>
             </div>
           `).join('')}
         </div>
-        <p style="color: rgba(0,0,0,0.4); font-size: 0.75rem; margin-top: 12px;">
-          총 ${rules.length}개 규칙 · 대화할 때 자동으로 시스템 프롬프트에 포함됩니다
+        <p class="inner-notes-footer">
+          ${rules.length}개의 메모
         </p>
       `;
     } catch (error) {
-      console.error('Failed to load self rules:', error);
-      return `<p style="color: #f87171;">규칙을 불러오는 중 오류가 발생했습니다.</p>`;
+      console.error('Failed to load inner notes:', error);
+      return `<p style="color: #f87171; font-size: 0.875rem;">메모를 불러오지 못했어...</p>`;
     }
   }
 }

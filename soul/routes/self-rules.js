@@ -1,5 +1,6 @@
 /**
- * 자기학습 규칙 API
+ * 내면 메모 API
+ * AI가 스스로 남긴 성찰/깨달음 메모 관리
  */
 const express = require('express');
 const router = express.Router();

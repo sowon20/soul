@@ -70,6 +70,18 @@ class SoulSocketClient {
     this.socket.on('connect_error', (error) => {
       console.error('Socket connection error:', error);
     });
+
+    // 도구 실행 시작
+    this.socket.on('tool_start', (data) => {
+      console.log('🔧 Tool start:', data);
+      this._handleToolStart(data);
+    });
+
+    // 도구 실행 완료
+    this.socket.on('tool_end', (data) => {
+      console.log('🔧 Tool end:', data);
+      this._handleToolEnd(data);
+    });
   }
 
   /**
@@ -184,6 +196,80 @@ class SoulSocketClient {
         setTimeout(() => notification.remove(), 300);
       }
     }, 10000);
+  }
+
+  /**
+   * 도구 실행 시작 처리
+   */
+  _handleToolStart(data) {
+    // 실행 중인 도구 표시 영역 찾기/생성
+    let toolStatus = document.querySelector('.tool-execution-status');
+    if (!toolStatus) {
+      toolStatus = document.createElement('div');
+      toolStatus.className = 'tool-execution-status';
+      
+      // typing indicator 위에 삽입
+      const typingIndicator = document.querySelector('.typing-indicator');
+      if (typingIndicator) {
+        typingIndicator.parentNode.insertBefore(toolStatus, typingIndicator);
+      } else {
+        // 메시지 영역 맨 아래에 추가
+        const messagesArea = document.getElementById('messagesArea');
+        if (messagesArea) {
+          messagesArea.appendChild(toolStatus);
+        }
+      }
+    }
+    
+    // 도구 실행 표시 추가
+    const toolItem = document.createElement('div');
+    toolItem.className = 'tool-status-item running';
+    toolItem.dataset.toolName = data.name;
+    toolItem.innerHTML = `
+      <span class="tool-spinner"></span>
+      <span class="tool-display">${data.display || data.name}</span>
+      <span class="tool-status-text">실행 중...</span>
+    `;
+    toolStatus.appendChild(toolItem);
+    
+    // 스크롤
+    this._scrollToBottom();
+  }
+
+  /**
+   * 도구 실행 완료 처리
+   */
+  _handleToolEnd(data) {
+    const toolItem = document.querySelector(`.tool-status-item[data-tool-name="${data.name}"]`);
+    if (toolItem) {
+      toolItem.classList.remove('running');
+      toolItem.classList.add(data.success ? 'success' : 'error');
+      toolItem.innerHTML = `
+        <span class="tool-icon">${data.success ? '✓' : '✗'}</span>
+        <span class="tool-display">${data.display || data.name}</span>
+        <span class="tool-status-text">${data.success ? '완료' : '실패'}</span>
+      `;
+    }
+  }
+
+  /**
+   * 도구 상태 영역 제거 (AI 응답 후 호출)
+   */
+  clearToolStatus() {
+    const toolStatus = document.querySelector('.tool-execution-status');
+    if (toolStatus) {
+      toolStatus.remove();
+    }
+  }
+
+  /**
+   * 스크롤 하단 이동
+   */
+  _scrollToBottom() {
+    const scrollContainer = document.querySelector('.right-card-top');
+    if (scrollContainer) {
+      scrollContainer.scrollTop = scrollContainer.scrollHeight;
+    }
   }
 
   /**

@@ -1,24 +1,25 @@
 /**
- * SelfRule - Soul 자기학습 규칙
- * 대화하면서 스스로 배운 것을 규칙으로 저장
+ * SelfRule - Soul 내면 메모
+ * 대화하면서 스스로 깨달은 것, 실수해서 배운 것을 메모로 저장
+ * AI가 "내가 나한테 남긴 메모"로 인식하도록 설계됨
  */
 const mongoose = require('mongoose');
 
 const selfRuleSchema = new mongoose.Schema({
-  // 규칙 내용
+  // 메모 내용
   rule: {
     type: String,
     required: true
   },
   
-  // 카테고리 (상황별 로드용)
+  // 분류 (상황별 로드용)
   category: {
     type: String,
     enum: ['system', 'coding', 'daily', 'personality', 'user', 'general'],
     default: 'general'
   },
   
-  // 중요도 (1-10, 높을수록 우선)
+  // 중요도 (1-10, 높을수록 자주 떠올림)
   priority: {
     type: Number,
     default: 5,
@@ -26,31 +27,31 @@ const selfRuleSchema = new mongoose.Schema({
     max: 10
   },
   
-  // 사용 횟수 (자주 쓰이면 중요)
+  // 떠올린 횟수
   useCount: {
     type: Number,
     default: 0
   },
   
-  // 마지막 사용 시간
+  // 마지막으로 떠올린 시간
   lastUsed: {
     type: Date,
     default: null
   },
   
-  // 활성 상태 (false면 아카이브)
+  // 활성 상태 (false면 잊힘)
   isActive: {
     type: Boolean,
     default: true
   },
   
-  // 생성 맥락 (어떤 상황에서 배웠는지)
+  // 깨달음의 맥락 (어떤 상황에서 배웠는지)
   context: {
     type: String,
     default: null
   },
   
-  // 토큰 수 (압축 관리용)
+  // 토큰 수 (관리용)
   tokenCount: {
     type: Number,
     default: 0

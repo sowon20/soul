@@ -9,3 +9,85 @@
   100% { background: transparent; }
 }
 
+/* 도구 실행 상태 */
+.tool-execution-status {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
+  margin: 8px 0;
+}
+
+.tool-status-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 8px;
+  font-size: 0.875rem;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.tool-status-item.running {
+  background: rgba(59, 130, 246, 0.08);
+  color: rgb(59, 130, 246);
+}
+
+.tool-status-item.success {
+  background: rgba(34, 197, 94, 0.08);
+  color: rgb(34, 197, 94);
+}
+
+.tool-status-item.error {
+  background: rgba(239, 68, 68, 0.08);
+  color: rgb(239, 68, 68);
+}
+
+.tool-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: toolSpin 0.8s linear infinite;
+}
+
+@keyframes toolSpin {
+  to { transform: rotate(360deg); }
+}
+
+.tool-icon {
+  font-size: 0.875rem;
+  font-weight: bold;
+}
+
+.tool-display {
+  flex: 1;
+}
+
+.tool-status-text {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+/* 히스토리 로딩 인디케이터 */
+.history-loader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  font-size: 0.8rem;
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.history-loader-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(0, 0, 0, 0.2);
+  border-top-color: rgba(0, 0, 0, 0.5);
+  border-radius: 50%;
+  animation: toolSpin 0.8s linear infinite;
+}
+
