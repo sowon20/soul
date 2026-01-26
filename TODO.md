@@ -6,7 +6,6 @@
 - ❌ **백그라운드 주기 실행** - 계속 돌면서 체크하는 것 금지
 - ❌ **하드코딩** - 설정값, URL, 키 등 코드에 직접 박기 금지
 - ❌ **휘발성 저장** - 서버 꺼지면 날아가는 메모리/변수 저장 금지
-- ❌ **로컬 파일 저장** - settings.json 등 파일 기반 설정 금지 (Docker 재빌드 시 초기화)
 
 ### 필수 사항
 - ✅ **이벤트 기반** - 필요할 때만 실행 (setTimeout OK, setInterval 최소화)
@@ -21,31 +20,118 @@
 | 지능적 판단 (백그라운드) | **로컬 LLM** |
 | 사용자 대화 응답 | **설정된 경량 모델** |
 
-## 🔥 최근 작업 현황 (2026-01-25)
+## 🔥 최근 작업 현황 (2026-01-26)
 
-### ✅ 오늘 완료 (저녁~밤)
-- 예약 메시지 DB 저장 (서버 재시작 시 복구)
-- 채팅 타임아웃 60초로 증가
-- 시간 정보 "실시간" 명시 (AI 혼동 방지)
-- thinking UI 추가 (임시 스타일 - 작은 회색 글씨)
-- **localDate 버그 수정** - 이중 타임존 적용 문제 (Git: 0874863)
-- **thinking 설정 버그 수정** - lightThinking/mediumThinking/heavyThinking 적용 (Git: 69fa1da)
-- **Phase 1.5 메모리 압축 검증 완료** - Alba API키 DB 로드 수정 (Git: f3774cd)
-- **중기 메모리 (주간 요약) 구현** - MiddleTermMemory에 주간 요약 메서드 추가 (Git: 3824c6e)
-- **thinking UI 디자인 개선** - 아이콘, 배경색, 둥근 테두리 (Git: 9ccbd08)
-- **thinking 토글 안내 수정** - 미지원 모델 안내 문구 (Git: 83d453d)
-- **thinking 접기/펼치기** - 버튼 클릭으로 토글 (Git: f8af03c)
-- **recall_memory 도구 추가** - AI가 자율적으로 과거 기억 조회 (builtin-tools.js)
-- **주간 요약 자동 트리거** - 7일 경과 or 100메시지 시 Alba가 백그라운드 생성
-- **메모리 스토리지 경로 환경 변수화** - MEMORY_STORAGE_PATH로 통합 관리
-- **장기 메모리 파일 기반으로 전환** - MongoDB → 파일 시스템 (평생 보관용)
-- **DocumentStorage 추가** - OCR/스캔 기록물 별도 저장 (/memory/documents/)
-- **메모리 UI 구현** - 개요/단기/중기/장기/문서 탭, 검색 기능
+### ✅ 오늘 완료 (밤) - MCP 서버 등록 시스템 ⭐
+- **Soul 앱에서 외부 MCP 서버 관리**
+  - URL 기반 등록 (SSE 엔드포인트)
+  - 서버 ON/OFF, 수정, 삭제
+  - 도구 목록 실시간 조회
+- **등록된 MCP 서버들**
+  - 스마트홈: `https://mcp.sowon.mooo.com/smarthome/sse` (4개 도구)
+  - Todo: `https://mcp.sowon.mooo.com/todo/sse` (4개 도구)
+  - SSH: `https://mcp.sowon.mooo.com/ssh/sse` (5개 도구)
+  - 바램펫: `https://mcp.sowon.mooo.com/pet/sse` (8개 도구)
+- **AI 도구 연동 구현**
+  - `mcp-tools.js` 전면 개편
+  - 내장 도구 + 로컬 도구 + 외부 MCP 서버 도구 통합
+  - enabled된 서버만 도구 로드
+  - 5분 캐시로 성능 최적화
+- **스마트홈 `/api/tool-call` 엔드포인트 추가**
+  - AI가 실제로 기기 제어 가능
+- **UI 개선**
+  - 서버 추가 시 바로 도구 개수 표시
+  - 모달 바깥 클릭으로 닫기 (드래그는 무시)
+  - 디렉토리 스캔 방식 → config 기반으로 변경
 
-### 🔜 다음 작업 후보
-- 스트리밍 중 thinking 자동 펼침/완료 시 접기
-- recall_memory 실제 테스트 및 튜닝
-- 문서 OCR 연동 (문서 업로드 → AI 태깅 → 검색)
+### 📌 MCP 연동 남은 작업
+- [ ] Todo, SSH, 바램펫 서버에도 `/api/tool-call` 엔드포인트 추가
+- [ ] 실제 채팅에서 AI 도구 호출 테스트
+- [ ] 도구 실행 결과 → AI 응답에 반영
+
+### ✅ 오늘 완료 (저녁) - 스마트홈 웹 UI
+- **스마트홈 컨트롤 페이지 완성** ⭐
+  - URL: https://mcp.sowon.mooo.com/smarthome/public/
+  - 기기별 세밀 제어 (온도, 밝기, 팬속도, 볼륨)
+  - 기기 편집 (이름, 구조, 방, 타입, 숨기기)
+  - 구조/방 이름 일괄 변경 기능
+  - 카메라 실시간 스트림 + PIP (캣휠, 욕실)
+- **타입별 전용 컨트롤 추가**
+  - 🧹 로봇청소기: 청소/일시정지/도킹 버튼 + 상태표시
+  - 📶 공유기: 리부팅/정보 버튼
+  - 🔊 스피커: 볼륨 슬라이더 + 음소거
+  - 🧺 세탁기: 시작/정지
+  - 🔥 보일러: 실내/외출 모드 + 온도 설정
+  - 💨 공기청정기: 팬속도 4단계
+- **server.js 확장** - volume, mute, vacuum, washer, reboot, mode 액션 추가
+
+### 📌 보류 (나중에)
+- [ ] 샤오미 로컬 연동 (python-miio) - 가습기, 공기청정기 세부 제어
+- [ ] 투야 리모컨 로컬 연동 (tinytuya) - 프로젝터 IR 제어
+- [ ] 침대 옆 조명 - 오프라인 상태 (기기 확인 필요)
+
+### ✅ 오늘 완료 (새벽)
+- **Docker → 네이티브 실행 전환**
+  - MongoDB 7.0 로컬 설치 (brew)
+  - 기존 Docker 데이터 그대로 보존
+  - 실행 스크립트: `mongod --dbpath /Volumes/soul/app/data/mongodb`
+- **WebSocket 프록시 설정** - Vite config에 ws 프록시 추가
+- **폴더 탐색기 UI 개선**
+  - z-index 수정 (모달 최상위)
+  - 색상 가독성 개선 (흰 배경 + 검정 글씨)
+  - 밀러 컬럼 스타일 (macOS Finder처럼 좌→우 계층)
+- **통합 검색 구현**
+  - MongoDB 메시지/메모리 + 파일 기반 요약/아카이브/문서 전체 검색
+  - search.js의 smartSearch를 통합 검색으로 교체
+- **하드코딩 예제 메시지 삭제** - index.html에서 React 예제 제거
+- **MongoDB → JSONL 전환** ⭐
+  - 대화 저장: `/Volumes/soul/app/memory/conversations.jsonl`
+  - 마이그레이션 완료 (108개 메시지)
+  - MongoDB 없이 파일 기반으로 동작
+  - 라즈베리파이 배포 시 MongoDB 불필요
+- **무한 스크롤 수정**
+  - scrollContainer를 chatContainer로 변경
+  - before 파라미터로 과거 메시지 페이지네이션
+- **검색 결과 클릭 → 해당 대화로 이동** ⭐
+  - around 파라미터로 해당 메시지 주변 로드
+  - 스크롤 이동 + 파란색 하이라이트 애니메이션 (2초)
+  - chat.css import 추가
+
+### 🔜 다음 작업 (대기)
+
+- [ ] **저장소 타입 분리** - 메모리/파일 각각 다른 저장소 선택 가능
+  ```js
+  // 현재: 전역 타입 + 경로만
+  storageConfig = { memoryPath, filesPath }
+  
+  // 목표: 항목별 타입+경로
+  storageConfig = {
+    memory: { type: 'local', path: './memory' },
+    files: { type: 'googledrive', id: 'xxx' }
+  }
+  ```
+  - 프론트: 드롭다운 UI 추가
+  - 백엔드: 스키마 수정
+  - 어댑터: Google Drive, Notion, NAS 구현
+
+- [ ] 스트리밍 중 thinking 자동 펼침/완료 시 접기
+- [ ] recall_memory 실제 테스트 및 튜닝
+- [ ] 문서 OCR 연동 (문서 업로드 → AI 태깅 → 검색)
+- [ ] 라즈베리파이 배포 준비
+
+### 🖥️ 현재 실행 환경 (네이티브)
+```bash
+# MongoDB
+mongod --dbpath /Volumes/soul/app/data/mongodb
+
+# 백엔드
+cd /Volumes/soul/app/soul && node server/index.js
+
+# 프론트엔드
+cd /Volumes/soul/app/client && npx vite --host 0.0.0.0
+```
+
+## 📋 이전 작업 이력
 
 # Soul AI - TODO & 작업 이력
 

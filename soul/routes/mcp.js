@@ -13,11 +13,25 @@ const MCP_SERVERS = {
 };
 
 /**
- * MCP 서버 URL 가져오기
+ * MCP 서버 URL 가져오기 (외부 서버 지원)
  * @param {string} serverId - 서버 ID
+ * @param {object} config - 서버 설정 (선택)
  * @returns {string} 서버 URL
  */
-function getMcpServerUrl(serverId) {
+async function getMcpServerUrl(serverId, config = null) {
+  // 설정 로드
+  if (!config) {
+    try {
+      config = await loadServerConfig();
+    } catch { config = {}; }
+  }
+  
+  // 외부 서버 확인
+  if (config.externalServers?.[serverId]) {
+    return config.externalServers[serverId].url;
+  }
+  
+  // 기본 서버
   return MCP_SERVERS[serverId] || `http://localhost:${8124 + Object.keys(MCP_SERVERS).indexOf(serverId)}`;
 }
 
@@ -47,10 +61,7 @@ async function saveServerConfig(config) {
  */
 router.get('/servers', async (req, res) => {
   try {
-    // soul 디렉토리가 아닌 프로젝트 루트의 mcp 폴더
     const mcpPath = path.join(__dirname, '../../mcp');
-
-    // 저장된 서버 설정 로드
     const config = await loadServerConfig();
 
     // tools 디렉토리에서 도구 목록 가져오기
@@ -59,7 +70,7 @@ router.get('/servers', async (req, res) => {
 
     const servers = [];
 
-    // hub-server (기본 내장 서버)
+    // hub-server (기본 내장 서버) - 항상 표시
     servers.push({
       id: 'hub-server',
       name: 'Soul Hub Server',
@@ -69,36 +80,31 @@ router.get('/servers', async (req, res) => {
       tools: toolFiles.filter(f => f.endsWith('.js')).map(f => f.replace('.js', ''))
     });
 
-    // 외부 MCP 서버 스캔
-    const entries = await fs.readdir(mcpPath, { withFileTypes: true });
-    const serverDirs = entries.filter(e => e.isDirectory() && e.name !== 'tools' && e.name !== 'node_modules');
-
-    for (const dir of serverDirs) {
-      const serverPath = path.join(mcpPath, dir.name);
-      const packageJsonPath = path.join(serverPath, 'package.json');
-
-      try {
-        const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf-8'));
-
-        // MCP 서버 URL에서 포트 추출
-        const serverUrl = getMcpServerUrl(dir.name);
-        const urlMatch = serverUrl.match(/:(\d+)$/);
-        const port = urlMatch ? parseInt(urlMatch[1]) : null;
-
+    // 등록된 외부 서버들만 표시 (config 기반)
+    if (config.externalServers) {
+      for (const [serverId, serverInfo] of Object.entries(config.externalServers)) {
+        // 도구 개수 조회 시도
+        let tools = [];
+        try {
+          const baseUrl = serverInfo.url.replace(/\/sse\/?$/, '');
+          console.log(`[MCP] Fetching tools from: ${baseUrl}/tools`);
+          const toolsRes = await fetch(baseUrl + '/tools');
+          const data = await toolsRes.json();
+          tools = data.tools || [];
+          console.log(`[MCP] Got ${tools.length} tools`);
+        } catch (e) {
+          console.error(`[MCP] Failed to fetch tools:`, e.message);
+        }
+        
         servers.push({
-          id: dir.name,
-          name: packageJson.description || dir.name,
-          description: packageJson.description || `${dir.name} MCP Server`,
+          id: serverId,
+          name: serverInfo.name,
+          description: serverInfo.description || `외부 MCP 서버`,
           type: 'external',
-          enabled: config.servers[dir.name]?.enabled ?? false,
-          tools: [], // 외부 서버는 별도로 실행되어야 도구 조회 가능
-          url: serverUrl,
-          port: port,
-          webUI: port ? serverUrl : null
+          enabled: config.servers[serverId]?.enabled ?? true,
+          tools,
+          url: serverInfo.url
         });
-      } catch (error) {
-        // package.json이 없거나 읽기 실패 시 무시
-        console.warn(`Failed to read package.json for ${dir.name}:`, error.message);
       }
     }
 
@@ -122,6 +128,7 @@ router.get('/servers', async (req, res) => {
 router.get('/servers/:id/tools', async (req, res) => {
   try {
     const { id } = req.params;
+    const config = await loadServerConfig();
 
     if (id === 'hub-server') {
       const mcpPath = path.join(__dirname, '../../mcp');
@@ -152,6 +159,35 @@ router.get('/servers/:id/tools', async (req, res) => {
         server: id,
         tools
       });
+    } else if (config.externalServers?.[id]) {
+      // 외부 서버 - /tools 엔드포인트에서 도구 목록 가져오기
+      const serverInfo = config.externalServers[id];
+      // SSE URL에서 base URL 추출 (예: https://x.com/smarthome/sse -> https://x.com/smarthome)
+      const baseUrl = serverInfo.url.replace(/\/sse\/?$/, '');
+      try {
+        const toolsRes = await fetch(baseUrl + '/tools');
+        const data = await toolsRes.json();
+        res.json({
+          success: true,
+          server: id,
+          tools: data.tools || [],
+          note: `외부 서버 (${serverInfo.name})`
+        });
+      } catch (e) {
+        // /tools 실패 시 /info로 폴백
+        try {
+          const infoRes = await fetch(baseUrl + '/info');
+          const info = await infoRes.json();
+          res.json({
+            success: true,
+            server: id,
+            tools: typeof info.tools === 'number' ? Array(info.tools).fill(null).map((_, i) => ({ name: `tool_${i+1}` })) : [],
+            note: `외부 서버 (${info.name || serverInfo.name})`
+          });
+        } catch {
+          res.json({ success: true, server: id, tools: [], note: '서버에 연결할 수 없음' });
+        }
+      }
     } else {
       res.status(404).json({
         success: false,
@@ -164,6 +200,105 @@ router.get('/servers/:id/tools', async (req, res) => {
       success: false,
       error: error.message
     });
+  }
+});
+
+/**
+ * POST /api/mcp/servers
+ * 새 MCP 서버 추가
+ */
+router.post('/servers', async (req, res) => {
+  try {
+    const { id, name, url, enabled = true } = req.body;
+
+    if (!name || !url) {
+      return res.status(400).json({ success: false, error: 'name과 url은 필수입니다' });
+    }
+
+    const config = await loadServerConfig();
+    if (!config.servers) config.servers = {};
+    if (!config.externalServers) config.externalServers = {};
+
+    const serverId = id || 'mcp_' + Date.now();
+    
+    // 외부 서버 정보 저장
+    config.externalServers[serverId] = {
+      name,
+      url
+    };
+    config.servers[serverId] = { enabled };
+
+    await saveServerConfig(config);
+    console.log(`[MCP] External server added: ${serverId} (${url})`);
+
+    res.json({ success: true, id: serverId });
+  } catch (error) {
+    console.error('Error adding server:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/mcp/servers/:id
+ * MCP 서버 삭제
+ */
+router.delete('/servers/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const config = await loadServerConfig();
+
+    if (config.externalServers?.[id]) {
+      delete config.externalServers[id];
+    }
+    if (config.servers?.[id]) {
+      delete config.servers[id];
+    }
+
+    await saveServerConfig(config);
+    console.log(`[MCP] Server deleted: ${id}`);
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * PUT /api/mcp/servers/:id
+ * MCP 서버 수정
+ */
+router.put('/servers/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, url, enabled } = req.body;
+
+    const config = await loadServerConfig();
+    if (!config.externalServers) config.externalServers = {};
+    if (!config.servers) config.servers = {};
+    
+    // 외부 서버가 없으면 새로 생성
+    if (!config.externalServers[id]) {
+      // 내장 서버(google-home, todo)는 수정 불가
+      if (id === 'google-home' || id === 'todo' || id === 'hub-server') {
+        return res.status(400).json({ success: false, error: '내장 서버는 수정할 수 없습니다' });
+      }
+      // 새 외부 서버 생성
+      config.externalServers[id] = { name: name || id, url: url || '' };
+    }
+
+    // 정보 업데이트
+    if (name) config.externalServers[id].name = name;
+    if (url) config.externalServers[id].url = url;
+    if (enabled !== undefined) {
+      config.servers[id] = { enabled };
+    }
+
+    await saveServerConfig(config);
+    console.log(`[MCP] Server updated: ${id}`);
+
+    res.json({ success: true, server: config.externalServers[id] });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

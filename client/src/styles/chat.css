@@ -1,0 +1,11 @@
+
+/* 검색 결과 하이라이트 */
+.search-highlight-message {
+  animation: highlightPulse 2s ease-out;
+}
+
+@keyframes highlightPulse {
+  0% { background: rgba(59, 130, 246, 0.3); }
+  100% { background: transparent; }
+}
+

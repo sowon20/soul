@@ -115,6 +115,7 @@ export class APIClient {
     if (options.limit) params.append('limit', options.limit);
     if (options.before) params.append('before', options.before);
     if (options.after) params.append('after', options.after);
+    if (options.around) params.append('around', options.around);
 
     const query = params.toString() ? `?${params}` : '';
     return this.get(`/chat/history/${conversationId}${query}`);

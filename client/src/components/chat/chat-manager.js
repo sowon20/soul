@@ -17,6 +17,7 @@ export class ChatManager {
     this.isLoadingHistory = false;
     this.hasMoreHistory = true;
     this.oldestMessageId = null;
+    this.oldestMessageTimestamp = null;
 
     // Configure marked for markdown rendering (if available)
     if (window.marked) {
@@ -94,9 +95,12 @@ export class ChatManager {
    * 무한 스크롤 설정
    */
   setupInfiniteScroll() {
-    this.messagesArea.addEventListener('scroll', () => {
+    // chatContainer가 실제 스크롤 담당
+    const scrollContainer = this.messagesArea.parentElement;
+    
+    scrollContainer.addEventListener('scroll', () => {
       // 스크롤이 맨 위에 거의 도달했을 때 과거 메시지 로드
-      if (this.messagesArea.scrollTop < 100 && !this.isLoadingHistory && this.hasMoreHistory) {
+      if (scrollContainer.scrollTop < 100 && !this.isLoadingHistory && this.hasMoreHistory) {
         this.loadOlderMessages();
       }
     });
@@ -116,8 +120,8 @@ export class ChatManager {
         limit: 20,
       };
 
-      if (this.oldestMessageId) {
-        options.before = this.oldestMessageId;
+      if (this.oldestMessageTimestamp) {
+        options.before = this.oldestMessageTimestamp;
       }
 
       const history = await this.apiClient.getConversationHistory(this.conversationId, options);
@@ -125,7 +129,8 @@ export class ChatManager {
       if (history && history.messages && history.messages.length > 0) {
         // 과거 메시지를 배열 앞에 추가
         this.messages.unshift(...history.messages);
-        this.oldestMessageId = history.messages[0].id || history.messages[0].timestamp;
+        this.oldestMessageId = history.messages[0].id;
+        this.oldestMessageTimestamp = history.messages[0].timestamp;
 
         // DOM에 메시지 추가 (맨 위에)
         history.messages.reverse().forEach(message => {
@@ -163,7 +168,8 @@ export class ChatManager {
       if (history && history.messages && history.messages.length > 0) {
         // 메시지 배열에 추가
         this.messages = history.messages;
-        this.oldestMessageId = history.messages[0].id || history.messages[0].timestamp;
+        this.oldestMessageId = history.messages[0].id;
+        this.oldestMessageTimestamp = history.messages[0].timestamp;
 
         // DOM에 렌더링
         history.messages.forEach(message => {
@@ -173,6 +179,11 @@ export class ChatManager {
 
         // 맨 아래로 스크롤
         this.scrollToBottom(false);
+        
+        // 더 불러올 메시지가 있는지 확인
+        this.hasMoreHistory = history.messages.length >= limit;
+      } else {
+        this.hasMoreHistory = false;
       }
 
       // 로딩 완료 표시
@@ -183,6 +194,37 @@ export class ChatManager {
       this.messagesArea.classList.add('loaded');
       // 실패하면 환영 메시지 표시
       this.addWelcomeMessage();
+    }
+  }
+
+  /**
+   * 특정 메시지 주변 로드 (검색 결과 이동용)
+   */
+  async loadMessagesAround(messageId, messageDate) {
+    try {
+      // 해당 메시지 전후 20개씩 로드
+      const history = await this.apiClient.getConversationHistory(this.conversationId, {
+        limit: 40,
+        around: messageId  // 백엔드에서 처리
+      });
+
+      if (history && history.messages && history.messages.length > 0) {
+        // 기존 메시지 클리어
+        this.messagesArea.innerHTML = '';
+        this.messages = history.messages;
+        
+        // DOM에 렌더링
+        history.messages.forEach(message => {
+          const messageElement = this.createMessageElement(message);
+          this.messagesArea.appendChild(messageElement);
+        });
+        
+        // 해당 메시지의 ID 저장
+        this.oldestMessageId = history.messages[0].id || history.messages[0].timestamp;
+        this.hasMoreHistory = true;
+      }
+    } catch (error) {
+      console.error('메시지 로드 실패:', error);
     }
   }
 
@@ -221,10 +263,14 @@ export class ChatManager {
    */
   createMessageElement(message) {
     let template;
+    const messageId = message.id || message._id || message.timestamp;
 
     if (message.role === 'user') {
       template = this.userMessageTemplate.content.cloneNode(true);
       const messageDiv = template.querySelector('.chat-message.user');
+      
+      // 메시지 ID 설정 (검색 결과 이동용)
+      messageDiv.dataset.messageId = messageId;
 
       // Set content
       const content = messageDiv.querySelector('.message-content');
@@ -241,6 +287,9 @@ export class ChatManager {
     } else {
       template = this.assistantMessageTemplate.content.cloneNode(true);
       const messageDiv = template.querySelector('.chat-message.assistant');
+      
+      // 메시지 ID 설정 (검색 결과 이동용)
+      messageDiv.dataset.messageId = messageId;
 
       // Set content (with markdown support)
       const content = messageDiv.querySelector('.message-content');

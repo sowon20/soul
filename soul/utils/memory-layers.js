@@ -98,12 +98,21 @@ class ShortTermMemory {
   }
 
   /**
-   * MongoDB에 메시지 저장
+   * JSONL 파일에 메시지 저장
    */
   async _saveToDb(message) {
     try {
-      const Message = require('../models/Message');
-      await Message.addMessage(this.sessionId, message);
+      const ConversationStore = require('./conversation-store');
+      const store = new ConversationStore();
+      await store.saveMessage({
+        role: message.role,
+        content: message.content,
+        timestamp: message.timestamp,
+        tokens: message.tokens,
+        tags: message.tags || [],
+        thought: message.thought || null,
+        emotion: message.emotion || null
+      });
     } catch (error) {
       throw error;
     }

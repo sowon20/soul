@@ -3,6 +3,8 @@
  * Vanilla JS Implementation
  */
 
+import './styles/chat.css';
+import './styles/app-settings.css';
 import { ThemeManager } from './utils/theme-manager.js';
 import { ChatManager } from './components/chat/chat-manager.js?v=17';
 import { PanelManager } from './components/shared/panel-manager.js';
@@ -716,35 +718,40 @@ class SoulApp {
   }
 
   async showMCPManager() {
-    const canvasPanel = this.elements.canvasPanel;
-    if (!canvasPanel) return;
+    // 앱설정 페이지의 MCP 탭으로 이동
+    console.log('🔌 MCP 관리자 → 앱설정으로 이동');
+    
+    // 설정 페이지 열기 (profileSection 클릭과 동일한 로직)
+    const dashboard = document.querySelector('.dashboard');
+    const addPageBtn = document.querySelector('.add-page-btn');
+    const profileCard = document.querySelector('.profile-section');
 
-    // Canvas 열기
-    canvasPanel.classList.remove('hide');
+    if (dashboard) {
+      dashboard.style.display = 'none';
+      if (addPageBtn) addPageBtn.style.display = 'none';
+      if (profileCard) profileCard.style.display = 'none';
 
-    // Canvas 내용 변경
-    const canvasHeader = canvasPanel.querySelector('.canvas-header h3');
-    const canvasContent = canvasPanel.querySelector('.canvas-content');
-
-    if (canvasHeader) {
-      canvasHeader.textContent = 'MCP 서버';
-    }
-
-    if (canvasContent) {
-      // MCP 관리자 로드 및 렌더링
-      try {
-        const { MCPManager } = await import('./components/mcp/mcp-manager.js');
-        const mcpManager = new MCPManager(this.apiClient);
-        await mcpManager.render(canvasContent);
-      } catch (error) {
-        console.error('Failed to load MCP Manager:', error);
-        canvasContent.innerHTML = `
-          <div style="padding: 2rem; text-align: center; color: rgba(239, 68, 68, 0.9);">
-            <p>MCP 관리자를 불러오는데 실패했습니다.</p>
-            <p style="font-size: 0.875rem; opacity: 0.7;">${error.message}</p>
-          </div>
-        `;
+      let settingsContainer = document.getElementById('settingsContainer');
+      if (!settingsContainer) {
+        settingsContainer = document.createElement('div');
+        settingsContainer.id = 'settingsContainer';
+        settingsContainer.className = 'settings-wrapper';
+        settingsContainer.style.cssText = 'padding: 0; flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden;';
+        dashboard.parentElement.appendChild(settingsContainer);
       }
+      
+      settingsContainer.style.display = 'flex';
+
+      // 설정 매니저로 앱설정 페이지 렌더링
+      const { SettingsManager } = await import('./settings/settings-manager.js');
+      const settingsManager = new SettingsManager(this.apiClient);
+      await settingsManager.render(settingsContainer, 'app');
+      
+      // MCP 탭 자동 선택 (약간의 딜레이 후)
+      setTimeout(() => {
+        const mcpTab = document.querySelector('.app-tab[data-tab="mcp"]');
+        if (mcpTab) mcpTab.click();
+      }, 100);
     }
   }
 
