@@ -945,56 +945,109 @@ export class AISettings {
   renderStorageSettings() {
     return `
       <div class="storage-settings-container">
-        <!-- 스토리지 타입 선택 -->
-        <div class="storage-field">
-          <label class="storage-label">
-            <span class="label-text">저장소 유형</span>
-            <span class="label-hint">메모리와 파일이 저장될 위치를 선택합니다</span>
-          </label>
-          <div class="storage-type-selector" id="storageTypeSelector">
-            <!-- 동적으로 채워짐 -->
+        <!-- 메모리 저장소 아코디언 -->
+        <div class="storage-accordion" id="memoryStorageAccordion">
+          <div class="storage-accordion-header" data-target="memoryStorageContent">
+            <span class="accordion-icon">▶</span>
+            <span class="accordion-title">📦 메모리 저장소</span>
+            <span class="accordion-hint" id="memoryStorageHint">로컬</span>
+          </div>
+          <div class="storage-accordion-content" id="memoryStorageContent" style="display: none;">
+            <div class="storage-type-selector" id="memoryStorageTypeSelector">
+              <!-- 동적으로 채워짐 -->
+            </div>
+            
+            <!-- FTP 설정 -->
+            <div class="ftp-settings" id="memoryFtpSettings" style="display: none;">
+              <div class="ftp-config-grid">
+                <div class="ftp-field">
+                  <label>호스트</label>
+                  <input type="text" id="memoryFtpHost" class="storage-input" placeholder="192.168.0.1">
+                </div>
+                <div class="ftp-field">
+                  <label>포트</label>
+                  <input type="number" id="memoryFtpPort" class="storage-input" value="21">
+                </div>
+                <div class="ftp-field">
+                  <label>사용자</label>
+                  <input type="text" id="memoryFtpUser" class="storage-input" placeholder="username">
+                </div>
+                <div class="ftp-field">
+                  <label>비밀번호</label>
+                  <input type="password" id="memoryFtpPassword" class="storage-input" placeholder="********">
+                </div>
+                <div class="ftp-field ftp-field-full">
+                  <label>경로</label>
+                  <input type="text" id="memoryFtpBasePath" class="storage-input" placeholder="/memory">
+                </div>
+              </div>
+              <button class="settings-btn settings-btn-outline ftp-test-btn" id="testMemoryFtpBtn">🔌 연결 테스트</button>
+              <span class="ftp-test-result" id="memoryFtpTestResult"></span>
+            </div>
+            
+            <!-- 로컬 설정 -->
+            <div class="local-settings" id="memoryLocalSettings">
+              <div class="storage-path-input">
+                <input type="text" class="storage-input" id="memoryPath" value="${this.storageConfig.memoryPath}" placeholder="./memory">
+                <button class="browse-btn" id="browseMemoryBtn" title="폴더 선택">📁</button>
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- 메모리 저장 경로 -->
-        <div class="storage-field">
-          <label class="storage-label">
-            <span class="label-text">메모리 저장 경로</span>
-            <span class="label-hint">대화 메모리가 저장될 디렉토리</span>
-          </label>
-          <div class="storage-path-input">
-            <input type="text"
-                   class="storage-input"
-                   id="memoryPath"
-                   value="${this.storageConfig.memoryPath}"
-                   placeholder="./memory">
-            <button class="browse-btn" id="browseMemoryBtn" title="폴더 선택">📁</button>
+        <!-- 파일 저장소 아코디언 -->
+        <div class="storage-accordion" id="filesStorageAccordion">
+          <div class="storage-accordion-header" data-target="filesStorageContent">
+            <span class="accordion-icon">▶</span>
+            <span class="accordion-title">📁 파일 저장소</span>
+            <span class="accordion-hint" id="filesStorageHint">로컬</span>
           </div>
-        </div>
-
-        <!-- 파일 저장 경로 -->
-        <div class="storage-field">
-          <label class="storage-label">
-            <span class="label-text">파일 저장 경로</span>
-            <span class="label-hint">업로드 파일이 저장될 디렉토리</span>
-          </label>
-          <div class="storage-path-input">
-            <input type="text"
-                   class="storage-input"
-                   id="filesPath"
-                   value="${this.storageConfig.filesPath}"
-                   placeholder="./files">
-            <button class="browse-btn" id="browseFilesBtn" title="폴더 선택">📁</button>
+          <div class="storage-accordion-content" id="filesStorageContent" style="display: none;">
+            <div class="storage-type-selector" id="filesStorageTypeSelector">
+              <!-- 동적으로 채워짐 -->
+            </div>
+            
+            <!-- FTP 설정 -->
+            <div class="ftp-settings" id="filesFtpSettings" style="display: none;">
+              <div class="ftp-config-grid">
+                <div class="ftp-field">
+                  <label>호스트</label>
+                  <input type="text" id="filesFtpHost" class="storage-input" placeholder="192.168.0.1">
+                </div>
+                <div class="ftp-field">
+                  <label>포트</label>
+                  <input type="number" id="filesFtpPort" class="storage-input" value="21">
+                </div>
+                <div class="ftp-field">
+                  <label>사용자</label>
+                  <input type="text" id="filesFtpUser" class="storage-input" placeholder="username">
+                </div>
+                <div class="ftp-field">
+                  <label>비밀번호</label>
+                  <input type="password" id="filesFtpPassword" class="storage-input" placeholder="********">
+                </div>
+                <div class="ftp-field ftp-field-full">
+                  <label>경로</label>
+                  <input type="text" id="filesFtpBasePath" class="storage-input" placeholder="/files">
+                </div>
+              </div>
+              <button class="settings-btn settings-btn-outline ftp-test-btn" id="testFilesFtpBtn">🔌 연결 테스트</button>
+              <span class="ftp-test-result" id="filesFtpTestResult"></span>
+            </div>
+            
+            <!-- 로컬 설정 -->
+            <div class="local-settings" id="filesLocalSettings">
+              <div class="storage-path-input">
+                <input type="text" class="storage-input" id="filesPath" value="${this.storageConfig.filesPath}" placeholder="./files">
+                <button class="browse-btn" id="browseFilesBtn" title="폴더 선택">📁</button>
+              </div>
+            </div>
           </div>
         </div>
 
         <div class="storage-actions">
-          <button class="settings-btn settings-btn-primary" id="saveStorageBtn">
-            저장
-          </button>
-          <button class="settings-btn settings-btn-outline" id="resetStorageBtn">
-            기본값으로 초기화
-          </button>
+          <button class="settings-btn settings-btn-primary" id="saveStorageBtn">저장</button>
+          <button class="settings-btn settings-btn-outline" id="resetStorageBtn">기본값</button>
         </div>
       </div>
 
@@ -1026,36 +1079,168 @@ export class AISettings {
   }
 
   /**
-   * 스토리지 타입 로드 및 렌더링
+   * 스토리지 설정 초기화
    */
   async loadStorageTypes() {
     try {
       const res = await this.apiClient.get('/storage/types');
       if (!res.success) return;
-
-      const selector = document.getElementById('storageTypeSelector');
-      if (!selector) return;
-
-      selector.innerHTML = res.types.map(t => `
-        <label class="storage-type-option ${t.type === res.current ? 'selected' : ''} ${!t.available ? 'disabled' : ''}">
-          <input type="radio" name="storageType" value="${t.type}" 
-                 ${t.type === res.current ? 'checked' : ''} 
-                 ${!t.available ? 'disabled' : ''}>
-          <span class="type-icon">${t.icon}</span>
-          <span class="type-name">${t.name}</span>
-          ${t.comingSoon ? '<span class="coming-soon">준비 중</span>' : ''}
-        </label>
-      `).join('');
-
-      // 타입 변경 이벤트
-      selector.querySelectorAll('input[name="storageType"]').forEach(radio => {
-        radio.addEventListener('change', (e) => {
-          selector.querySelectorAll('.storage-type-option').forEach(opt => opt.classList.remove('selected'));
-          e.target.closest('.storage-type-option').classList.add('selected');
+      
+      // 아코디언 헤더 클릭 이벤트
+      document.querySelectorAll('.storage-accordion-header').forEach(header => {
+        header.addEventListener('click', () => {
+          const targetId = header.dataset.target;
+          const content = document.getElementById(targetId);
+          const icon = header.querySelector('.accordion-icon');
+          
+          if (content.style.display === 'none') {
+            content.style.display = 'block';
+            icon.textContent = '▼';
+          } else {
+            content.style.display = 'none';
+            icon.textContent = '▶';
+          }
         });
       });
+      
+      // 메모리 저장소 설정 로드
+      await this.loadStorageSection('memory', res.types);
+      
+      // 파일 저장소 설정 로드
+      await this.loadStorageSection('files', res.types);
+      
     } catch (error) {
       console.error('Failed to load storage types:', error);
+    }
+  }
+  
+  /**
+   * 저장소 섹션 로드 (memory 또는 files)
+   */
+  async loadStorageSection(section, types) {
+    const selectorId = `${section}StorageTypeSelector`;
+    const selector = document.getElementById(selectorId);
+    if (!selector) return;
+    
+    // 현재 설정 가져오기
+    const configRes = await this.apiClient.get(`/config/${section}`);
+    const config = configRes.config || configRes;
+    const currentType = config?.storageType || 'local';
+    
+    // 힌트 업데이트
+    const hint = document.getElementById(`${section}StorageHint`);
+    if (hint) {
+      hint.textContent = currentType === 'ftp' ? 'FTP/NAS' : '로컬';
+    }
+    
+    // 타입 선택 버튼 렌더링
+    selector.innerHTML = types.map(t => `
+      <label class="storage-type-option ${t.type === currentType ? 'selected' : ''} ${!t.available ? 'disabled' : ''}">
+        <input type="radio" name="${section}StorageType" value="${t.type}" 
+               ${t.type === currentType ? 'checked' : ''} 
+               ${!t.available ? 'disabled' : ''}>
+        <span class="type-icon">${t.icon}</span>
+        <span class="type-name">${t.name}</span>
+        ${t.comingSoon ? '<span class="coming-soon">준비 중</span>' : ''}
+      </label>
+    `).join('');
+    
+    // 타입 변경 이벤트
+    selector.querySelectorAll(`input[name="${section}StorageType"]`).forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        selector.querySelectorAll('.storage-type-option').forEach(opt => opt.classList.remove('selected'));
+        e.target.closest('.storage-type-option').classList.add('selected');
+        
+        const ftpSettings = document.getElementById(`${section}FtpSettings`);
+        const localSettings = document.getElementById(`${section}LocalSettings`);
+        
+        if (e.target.value === 'ftp') {
+          if (ftpSettings) ftpSettings.style.display = 'block';
+          if (localSettings) localSettings.style.display = 'none';
+        } else {
+          if (ftpSettings) ftpSettings.style.display = 'none';
+          if (localSettings) localSettings.style.display = 'block';
+        }
+      });
+    });
+    
+    // 현재 타입에 따라 폼 표시
+    const ftpSettings = document.getElementById(`${section}FtpSettings`);
+    const localSettings = document.getElementById(`${section}LocalSettings`);
+    
+    if (currentType === 'ftp') {
+      if (ftpSettings) ftpSettings.style.display = 'block';
+      if (localSettings) localSettings.style.display = 'none';
+      
+      // FTP 값 채우기
+      if (config?.ftp) {
+        const prefix = section;
+        document.getElementById(`${prefix}FtpHost`).value = config.ftp.host || '';
+        document.getElementById(`${prefix}FtpPort`).value = config.ftp.port || 21;
+        document.getElementById(`${prefix}FtpUser`).value = config.ftp.user || '';
+        document.getElementById(`${prefix}FtpPassword`).value = config.ftp.password || '';
+        document.getElementById(`${prefix}FtpBasePath`).value = config.ftp.basePath || '';
+      }
+    } else {
+      if (ftpSettings) ftpSettings.style.display = 'none';
+      if (localSettings) localSettings.style.display = 'block';
+    }
+  }
+
+  /**
+   * FTP 설정 로드
+   */
+
+  /**
+   * FTP 연결 테스트
+   */
+  async testFtpConnection(section, createIfMissing = false) {
+    const prefix = section;
+    const resultEl = document.getElementById(`${prefix}FtpTestResult`);
+    const btn = document.getElementById(`test${section.charAt(0).toUpperCase() + section.slice(1)}FtpBtn`);
+    
+    if (!resultEl || !btn) return;
+    
+    btn.disabled = true;
+    
+    const ftpConfig = {
+      host: document.getElementById(`${prefix}FtpHost`)?.value,
+      port: parseInt(document.getElementById(`${prefix}FtpPort`)?.value) || 21,
+      user: document.getElementById(`${prefix}FtpUser`)?.value,
+      password: document.getElementById(`${prefix}FtpPassword`)?.value,
+      basePath: document.getElementById(`${prefix}FtpBasePath`)?.value || `/${section}`,
+      createIfMissing
+    };
+    
+    try {
+      // 1단계: 연결
+      resultEl.innerHTML = '<span class="testing">🔌 서버 연결 중...</span>';
+      
+      // 2단계: 경로 확인
+      await new Promise(r => setTimeout(r, 300));
+      resultEl.innerHTML = '<span class="testing">🔌 서버 연결 중...</span> → <span class="testing">📁 경로 확인 중...</span>';
+      
+      const res = await this.apiClient.post('/storage/ftp/test', ftpConfig);
+      
+      if (res.success) {
+        resultEl.innerHTML = '<span class="success">✅ 서버 연결</span> → <span class="success">✅ 경로 확인</span>';
+        if (res.created) {
+          resultEl.innerHTML += ' <span class="success">(폴더 생성됨)</span>';
+        }
+      } else if (res.pathMissing) {
+        resultEl.innerHTML = '<span class="success">✅ 서버 연결</span> → <span class="error">❌ 경로 없음</span>';
+        
+        if (confirm(`경로가 존재하지 않습니다: ${ftpConfig.basePath}\n\n폴더를 생성할까요?`)) {
+          btn.disabled = false;
+          return this.testFtpConnection(section, true);
+        }
+      } else {
+        resultEl.innerHTML = `<span class="error">❌ ${res.error || '연결 실패'}</span>`;
+      }
+    } catch (e) {
+      resultEl.innerHTML = `<span class="error">❌ ${e.message}</span>`;
+    } finally {
+      btn.disabled = false;
     }
   }
 
@@ -1737,6 +1922,16 @@ export class AISettings {
     const closeFolderBrowser = container.querySelector('#closeFolderBrowser');
     const folderBrowserBack = container.querySelector('#folderBrowserBack');
     const folderBrowserSelect = container.querySelector('#folderBrowserSelect');
+    const testMemoryFtpBtn = container.querySelector('#testMemoryFtpBtn');
+    const testFilesFtpBtn = container.querySelector('#testFilesFtpBtn');
+
+    if (testMemoryFtpBtn) {
+      testMemoryFtpBtn.addEventListener('click', () => this.testFtpConnection('memory'));
+    }
+    
+    if (testFilesFtpBtn) {
+      testFilesFtpBtn.addEventListener('click', () => this.testFtpConnection('files'));
+    }
 
     if (saveStorageBtn) {
       saveStorageBtn.addEventListener('click', () => this.saveStorageSettings());
@@ -2464,31 +2659,67 @@ export class AISettings {
    */
   async saveStorageSettings() {
     try {
-      const memoryPath = document.getElementById('memoryPath')?.value;
-      const filesPath = document.getElementById('filesPath')?.value;
-
-      if (!memoryPath || !filesPath) {
-        this.showSaveStatus('경로를 입력해주세요.', 'error');
-        return;
-      }
-
-      // 메모리 경로 저장
-      await this.apiClient.put('/config/memory', {
-        storagePath: memoryPath
-      });
-
-      // 파일 경로 저장
-      await this.apiClient.put('/config/files', {
-        storagePath: filesPath
-      });
-
-      this.storageConfig.memoryPath = memoryPath;
-      this.storageConfig.filesPath = filesPath;
-
-      this.showSaveStatus('저장소 경로 설정이 저장되었습니다.', 'success');
+      // 메모리 저장소 저장
+      await this.saveStorageSection('memory');
+      
+      // 파일 저장소 저장
+      await this.saveStorageSection('files');
+      
+      this.showSaveStatus('저장소 설정 저장됨. 서버 재시작 중...', 'success');
+      await this.restartServer();
     } catch (error) {
       console.error('Failed to save storage settings:', error);
-      this.showSaveStatus('저장소 경로 설정 저장에 실패했습니다.', 'error');
+      this.showSaveStatus('저장소 설정 저장에 실패했습니다.', 'error');
+    }
+  }
+  
+  /**
+   * 저장소 섹션 저장
+   */
+  async saveStorageSection(section) {
+    const selectedType = document.querySelector(`input[name="${section}StorageType"]:checked`)?.value || 'local';
+    
+    if (selectedType === 'ftp') {
+      const prefix = section;
+      const ftpConfig = {
+        host: document.getElementById(`${prefix}FtpHost`)?.value,
+        port: parseInt(document.getElementById(`${prefix}FtpPort`)?.value) || 21,
+        user: document.getElementById(`${prefix}FtpUser`)?.value,
+        password: document.getElementById(`${prefix}FtpPassword`)?.value,
+        basePath: document.getElementById(`${prefix}FtpBasePath`)?.value || `/${section}`
+      };
+      
+      if (!ftpConfig.host || !ftpConfig.user) {
+        throw new Error(`${section} FTP 호스트와 사용자를 입력해주세요.`);
+      }
+      
+      await this.apiClient.put(`/config/${section}`, {
+        storageType: 'ftp',
+        ftp: ftpConfig
+      });
+    } else {
+      const pathInput = document.getElementById(`${section}Path`);
+      const path = pathInput?.value || `./${section}`;
+      
+      await this.apiClient.put(`/config/${section}`, {
+        storageType: 'local',
+        storagePath: path
+      });
+    }
+  }
+
+  /**
+   * 서버 재시작
+   */
+  async restartServer() {
+    try {
+      await this.apiClient.post('/config/restart');
+      // 3초 후 페이지 새로고침 (서버 재시작 대기)
+      setTimeout(() => {
+        window.location.reload();
+      }, 3000);
+    } catch (e) {
+      console.error('Server restart failed:', e);
     }
   }
 

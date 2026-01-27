@@ -53,19 +53,26 @@ class ShortTermMemory {
   async initialize(sessionId = 'main-conversation') {
     this.sessionId = sessionId;
     try {
-      // JSONL에서 메시지 로드
+      // JSONL에서 메시지 로드 (토큰 기반)
       const ConversationStore = require('./conversation-store');
       const store = new ConversationStore();
-      const messages = await store.getRecentMessages(this.maxMessages);
+      await store.init();
+      
+      // 컨텍스트의 80%를 원문으로 사용 (기본 모델 컨텍스트 200k 기준, 80% = 160k, 그중 원문용 80% = 128k)
+      // 실제로는 시스템 프롬프트 등 오버헤드 고려해서 보수적으로 계산
+      const maxRawTokens = 80000; // 원문용 토큰 예산
+      
+      const { messages, totalTokens } = await store.getMessagesWithinTokenLimit(maxRawTokens);
+      
       this.messages = messages.map(m => ({
         role: m.role,
         content: m.text || m.content,
         timestamp: m.timestamp,
         tokens: m.tokens || this._estimateTokens(m.text || m.content)
       }));
-      this.totalTokens = this.messages.reduce((sum, m) => sum + (m.tokens || 0), 0);
+      this.totalTokens = totalTokens;
       this.initialized = true;
-      console.log(`[ShortTermMemory] Loaded ${this.messages.length} messages from JSONL`);
+      console.log(`[ShortTermMemory] Loaded ${this.messages.length} messages (${totalTokens} tokens) from JSONL`);
     } catch (error) {
       console.error('[ShortTermMemory] Failed to load from JSONL:', error.message);
       this.initialized = true;
@@ -73,7 +80,7 @@ class ShortTermMemory {
   }
 
   /**
-   * 메시지 추가 (MongoDB에도 저장)
+   * 메시지 추가 (MongoDB + 벡터 스토어에도 저장)
    */
   add(message) {
     const messageWithMeta = {
@@ -88,6 +95,11 @@ class ShortTermMemory {
     // MongoDB에 비동기 저장
     this._saveToDb(messageWithMeta).catch(err => {
       console.error('[ShortTermMemory] Failed to save to DB:', err.message);
+    });
+    
+    // 벡터 스토어에 비동기 저장
+    this._saveToVectorStore(messageWithMeta).catch(err => {
+      console.error('[ShortTermMemory] Failed to save to vector store:', err.message);
     });
 
     // 최대 개수 초과 시 오래된 메시지 제거
@@ -120,6 +132,26 @@ class ShortTermMemory {
     } catch (error) {
       console.error('[ShortTermMemory] _saveToDb error:', error);
       throw error;
+    }
+  }
+  
+  /**
+   * 벡터 스토어에 저장 (의미적 검색용)
+   */
+  async _saveToVectorStore(message) {
+    try {
+      const vectorStore = require('./vector-store');
+      const id = `${new Date(message.timestamp).toISOString().replace(/[:.]/g, '-')}_${message.role}`;
+      await vectorStore.addMessage({
+        id,
+        text: message.content,
+        role: message.role,
+        timestamp: message.timestamp,
+        tags: message.tags
+      });
+    } catch (error) {
+      // 벡터 저장 실패해도 대화는 계속
+      console.warn('[ShortTermMemory] Vector store save failed:', error.message);
     }
   }
 

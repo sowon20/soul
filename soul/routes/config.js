@@ -445,4 +445,29 @@ router.put('/dock', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/config/restart
+ * 서버 재시작 (PM2)
+ */
+router.post('/restart', async (req, res) => {
+  try {
+    const { exec } = require('child_process');
+    
+    // 먼저 응답 보내고
+    res.json({ success: true, message: '서버 재시작 중...' });
+    
+    // 1초 후 재시작 (응답 전송 완료 대기)
+    setTimeout(() => {
+      exec('pm2 restart soul-backend', (error) => {
+        if (error) {
+          console.error('Restart failed:', error);
+        }
+      });
+    }, 1000);
+  } catch (error) {
+    console.error('Restart error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 module.exports = router;

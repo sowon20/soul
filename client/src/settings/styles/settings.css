@@ -2595,6 +2595,108 @@ textarea.settings-field-input {
   color: rgba(0, 0, 0, 0.5);
 }
 
+/* Storage Accordion */
+.storage-accordion {
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+  overflow: hidden;
+}
+
+.storage-accordion-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: rgba(0, 0, 0, 0.02);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.2s;
+}
+
+.storage-accordion-header:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.accordion-icon {
+  font-size: 0.75rem;
+  color: rgba(0, 0, 0, 0.5);
+  transition: transform 0.2s;
+}
+
+.accordion-title {
+  flex: 1;
+  font-weight: 500;
+}
+
+.accordion-hint {
+  font-size: 0.75rem;
+  padding: 0.125rem 0.5rem;
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.storage-accordion-content {
+  padding: 1rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+/* FTP Settings */
+.ftp-settings {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.ftp-config-grid {
+  display: grid;
+  grid-template-columns: 1fr 100px;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.ftp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.ftp-field label {
+  font-size: 0.75rem;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.ftp-field-full {
+  grid-column: 1 / -1;
+}
+
+.ftp-test-btn {
+  margin-right: 0.75rem;
+}
+
+.ftp-test-result {
+  font-size: 0.875rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.ftp-test-result .testing {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.ftp-test-result .success {
+  color: #22c55e;
+}
+
+.ftp-test-result .error {
+  color: #ef4444;
+}
+
 /* Storage Path Input with Browse Button */
 .storage-path-input {
   display: flex;

@@ -136,6 +136,49 @@ class ConversationStore {
     }).filter(Boolean);
   }
 
+  /**
+   * 토큰 제한 내에서 최근 메시지 가져오기
+   * @param {number} maxTokens - 최대 토큰 수
+   * @returns {{ messages: Array, totalTokens: number }}
+   */
+  async getMessagesWithinTokenLimit(maxTokens) {
+    await this.init();
+    const lines = await this.readAllLines();
+    
+    const result = [];
+    let totalTokens = 0;
+    
+    // 최신 메시지부터 역순으로
+    for (let i = lines.length - 1; i >= 0; i--) {
+      try {
+        const msg = JSON.parse(lines[i]);
+        const msgTokens = msg.tokens || this._estimateTokens(msg.text || msg.content || '');
+        
+        if (totalTokens + msgTokens > maxTokens) {
+          break;
+        }
+        
+        result.unshift(msg);
+        totalTokens += msgTokens;
+      } catch {
+        // 파싱 실패한 라인 무시
+      }
+    }
+    
+    return { messages: result, totalTokens };
+  }
+  
+  /**
+   * 토큰 수 추정 (한글/영어 고려)
+   */
+  _estimateTokens(text) {
+    if (!text) return 0;
+    // 한글은 글자당 약 1.5토큰, 영어는 단어당 약 1토큰
+    const koreanChars = (text.match(/[\u3131-\uD79D]/g) || []).length;
+    const otherChars = text.length - koreanChars;
+    return Math.ceil(koreanChars * 1.5 + otherChars / 4);
+  }
+
   async getMessagesBefore(beforeTimestamp, limit = 20) {
     await this.init();
     const allLines = await this.readAllLines();
