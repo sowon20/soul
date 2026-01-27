@@ -11,13 +11,27 @@ const { getStorageManager, LocalStorageAdapter } = require('../storage');
  * GET /api/storage/types
  * 사용 가능한 스토리지 타입 목록
  */
-router.get('/types', (req, res) => {
-  const manager = getStorageManager();
-  res.json({
-    success: true,
-    types: manager.getAvailableTypes(),
-    current: manager.currentType
-  });
+router.get('/types', async (req, res) => {
+  try {
+    const manager = getStorageManager();
+    const SystemConfig = require('../models/SystemConfig');
+    
+    // DB에서 현재 설정 읽기
+    const config = await SystemConfig.findOne({ configKey: 'memory' });
+    const currentType = config?.value?.storageType || 'local';
+    
+    res.json({
+      success: true,
+      types: manager.getAvailableTypes(),
+      current: currentType
+    });
+  } catch (e) {
+    res.json({
+      success: true,
+      types: getStorageManager().getAvailableTypes(),
+      current: 'local'
+    });
+  }
 });
 
 /**
@@ -45,6 +59,76 @@ router.post('/set', async (req, res) => {
     res.json({ success: true, storage: info });
   } catch (error) {
     console.error('Storage set error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/storage/ftp/test
+ * FTP 연결 테스트 + 경로 확인
+ */
+router.post('/ftp/test', async (req, res) => {
+  try {
+    const { host, port, user, password, basePath, createIfMissing } = req.body;
+    
+    if (!host || !user) {
+      return res.status(400).json({ success: false, error: '호스트와 사용자를 입력해주세요.' });
+    }
+    
+    const { FTPStorage } = require('../utils/ftp-storage');
+    const ftp = new FTPStorage({ host, port, user, password, basePath: '/' });
+    
+    await ftp.connect();
+    
+    // 경로 존재 확인
+    let pathExists = false;
+    let files = [];
+    try {
+      await ftp.client.cd(basePath || '/');
+      files = await ftp.client.list();
+      pathExists = true;
+    } catch (e) {
+      pathExists = false;
+    }
+    
+    if (!pathExists) {
+      if (createIfMissing) {
+        // 폴더 생성
+        try {
+          await ftp.client.ensureDir(basePath);
+          await ftp.disconnect();
+          res.json({ 
+            success: true, 
+            message: `폴더 생성됨: ${basePath}`,
+            created: true
+          });
+        } catch (mkdirErr) {
+          await ftp.disconnect();
+          res.json({ 
+            success: false, 
+            error: `폴더 생성 실패: ${mkdirErr.message}`
+          });
+        }
+      } else {
+        await ftp.disconnect();
+        res.json({ 
+          success: false, 
+          pathMissing: true,
+          error: `경로가 존재하지 않음: ${basePath}`
+        });
+      }
+      return;
+    }
+    
+    await ftp.disconnect();
+    
+    res.json({ 
+      success: true, 
+      message: '연결 성공',
+      files: files.length 
+    });
+  } catch (error) {
+    console.error('FTP test error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
