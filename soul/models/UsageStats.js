@@ -71,6 +71,14 @@ const usageStatsSchema = new mongoose.Schema({
   sessionId: {
     type: String,
     default: 'main-conversation'
+  },
+
+  // 사용 목적 구분 (어디서 호출되었는지)
+  category: {
+    type: String,
+    enum: ['chat', 'summary', 'compression', 'alba', 'role', 'embedding', 'other'],
+    default: 'chat',
+    index: true
   }
 }, {
   timestamps: true
@@ -79,6 +87,7 @@ const usageStatsSchema = new mongoose.Schema({
 // 복합 인덱스
 usageStatsSchema.index({ date: 1, tier: 1 });
 usageStatsSchema.index({ date: 1, modelId: 1 });
+usageStatsSchema.index({ date: 1, category: 1 });
 usageStatsSchema.index({ timestamp: -1 });
 
 /**
@@ -101,7 +110,8 @@ usageStatsSchema.statics.addUsage = async function(data) {
     totalTokens: data.totalTokens || 0,
     cost: data.cost || 0,
     latency: data.latency || 0,
-    sessionId: data.sessionId || 'main-conversation'
+    sessionId: data.sessionId || 'main-conversation',
+    category: data.category || 'chat'
   });
 };
 
@@ -160,6 +170,8 @@ usageStatsSchema.statics.getStatsByPeriod = async function(period = 'today', opt
         _id: null,
         totalRequests: { $sum: 1 },
         totalTokens: { $sum: '$totalTokens' },
+        inputTokens: { $sum: '$inputTokens' },
+        outputTokens: { $sum: '$outputTokens' },
         totalCost: { $sum: '$cost' },
         avgLatency: { $avg: '$latency' },
         lightCount: {
@@ -190,9 +202,25 @@ usageStatsSchema.statics.getStatsByPeriod = async function(period = 'today', opt
     { $sort: { count: -1 } }
   ]);
 
+  // 카테고리별 통계
+  const categoryStats = await this.aggregate([
+    { $match: query },
+    {
+      $group: {
+        _id: '$category',
+        count: { $sum: 1 },
+        totalTokens: { $sum: '$totalTokens' },
+        totalCost: { $sum: '$cost' }
+      }
+    },
+    { $sort: { totalCost: -1 } }
+  ]);
+
   const stats = basicStats[0] || {
     totalRequests: 0,
     totalTokens: 0,
+    inputTokens: 0,
+    outputTokens: 0,
     totalCost: 0,
     avgLatency: 0,
     lightCount: 0,
@@ -206,6 +234,8 @@ usageStatsSchema.statics.getStatsByPeriod = async function(period = 'today', opt
     period,
     totalRequests: stats.totalRequests,
     totalTokens: stats.totalTokens,
+    inputTokens: stats.inputTokens,
+    outputTokens: stats.outputTokens,
     totalCost: stats.totalCost,
     averageLatency: stats.avgLatency || 0,
     distribution: {
@@ -226,6 +256,13 @@ usageStatsSchema.statics.getStatsByPeriod = async function(period = 'today', opt
       totalTokens: m.totalTokens,
       totalCost: m.totalCost,
       avgLatency: m.avgLatency
+    })),
+    categoryUsage: categoryStats.map(c => ({
+      category: c._id || 'chat',
+      count: c.count,
+      percentage: ((c.count / total) * 100).toFixed(1) + '%',
+      totalTokens: c.totalTokens,
+      totalCost: c.totalCost
     }))
   };
 };

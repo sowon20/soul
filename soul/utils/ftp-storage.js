@@ -7,20 +7,63 @@ const { Readable } = require('stream');
 
 class FTPStorage {
   constructor(config = {}) {
+    // FTP 설정은 환경변수 또는 DB 설정에서 가져옴 (하드코딩 금지)
     this.config = {
-      host: config.host || process.env.FTP_HOST || '121.171.190.215',
+      host: config.host || process.env.FTP_HOST || '',
       port: config.port || parseInt(process.env.FTP_PORT) || 21,
-      user: config.user || process.env.FTP_USER || 'sowon',
-      password: config.password || process.env.FTP_PASSWORD || 'sg1324',
-      basePath: config.basePath || '/H/memory',
-      secure: false
+      user: config.user || process.env.FTP_USER || '',
+      password: config.password || process.env.FTP_PASSWORD || '',
+      basePath: config.basePath || process.env.FTP_BASE_PATH || '/memory',
+      secure: config.secure || process.env.FTP_SECURE === 'true' || false
     };
     this.client = null;
     this.connected = false;
+    this._lock = false;
+    this._queue = [];
+  }
+
+  // 동시 접속 방지를 위한 락
+  async _withLock(fn) {
+    return new Promise((resolve, reject) => {
+      const execute = async () => {
+        this._lock = true;
+        try {
+          const result = await fn();
+          resolve(result);
+        } catch (err) {
+          reject(err);
+        } finally {
+          this._lock = false;
+          // 다음 대기 작업 실행
+          if (this._queue.length > 0) {
+            const next = this._queue.shift();
+            next();
+          }
+        }
+      };
+
+      if (this._lock) {
+        this._queue.push(execute);
+      } else {
+        execute();
+      }
+    });
   }
 
   async connect() {
-    if (this.connected && this.client) return;
+    // 이미 연결되어 있으면 연결 상태 확인
+    if (this.connected && this.client) {
+      try {
+        // 연결 상태 확인 (pwd 명령으로)
+        await this.client.pwd();
+        return;
+      } catch (err) {
+        // 연결 끊어짐, 재연결 필요
+        console.log('[FTPStorage] Connection lost, reconnecting...');
+        this.connected = false;
+        this.client.close();
+      }
+    }
     
     this.client = new ftp.Client();
     this.client.ftp.verbose = false;
@@ -50,6 +93,59 @@ class FTPStorage {
   }
 
   async readFile(filename) {
+    return this._withLock(async () => {
+      await this.connect();
+      const remotePath = `${this.config.basePath}/${filename}`;
+      
+      try {
+        const chunks = [];
+        const writable = new (require('stream').Writable)({
+          write(chunk, encoding, callback) {
+            chunks.push(chunk);
+            callback();
+          }
+        });
+        
+        await this.client.downloadTo(writable, remotePath);
+        return Buffer.concat(chunks).toString('utf-8');
+      } catch (err) {
+        if (err.code === 550) {
+          return null;
+        }
+        throw err;
+      }
+    });
+  }
+
+  async writeFile(filename, content) {
+    return this._withLock(async () => {
+      await this.connect();
+      const remotePath = `${this.config.basePath}/${filename}`;
+      
+      const readable = Readable.from([content]);
+      await this.client.uploadFrom(readable, remotePath);
+      console.log('[FTPStorage] Saved:', remotePath);
+    });
+  }
+
+  async appendToFile(filename, content) {
+    return this._withLock(async () => {
+      await this.connect();
+      const remotePath = `${this.config.basePath}/${filename}`;
+      
+      try {
+        // 락 안에서는 내부 메서드 직접 호출
+        const existing = await this._readFileInternal(filename) || '';
+        const newContent = existing + content;
+        await this._writeFileInternal(filename, newContent);
+      } catch (err) {
+        await this._writeFileInternal(filename, content);
+      }
+    });
+  }
+
+  // 락 없이 내부 호출용
+  async _readFileInternal(filename) {
     await this.connect();
     const remotePath = `${this.config.basePath}/${filename}`;
     
@@ -66,35 +162,19 @@ class FTPStorage {
       return Buffer.concat(chunks).toString('utf-8');
     } catch (err) {
       if (err.code === 550) {
-        // 파일 없음
         return null;
       }
       throw err;
     }
   }
 
-  async writeFile(filename, content) {
+  async _writeFileInternal(filename, content) {
     await this.connect();
     const remotePath = `${this.config.basePath}/${filename}`;
     
     const readable = Readable.from([content]);
     await this.client.uploadFrom(readable, remotePath);
     console.log('[FTPStorage] Saved:', remotePath);
-  }
-
-  async appendToFile(filename, content) {
-    await this.connect();
-    const remotePath = `${this.config.basePath}/${filename}`;
-    
-    try {
-      // FTP는 append 지원이 제한적이라 read-modify-write
-      const existing = await this.readFile(filename) || '';
-      const newContent = existing + content;
-      await this.writeFile(filename, newContent);
-    } catch (err) {
-      // 파일 없으면 새로 생성
-      await this.writeFile(filename, content);
-    }
   }
 
   async exists(filename) {

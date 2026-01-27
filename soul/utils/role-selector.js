@@ -152,6 +152,7 @@ ${rolesDescription}
 가장 적합한 역할을 JSON 형식으로 선택하세요.`;
 
     try {
+      const startTime = Date.now();
       const response = await aiService.chat(
         [{ role: 'user', content: userPrompt }],
         {
@@ -160,6 +161,26 @@ ${rolesDescription}
           temperature: 0.3 // 낮은 온도 (일관성)
         }
       );
+      const latency = Date.now() - startTime;
+
+      // 사용량 추적
+      const estimatedInputTokens = Math.ceil((systemPrompt.length + userPrompt.length) / 4);
+      const estimatedOutputTokens = response ? Math.ceil(response.length / 4) : 0;
+      try {
+        await AIServiceFactory.trackUsage({
+          serviceId: 'anthropic',
+          modelId: 'claude-3-5-haiku-20241022',
+          tier: 'light',
+          usage: {
+            input_tokens: estimatedInputTokens,
+            output_tokens: estimatedOutputTokens
+          },
+          latency,
+          category: 'role'
+        });
+      } catch (trackError) {
+        console.warn('Role selector usage tracking failed:', trackError.message);
+      }
 
       // JSON 파싱
       const jsonMatch = response.match(/\{[\s\S]*\}/);
@@ -229,6 +250,7 @@ ${rolesDescription}
 
       const userPrompt = `이 작업을 처리할 새로운 전문가를 제안하세요:\n"${message}"`;
 
+      const startTime = Date.now();
       const response = await aiService.chat(
         [{ role: 'user', content: userPrompt }],
         {
@@ -237,6 +259,26 @@ ${rolesDescription}
           temperature: 0.7
         }
       );
+      const latency = Date.now() - startTime;
+
+      // 사용량 추적
+      const estimatedInputTokens = Math.ceil((systemPrompt.length + userPrompt.length) / 4);
+      const estimatedOutputTokens = response ? Math.ceil(response.length / 4) : 0;
+      try {
+        await AIServiceFactory.trackUsage({
+          serviceId: serviceName,
+          modelId,
+          tier: 'light',
+          usage: {
+            input_tokens: estimatedInputTokens,
+            output_tokens: estimatedOutputTokens
+          },
+          latency,
+          category: 'role'
+        });
+      } catch (trackError) {
+        console.warn('Role suggestion usage tracking failed:', trackError.message);
+      }
 
       const jsonMatch = response.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {

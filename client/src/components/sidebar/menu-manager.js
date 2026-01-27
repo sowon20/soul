@@ -1394,9 +1394,9 @@ export class MenuManager {
         </h2>
 
         <div class="menu-description" style="background: rgba(255, 255, 255, 0.08); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; font-size: var(--font-size-sm); line-height: 1.6; opacity: 0.9;">
-          <p>소원님의 개인 정보를 관리하고, 소울이 참조할 수 있는 프로필을 설정합니다.</p>
+          <p>개인 정보를 관리하고, Soul이 참조할 수 있는 프로필을 설정합니다.</p>
           <p style="margin-top: 0.5rem; font-size: 0.875rem; opacity: 0.8;">
-            필드를 자유롭게 추가/수정하고, 소울의 접근 권한을 설정할 수 있습니다.
+            필드를 자유롭게 추가/수정하고, Soul의 접근 권한을 설정할 수 있습니다.
           </p>
         </div>
 

@@ -1016,13 +1016,101 @@ body {
   padding: 16px;
 }
 
+/* 서버 상태 */
+.server-status-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.server-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  font-size: 11px;
+}
+
+.server-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #9ca3af;
+  flex-shrink: 0;
+}
+
+.server-indicator.online {
+  background: #22c55e;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
+}
+
+.server-indicator.offline {
+  background: #ef4444;
+}
+
+.server-indicator.checking {
+  background: #f59e0b;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.server-name {
+  font-weight: 500;
+  color: #374151;
+  flex: 1;
+}
+
+.server-port {
+  color: #9ca3af;
+  font-size: 11px;
+  font-family: monospace;
+}
+
+.dashboard-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
 .dashboard-title {
   font-size: 13px;
   font-weight: 700;
   color: #3a3a3a;
-  margin: 0 0 12px 0;
+  margin: 0;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.stats-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.stats-action-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  opacity: 0.6;
+  transition: all 0.2s;
+}
+
+.stats-action-btn:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.stats-action-btn.stats-action-danger:hover {
+  background: rgba(239, 68, 68, 0.1);
 }
 
 .stats-grid {
@@ -1140,6 +1228,46 @@ body {
   background: #0284c7;
 }
 
+/* 대시보드 타이틀 행 */
+.dashboard-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.dashboard-title-row .dashboard-title {
+  margin-bottom: 0;
+}
+
+.stats-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.stats-action-btn {
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.stats-action-btn:hover {
+  background: rgba(0, 0, 0, 0.15);
+  transform: scale(1.05);
+}
+
+.stats-action-btn.stats-action-danger:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
 /* 모델별 사용량 */
 .model-usage-section {
   margin-top: 14px;
@@ -1208,6 +1336,168 @@ body {
 }
 
 .model-usage-details {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: rgba(0, 0, 0, 0.4);
+}
+
+/* 토큰 사용량 하이라이트 */
+.token-usage-highlight {
+  margin-top: 14px;
+  padding: 12px;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(245, 158, 11, 0.15));
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 10px;
+}
+
+.token-usage-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.token-icon {
+  font-size: 14px;
+}
+
+.token-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.token-usage-values {
+  display: flex;
+  justify-content: space-around;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.token-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 8px;
+  min-width: 70px;
+}
+
+.token-stat-label {
+  font-size: 9px;
+  color: rgba(0, 0, 0, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.token-stat-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: #dc2626;
+}
+
+.token-stat-value.warning {
+  color: #dc2626;
+  animation: pulse-warning 1.5s infinite;
+}
+
+.token-stat-value.normal {
+  color: #16a34a;
+}
+
+@keyframes pulse-warning {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.token-per-request {
+  text-align: center;
+  font-size: 11px;
+  color: rgba(0, 0, 0, 0.6);
+  padding: 6px;
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 6px;
+}
+
+.token-per-request span {
+  font-weight: 700;
+  color: #ea580c;
+}
+
+.token-per-request.high-usage span {
+  color: #dc2626;
+  font-size: 13px;
+}
+
+/* 카테고리별 사용량 */
+.category-usage-section {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.category-usage-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.5);
+  margin: 0 0 10px 0;
+}
+
+.category-usage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.category-usage-list .no-data {
+  text-align: center;
+  color: rgba(0, 0, 0, 0.35);
+  font-size: 11px;
+  padding: 12px 0;
+}
+
+.category-usage-item {
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.category-usage-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.category-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.category-cost {
+  font-size: 11px;
+  font-weight: 600;
+  color: #f59e0b;
+}
+
+.category-usage-bar {
+  height: 4px;
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.category-usage-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.category-usage-details {
   display: flex;
   justify-content: space-between;
   font-size: 10px;

@@ -53,16 +53,13 @@ class ShortTermMemory {
   async initialize(sessionId = 'main-conversation') {
     this.sessionId = sessionId;
     try {
-      // JSONL에서 메시지 로드 (토큰 기반)
+      // JSONL에서 메시지 로드 (개수 기반)
       const ConversationStore = require('./conversation-store');
       const store = new ConversationStore();
       await store.init();
       
-      // 컨텍스트의 80%를 원문으로 사용 (기본 모델 컨텍스트 200k 기준, 80% = 160k, 그중 원문용 80% = 128k)
-      // 실제로는 시스템 프롬프트 등 오버헤드 고려해서 보수적으로 계산
-      const maxRawTokens = 80000; // 원문용 토큰 예산
-      
-      const { messages, totalTokens } = await store.getMessagesWithinTokenLimit(maxRawTokens);
+      // maxMessages 설정 사용 (UI에서 설정한 단기 메모리 크기)
+      const messages = await store.getRecentMessages(this.maxMessages);
       
       this.messages = messages.map(m => ({
         role: m.role,
@@ -70,9 +67,9 @@ class ShortTermMemory {
         timestamp: m.timestamp,
         tokens: m.tokens || this._estimateTokens(m.text || m.content)
       }));
-      this.totalTokens = totalTokens;
+      this.totalTokens = this.messages.reduce((sum, m) => sum + m.tokens, 0);
       this.initialized = true;
-      console.log(`[ShortTermMemory] Loaded ${this.messages.length} messages (${totalTokens} tokens) from JSONL`);
+      console.log(`[ShortTermMemory] Loaded ${this.messages.length} messages (${this.totalTokens} tokens) from JSONL`);
     } catch (error) {
       console.error('[ShortTermMemory] Failed to load from JSONL:', error.message);
       this.initialized = true;
@@ -487,18 +484,51 @@ class MiddleTermMemory {
   }
 
   /**
-   * 주간 요약 생성 (Alba 사용)
+   * 주간 요약 생성 (배치 API 또는 실시간)
    * @param {Array} messages - 해당 주의 메시지 배열
    * @param {Object} weekInfo - { year, month, weekNum }
+   * @param {Object} options - { useBatch: true (기본값) }
    */
-  async generateWeeklySummary(messages, weekInfo) {
+  async generateWeeklySummary(messages, weekInfo, options = {}) {
     if (!messages || messages.length === 0) {
       return null;
     }
 
+    const useBatch = options.useBatch !== false; // 기본적으로 배치 사용
+
     try {
+      // 배치 처리 시도 (Claude 전용, 50% 비용 절감)
+      if (useBatch) {
+        const { getBatchProcessor } = require('./batch-processor');
+        const batchProcessor = getBatchProcessor();
+
+        const self = this; // 클로저용
+        const requestId = batchProcessor.addRequest(
+          'weekly_summary',
+          { messages, weekInfo },
+          async (result) => {
+            // 배치 완료 시 콜백
+            if (result.success && result.data) {
+              const parsed = result.data;
+              parsed.messageCount = messages.length;
+              await self.saveWeeklySummary(weekInfo.year, weekInfo.month, weekInfo.weekNum, parsed);
+              console.log(`[WeeklySummary] Batch completed: ${weekInfo.year}-${weekInfo.month} week ${weekInfo.weekNum}`);
+            }
+          }
+        );
+
+        // 배치 성공 (Claude 사용 중)
+        if (requestId) {
+          console.log(`[WeeklySummary] Queued for batch: ${requestId}`);
+          return { queued: true, requestId };
+        }
+        // requestId가 null이면 배치 불가 → 아래 실시간 처리로 폴백
+        console.log('[WeeklySummary] Batch unavailable, falling back to realtime');
+      }
+
+      // 실시간 처리 (폴백 또는 긴급한 경우)
       const { getAlbaWorker } = require('./alba-worker');
-      const alba = await getAlbaWorker();  // await 추가, initialize 자동 호출됨
+      const alba = await getAlbaWorker();
 
       const prompt = `다음은 일주일간의 대화 내용입니다. 주간 요약을 작성해주세요.
 
@@ -520,16 +550,14 @@ ${messages.map(m => `[${m.role}] ${m.content}`).join('\n').substring(0, 3000)}
 
       if (!result) return null;
 
-      // JSON 파싱
       const jsonMatch = result.match(/\{[\s\S]*\}/);
       if (!jsonMatch) return null;
 
       const parsed = JSON.parse(jsonMatch[0]);
       parsed.messageCount = messages.length;
 
-      // 저장
       await this.saveWeeklySummary(weekInfo.year, weekInfo.month, weekInfo.weekNum, parsed);
-      
+
       return parsed;
     } catch (error) {
       console.error('[WeeklySummary] Generate error:', error);
@@ -693,15 +721,17 @@ class LongTermMemory {
   }
 
   /**
-   * 대화 아카이브 (원본 저장)
+   * 대화 아카이브 (원본 저장 + 배치로 메타데이터 생성)
+   * @param {Object} options - { useBatch: true (기본값) }
    */
-  async archive(conversationId, messages, metadata = {}) {
+  async archive(conversationId, messages, metadata = {}, options = {}) {
     try {
       const now = new Date();
       const { dir, file } = this._getArchivePath(now);
-      
+      const useBatch = options.useBatch !== false;
+
       await fs.mkdir(dir, { recursive: true });
-      
+
       const archiveData = {
         id: `${now.getTime()}-${conversationId}`,
         conversationId,
@@ -715,10 +745,10 @@ class LongTermMemory {
         summary: metadata.summary || '',
         importance: metadata.importance || 5
       };
-      
-      // 원본 파일 저장
+
+      // 원본 파일 저장 (즉시)
       await fs.writeFile(file, JSON.stringify(archiveData, null, 2));
-      
+
       // 인덱스에 메타데이터만 추가 (검색용)
       this.index.entries.push({
         id: archiveData.id,
@@ -731,9 +761,39 @@ class LongTermMemory {
         importance: archiveData.importance,
         messageCount: archiveData.messageCount
       });
-      
+
       await this._saveIndex();
-      
+
+      // 배치로 메타데이터 보강 (Claude 전용, 요약/태그 생성)
+      if (useBatch && (!metadata.summary || metadata.tags?.length === 0)) {
+        const { getBatchProcessor } = require('./batch-processor');
+        const batchProcessor = getBatchProcessor();
+        const self = this;
+
+        const requestId = batchProcessor.addRequest(
+          'archive_compress',
+          { messages, metadata: { archiveId: archiveData.id } },
+          async (result) => {
+            if (result.success && result.data) {
+              // 인덱스 업데이트
+              const entry = self.index.entries.find(e => e.id === archiveData.id);
+              if (entry) {
+                entry.summary = result.data.summary || entry.summary;
+                entry.tags = result.data.tags || entry.tags;
+                entry.importance = result.data.importance || entry.importance;
+                await self._saveIndex();
+                console.log(`[LongTermMemory] Batch metadata updated: ${archiveData.id}`);
+              }
+            }
+          }
+        );
+
+        // requestId가 null이면 배치 불가 (Gemini 등) → 메타데이터 없이 진행
+        if (!requestId) {
+          console.log('[LongTermMemory] Batch unavailable, archiving without AI metadata');
+        }
+      }
+
       console.log(`[LongTermMemory] Archived: ${archiveData.id}`);
       return archiveData;
     } catch (error) {
@@ -969,6 +1029,159 @@ class DocumentStorage {
   getCategories() {
     if (!this.index) return [];
     return [...new Set(this.index.documents.map(d => d.category))];
+  }
+
+  /**
+   * Claude Citations용 문서 형식으로 변환
+   * @param {Array<string>} ids - 문서 ID 배열
+   * @returns {Promise<Array>} Claude API documents 형식
+   *
+   * @example
+   * const docs = await documentStorage.toClaudeDocuments(['doc-id-1', 'doc-id-2']);
+   * const result = await aiService.chatWithDocuments('질문', docs);
+   */
+  async toClaudeDocuments(ids) {
+    const documents = [];
+
+    for (const id of ids) {
+      const doc = await this.read(id);
+      if (!doc) continue;
+
+      // 텍스트 문서인 경우
+      let textContent = '';
+      if (doc.ocrText) {
+        // OCR 텍스트가 있으면 사용
+        textContent = doc.ocrText;
+      } else if (Buffer.isBuffer(doc.content)) {
+        // 바이너리면 텍스트로 변환 시도
+        textContent = doc.content.toString('utf-8');
+      } else if (typeof doc.content === 'string') {
+        textContent = doc.content;
+      }
+
+      if (textContent) {
+        documents.push({
+          title: doc.filename || doc.description || `문서 ${doc.id}`,
+          content: textContent,
+          context: doc.description || `카테고리: ${doc.category}, 태그: ${(doc.tags || []).join(', ')}`
+        });
+      }
+    }
+
+    return documents;
+  }
+
+  /**
+   * 검색 결과를 Claude Citations용 문서로 변환
+   * @param {string} query - 검색어
+   * @param {Object} options - 검색 옵션
+   * @returns {Promise<Array>} Claude API documents 형식
+   */
+  async searchAsClaudeDocuments(query, options = {}) {
+    const results = await this.search(query, options);
+    const ids = results.map(r => r.id);
+    return this.toClaudeDocuments(ids);
+  }
+
+  /**
+   * PDF 파일 저장 및 Claude 형식 반환
+   * PDF는 base64로 저장하고, Claude API에서 직접 사용 가능한 형식 반환
+   *
+   * @param {Buffer} pdfBuffer - PDF 파일 버퍼
+   * @param {string} filename - 파일명
+   * @param {Object} metadata - { category, tags, description }
+   * @returns {Promise<{doc: Object, claudeDoc: Object}>}
+   */
+  async savePdf(pdfBuffer, filename, metadata = {}) {
+    // 1. DocumentStorage에 저장
+    const doc = await this.save(filename, pdfBuffer, {
+      ...metadata,
+      category: metadata.category || 'pdf'
+    });
+
+    // 2. Claude API용 형식 반환
+    const claudeDoc = {
+      type: 'pdf',
+      title: filename,
+      data: pdfBuffer.toString('base64'),
+      context: metadata.description || `카테고리: ${metadata.category || 'pdf'}`
+    };
+
+    return { doc, claudeDoc };
+  }
+
+  /**
+   * 저장된 PDF를 Claude API 형식으로 변환
+   * @param {string} id - 문서 ID
+   * @returns {Promise<Object|null>} Claude API document 형식
+   */
+  async getPdfAsClaudeDocument(id) {
+    const doc = await this.read(id);
+    if (!doc || !doc.filename.toLowerCase().endsWith('.pdf')) {
+      return null;
+    }
+
+    return {
+      type: 'pdf',
+      title: doc.filename,
+      data: Buffer.isBuffer(doc.content) ? doc.content.toString('base64') : doc.content,
+      context: doc.description || `카테고리: ${doc.category}`
+    };
+  }
+
+  /**
+   * PDF 검색 결과를 Claude API 형식으로 변환
+   * @param {string} query - 검색어
+   * @param {Object} options - 검색 옵션
+   * @returns {Promise<Array>} Claude API documents 형식 (PDF용)
+   */
+  async searchPdfsAsClaudeDocuments(query, options = {}) {
+    const results = await this.search(query, { ...options, category: 'pdf' });
+    const claudeDocs = [];
+
+    for (const result of results) {
+      const claudeDoc = await this.getPdfAsClaudeDocument(result.id);
+      if (claudeDoc) {
+        claudeDocs.push(claudeDoc);
+      }
+    }
+
+    return claudeDocs;
+  }
+
+  /**
+   * 이미지 파일 저장 및 Claude 형식 반환
+   * @param {Buffer} imageBuffer - 이미지 버퍼
+   * @param {string} filename - 파일명
+   * @param {Object} metadata - { category, tags, description }
+   * @returns {Promise<{doc: Object, claudeDoc: Object}>}
+   */
+  async saveImage(imageBuffer, filename, metadata = {}) {
+    // MIME 타입 결정
+    const ext = filename.toLowerCase().split('.').pop();
+    const mimeTypes = {
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg',
+      'png': 'image/png',
+      'gif': 'image/gif',
+      'webp': 'image/webp'
+    };
+    const mimeType = mimeTypes[ext] || 'image/jpeg';
+
+    // 1. DocumentStorage에 저장
+    const doc = await this.save(filename, imageBuffer, {
+      ...metadata,
+      category: metadata.category || 'images'
+    });
+
+    // 2. Claude API용 형식 반환
+    const claudeDoc = {
+      type: 'image',
+      media_type: mimeType,
+      data: imageBuffer.toString('base64')
+    };
+
+    return { doc, claudeDoc };
   }
 }
 

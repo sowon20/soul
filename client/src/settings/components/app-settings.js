@@ -308,7 +308,7 @@ export class AppSettings {
             </div>
             <div class="form-group">
               <label>SSE URL</label>
-              <input type="url" name="url" placeholder="예: https://mcp.sowon.mooo.com/smarthome/sse" required>
+              <input type="url" name="url" placeholder="예: https://mcp.example.com/smarthome/sse" required>
             </div>
             <div class="form-actions">
               <button type="button" class="btn-cancel">취소</button>

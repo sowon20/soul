@@ -65,7 +65,7 @@ class ContextDetector {
 
     // 4. 개인 정보 키워드 감지 (Phase P)
     const personalPatterns = [
-      '개인', '나', '내', '소원', '취향', '좋아하는', '싫어하는',
+      '개인', '나', '내', '취향', '좋아하는', '싫어하는',
       '선호', '관심', '취미', '습관', '성격', '특징', '프로필'
     ];
 
@@ -295,7 +295,7 @@ class ContextDetector {
       triggerConfig = {},
       searchOptions = {},
       autoTrigger = true,
-      userId = 'sowon' // Phase P
+      userId = 'default' // 프로필에서 설정된 기본 사용자
     } = options;
 
     // 1. 키워드 추출
@@ -335,7 +335,7 @@ class ContextDetector {
   }
 
   /**
-   * 시스템 프롬프트 생성 (자연스러운 통합)
+   * 시스템 프롬프트 생성 (최적화: 핵심 정보만 포함하여 토큰 절약)
    * @param {Object} detectionResult - detectAndRetrieve()의 결과
    * @returns {string|null} 시스템 프롬프트
    */
@@ -350,25 +350,17 @@ class ContextDetector {
       return null;
     }
 
-    // 자연스러운 형태로 메모리 정보 제공
-    let prompt = '\n\n[Related Context from Past Conversations]\n';
-    prompt += 'You may naturally reference these if relevant to the current discussion:\n\n';
+    // 최적화: 핵심 정보만 압축하여 제공 (토큰 절약)
+    let prompt = '\n[과거 관련 대화]\n';
 
-    memories.forEach((conv, index) => {
-      prompt += `${index + 1}. ${conv.topics?.[0] || 'Conversation'} (${new Date(conv.date).toLocaleDateString()})\n`;
-      prompt += `   - Topics: ${conv.topics?.join(', ') || 'N/A'}\n`;
-      prompt += `   - Tags: ${conv.tags?.slice(0, 5).join(', ') || 'N/A'}\n`;
-      prompt += `   - Category: ${conv.category || 'N/A'}\n`;
-      prompt += `   - Importance: ${conv.importance || 'N/A'}/10\n`;
-      if (conv.relevanceScore) {
-        prompt += `   - Relevance: ${conv.relevanceScore.toFixed(1)}\n`;
-      }
-      prompt += '\n';
+    memories.slice(0, 3).forEach((conv, index) => {
+      const topic = conv.topics?.[0] || '대화';
+      const dateStr = new Date(conv.date).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+      // 태그와 카테고리, 중요도 등 제거 → 토픽만 표시
+      prompt += `${index + 1}. ${topic} (${dateStr})\n`;
     });
 
-    prompt += 'Note: Only mention these past conversations if they\'re genuinely relevant to the user\'s current message. ';
-    prompt += 'Use natural language like "I remember we discussed..." or "Similar to what we talked about before...".\n';
-    prompt += 'Do NOT force references if they don\'t fit naturally.\n';
+    prompt += '필요시 자연스럽게 참조.\n';
 
     return prompt;
   }

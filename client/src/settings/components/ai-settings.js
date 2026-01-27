@@ -95,25 +95,11 @@ export class AISettings {
             ${this.renderSmartRoutingSettings()}
           </section>
 
-          <!-- 라우팅 통계 -->
-          <section class="settings-section">
-            <h3 class="settings-section-title">라우팅 통계</h3>
-            <p class="settings-section-desc">모델별 사용 현황과 비용을 확인합니다.</p>
-            ${this.renderRoutingStats()}
-          </section>
-
           <!-- 알바 설정 -->
           <section class="settings-section">
             <h3 class="settings-section-title">알바</h3>
             <p class="settings-section-desc">전문 AI 알바들이 각자의 역할에 맞게 작업을 수행합니다.</p>
             ${this.renderAgentChainSettings()}
-          </section>
-
-          <!-- Tool Search 설정 (Claude 전용) -->
-          <section class="settings-section">
-            <h3 class="settings-section-title">🔍 Tool Search <span style="font-size: 0.7rem; background: #fef3c7; color: #92400e; padding: 0.1rem 0.4rem; border-radius: 4px; margin-left: 0.5rem;">베타</span></h3>
-            <p class="settings-section-desc">MCP 도구가 많을 때 필요한 도구만 동적으로 검색하여 토큰 절약 (Claude 전용)</p>
-            ${this.renderToolSearchSettings()}
           </section>
 
           <!-- 메모리 설정 -->
@@ -1802,21 +1788,58 @@ export class AISettings {
         </div>
 
         <div class="service-body">
-          <!-- API 키 상태 -->
-          <div class="service-api-key">
-            <div class="api-key-status">
-              ${service.hasApiKey
-                ? '<span class="status-badge status-success">✓ API 키 설정됨</span>'
-                : '<span class="status-badge status-warning">✗ API 키 미설정</span>'
-              }
+          ${service.type === 'vertex' ? `
+            <!-- Vertex AI 전용 설정 -->
+            <div class="vertex-config" style="margin-bottom: 0.75rem;">
+              <div style="margin-bottom: 0.5rem;">
+                <label style="font-size: 0.75rem; color: #666; display: block; margin-bottom: 0.25rem;">
+                  Project ID <span style="color: #ef4444;">*</span>
+                </label>
+                <input type="text"
+                       class="vertex-project-input"
+                       data-service-id="${service.id}"
+                       value="${service.projectId || ''}"
+                       placeholder="my-gcp-project"
+                       style="width: 100%; padding: 0.4rem; border: 1px solid #ddd; border-radius: 6px; font-size: 0.85rem; box-sizing: border-box;">
+              </div>
+              <div style="display: flex; gap: 0.5rem;">
+                <div style="flex: 1;">
+                  <label style="font-size: 0.75rem; color: #666; display: block; margin-bottom: 0.25rem;">Region</label>
+                  <select class="vertex-region-select"
+                          data-service-id="${service.id}"
+                          style="width: 100%; padding: 0.4rem; border: 1px solid #ddd; border-radius: 6px; font-size: 0.85rem;">
+                    <option value="us-east5" ${service.region === 'us-east5' ? 'selected' : ''}>us-east5 (기본)</option>
+                    <option value="europe-west1" ${service.region === 'europe-west1' ? 'selected' : ''}>europe-west1</option>
+                    <option value="asia-southeast1" ${service.region === 'asia-southeast1' ? 'selected' : ''}>asia-southeast1</option>
+                  </select>
+                </div>
+                <button class="settings-btn settings-btn-sm settings-btn-primary vertex-save-btn"
+                        data-service-id="${service.id}"
+                        style="align-self: flex-end; padding: 0.4rem 0.75rem;">
+                  저장
+                </button>
+              </div>
+              <p style="font-size: 0.7rem; color: #888; margin-top: 0.5rem;">
+                ADC(gcloud auth) 또는 서비스 계정 인증 필요
+              </p>
             </div>
-            <button class="settings-btn settings-btn-sm settings-btn-secondary"
-                    data-service-id="${service.id}"
-                    data-action="edit-api-key"
-                    style="width: 100%;">
-              ${service.hasApiKey ? '키 변경' : '키 설정'}
-            </button>
-          </div>
+          ` : `
+            <!-- API 키 상태 -->
+            <div class="service-api-key">
+              <div class="api-key-status">
+                ${service.hasApiKey
+                  ? '<span class="status-badge status-success">✓ API 키 설정됨</span>'
+                  : '<span class="status-badge status-warning">✗ API 키 미설정</span>'
+                }
+              </div>
+              <button class="settings-btn settings-btn-sm settings-btn-secondary"
+                      data-service-id="${service.id}"
+                      data-action="edit-api-key"
+                      style="width: 100%;">
+                ${service.hasApiKey ? '키 변경' : '키 설정'}
+              </button>
+            </div>
+          `}
 
           <!-- 모델 정보 -->
           ${service.modelCount > 0 ? `
@@ -1830,7 +1853,7 @@ export class AISettings {
 
           <!-- 작업 버튼 -->
           <div class="service-actions">
-            ${service.hasApiKey ? `
+            ${(service.type === 'vertex' ? service.projectId : service.hasApiKey) ? `
               <button class="settings-btn settings-btn-sm settings-btn-primary"
                       data-service-id="${service.id}"
                       data-action="test-connection">
@@ -1842,7 +1865,10 @@ export class AISettings {
                 모델 새로고침
               </button>
             ` : `
-              <p class="service-hint">API 키를 설정하면 연결 테스트와 모델 갱신이 가능합니다.</p>
+              <p class="service-hint">${service.type === 'vertex'
+                ? 'Project ID를 설정하면 연결 테스트와 모델 갱신이 가능합니다.'
+                : 'API 키를 설정하면 연결 테스트와 모델 갱신이 가능합니다.'
+              }</p>
             `}
           </div>
         </div>
@@ -1870,6 +1896,7 @@ export class AISettings {
     const icons = {
       'anthropic': '🤖',
       'openai': '🧠',
+      'vertex': '☁️',
       'google': '🔵',
       'ollama': '🦙',
       'custom': '⚙️'
@@ -1941,6 +1968,14 @@ export class AISettings {
           break;
       }
     }, { signal });
+
+    // Vertex AI 저장 버튼
+    container.querySelectorAll('.vertex-save-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const serviceId = btn.dataset.serviceId;
+        await this.saveVertexConfig(serviceId);
+      });
+    });
 
     // 라우팅 설정 버튼
     const saveRoutingBtn = container.querySelector('#saveRoutingBtn');
@@ -2406,6 +2441,40 @@ export class AISettings {
     } catch (error) {
       console.error('Failed to update API key:', error);
       this.showSaveStatus('API 키 저장에 실패했습니다.', 'error');
+    }
+  }
+
+  /**
+   * Vertex AI 설정 저장
+   */
+  async saveVertexConfig(serviceId) {
+    const projectInput = document.querySelector(`.vertex-project-input[data-service-id="${serviceId}"]`);
+    const regionSelect = document.querySelector(`.vertex-region-select[data-service-id="${serviceId}"]`);
+
+    if (!projectInput || !regionSelect) return;
+
+    const projectId = projectInput.value.trim();
+    const region = regionSelect.value;
+
+    if (!projectId) {
+      this.showSaveStatus('Project ID를 입력해주세요.', 'error');
+      return;
+    }
+
+    try {
+      await this.apiClient.patch(`/ai-services/${serviceId}`, {
+        projectId,
+        region
+      });
+
+      this.showSaveStatus('Vertex AI 설정이 저장되었습니다.', 'success');
+
+      // 서비스 목록 새로고침
+      await this.loadServices();
+      this.collectAvailableModels();
+    } catch (error) {
+      console.error('Failed to save Vertex config:', error);
+      this.showSaveStatus('Vertex AI 설정 저장에 실패했습니다.', 'error');
     }
   }
 

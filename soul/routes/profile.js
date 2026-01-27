@@ -603,11 +603,11 @@ router.patch('/user/:userId/theme', async (req, res) => {
 
 /**
  * GET /api/profile/p
- * 전체 프로필 조회 (소원의 프로필)
+ * 전체 프로필 조회
  */
 router.get('/p', async (req, res) => {
   try {
-    const userId = req.query.userId || 'sowon';
+    const userId = req.query.userId || 'default';
     const profile = await ProfileModel.getOrCreateDefault(userId);
 
     res.json({
@@ -629,7 +629,7 @@ router.get('/p', async (req, res) => {
  */
 router.get('/p/summary', async (req, res) => {
   try {
-    const userId = req.query.userId || 'sowon';
+    const userId = req.query.userId || 'default';
     const scope = req.query.scope || 'limited'; // full, limited, minimal
     const keywords = req.query.keywords ? req.query.keywords.split(',') : null;
 
@@ -672,7 +672,7 @@ router.get('/p/summary', async (req, res) => {
 router.get('/p/detail/:fieldId', async (req, res) => {
   try {
     const { fieldId } = req.params;
-    const userId = req.query.userId || 'sowon';
+    const userId = req.query.userId || 'default';
 
     const profile = await ProfileModel.getOrCreateDefault(userId);
     const field = profile.customFields.find(f => f.id === fieldId);
@@ -703,7 +703,7 @@ router.get('/p/detail/:fieldId', async (req, res) => {
  */
 router.post('/p/fields', async (req, res) => {
   try {
-    const userId = req.body.userId || 'sowon';
+    const userId = req.body.userId || 'default';
     const fieldData = req.body;
 
     const profile = await ProfileModel.getOrCreateDefault(userId);
@@ -730,7 +730,7 @@ router.post('/p/fields', async (req, res) => {
 router.put('/p/fields/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.body.userId || 'sowon';
+    const userId = req.body.userId || 'default';
     const updates = req.body;
 
     const profile = await ProfileModel.getOrCreateDefault(userId);
@@ -759,7 +759,7 @@ router.put('/p/fields/:id', async (req, res) => {
 router.delete('/p/fields/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.query.userId || 'sowon';
+    const userId = req.query.userId || 'default';
 
     const profile = await ProfileModel.getOrCreateDefault(userId);
     await profile.deleteField(id);
@@ -783,7 +783,7 @@ router.delete('/p/fields/:id', async (req, res) => {
  */
 router.put('/p/fields/reorder', async (req, res) => {
   try {
-    const userId = req.body.userId || 'sowon';
+    const userId = req.body.userId || 'default';
     const fieldOrders = req.body.fieldOrders; // [{ id, order }, ...]
 
     if (!Array.isArray(fieldOrders)) {
@@ -816,7 +816,7 @@ router.put('/p/fields/reorder', async (req, res) => {
  */
 router.get('/p/permissions', async (req, res) => {
   try {
-    const userId = req.query.userId || 'sowon';
+    const userId = req.query.userId || 'default';
     const profile = await ProfileModel.getOrCreateDefault(userId);
 
     res.json({
@@ -838,7 +838,7 @@ router.get('/p/permissions', async (req, res) => {
  */
 router.put('/p/basic/:fieldKey', async (req, res) => {
   try {
-    const userId = req.body.userId || 'sowon';
+    const userId = req.body.userId || 'default';
     const { fieldKey } = req.params;
     const { value } = req.body;
 
@@ -874,7 +874,7 @@ router.put('/p/basic/:fieldKey', async (req, res) => {
  */
 router.put('/p/basic/:fieldKey/visibility', async (req, res) => {
   try {
-    const userId = req.body.userId || 'sowon';
+    const userId = req.body.userId || 'default';
     const { fieldKey } = req.params;
     const visibilityUpdates = req.body;
 
@@ -914,7 +914,7 @@ router.put('/p/basic/:fieldKey/visibility', async (req, res) => {
  */
 router.patch('/p/permissions', async (req, res) => {
   try {
-    const userId = req.body.userId || 'sowon';
+    const userId = req.body.userId || 'default';
     const permissionUpdates = req.body;
 
     const profile = await ProfileModel.getOrCreateDefault(userId);
@@ -940,7 +940,7 @@ router.patch('/p/permissions', async (req, res) => {
  */
 router.get('/p/image', async (req, res) => {
   try {
-    const userId = req.query.userId || 'sowon';
+    const userId = req.query.userId || 'default';
     const profile = await ProfileModel.getOrCreateDefault(userId);
 
     res.json({
@@ -962,7 +962,7 @@ router.get('/p/image', async (req, res) => {
  */
 router.put('/p/image', async (req, res) => {
   try {
-    const userId = req.body.userId || 'sowon';
+    const userId = req.body.userId || 'default';
     const { imageData } = req.body;
 
     if (!imageData) {
@@ -1008,7 +1008,7 @@ router.put('/p/image', async (req, res) => {
  */
 router.delete('/p/image', async (req, res) => {
   try {
-    const userId = req.query.userId || 'sowon';
+    const userId = req.query.userId || 'default';
 
     const profile = await ProfileModel.getOrCreateDefault(userId);
     profile.profileImage = null;

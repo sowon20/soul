@@ -107,7 +107,7 @@ const tools = [
   },
   {
     name: 'add_my_rule',
-    description: '새로 배운 것, 기억해둘 것 저장. 실수해서 깨달은 것, 소원이가 알려준 것 등을 메모할 때 사용.',
+    description: '새로 배운 것, 기억해둘 것 저장. 실수해서 깨달은 것, 사용자가 알려준 것 등을 메모할 때 사용.',
     input_schema: {
       type: 'object',
       properties: {
@@ -118,7 +118,7 @@ const tools = [
         category: {
           type: 'string',
           enum: ['system', 'coding', 'daily', 'personality', 'user', 'general'],
-          description: '카테고리 (system: 시스템/인프라, coding: 코딩, user: 소원이 관련, general: 일반)'
+          description: '카테고리 (system: 시스템/인프라, coding: 코딩, user: 사용자 관련, general: 일반)'
         },
         priority: {
           type: 'number',

@@ -20,46 +20,76 @@ let externalServersCache = {};
 const CONFIG_PATH = path.join(__dirname, '../../mcp/server-config.json');
 
 /**
- * 내장 도구 정의
+ * input_schema 압축 (토큰 절약)
+ * - description 30자 제한
+ * - 불필요한 필드 제거
+ */
+function compressInputSchema(schema) {
+  if (!schema || typeof schema !== 'object') return { type: 'object', properties: {} };
+
+  const compressed = { type: schema.type || 'object' };
+
+  if (schema.properties) {
+    compressed.properties = {};
+    for (const [key, prop] of Object.entries(schema.properties)) {
+      compressed.properties[key] = { type: prop.type || 'string' };
+      // description 30자로 제한
+      if (prop.description) {
+        compressed.properties[key].description = prop.description.length > 30
+          ? prop.description.substring(0, 27) + '...'
+          : prop.description;
+      }
+      // enum은 유지 (선택지 정보 중요)
+      if (prop.enum) compressed.properties[key].enum = prop.enum;
+    }
+  }
+
+  if (schema.required) compressed.required = schema.required;
+
+  return compressed;
+}
+
+/**
+ * 내장 도구 정의 (description 압축으로 토큰 절약)
  */
 const BUILTIN_TOOLS = [
   {
     name: 'send_message',
-    description: '사용자에게 즉시 메시지를 보냅니다.',
+    description: '즉시 메시지 전송',
     input_schema: {
       type: 'object',
       properties: {
-        message: { type: 'string', description: '보낼 메시지 내용' }
+        message: { type: 'string', description: '내용' }
       },
       required: ['message']
     }
   },
   {
     name: 'schedule_message',
-    description: '일정 시간 후에 메시지를 보냅니다.',
+    description: '예약 메시지',
     input_schema: {
       type: 'object',
       properties: {
-        message: { type: 'string', description: '보낼 메시지 내용' },
-        delay_seconds: { type: 'number', description: '몇 초 후에 보낼지' }
+        message: { type: 'string', description: '내용' },
+        delay_seconds: { type: 'number', description: '초' }
       },
       required: ['message']
     }
   },
   {
     name: 'cancel_scheduled_message',
-    description: '예약된 메시지를 취소합니다.',
+    description: '예약 취소',
     input_schema: {
       type: 'object',
       properties: {
-        schedule_id: { type: 'number', description: '취소할 예약 ID' }
+        schedule_id: { type: 'number', description: 'ID' }
       },
       required: ['schedule_id']
     }
   },
   {
     name: 'list_scheduled_messages',
-    description: '현재 예약된 메시지 목록을 보여줍니다.',
+    description: '예약 목록',
     input_schema: { type: 'object', properties: {} }
   }
 ];
@@ -211,10 +241,14 @@ async function loadMCPTools() {
         const externalTools = await fetchExternalTools(serverInfo);
         for (const tool of externalTools) {
           const fullName = `${serverId}__${tool.name}`; // 서버별 구분
+          // description 압축 (50자 제한)
+          const shortDesc = tool.description?.length > 50
+            ? tool.description.substring(0, 47) + '...'
+            : tool.description || '';
           tools.push({
             name: fullName,
-            description: `[${serverInfo.name}] ${tool.description}`,
-            input_schema: tool.inputSchema || tool.input_schema || { type: 'object', properties: {} }
+            description: `[${serverInfo.name}] ${shortDesc}`,
+            input_schema: compressInputSchema(tool.inputSchema || tool.input_schema || { type: 'object', properties: {} })
           });
           externalServersCache[fullName] = serverInfo.url;
           executorsCache[fullName] = (name, input) => executeExternalTool(serverInfo.url, tool.name, input);

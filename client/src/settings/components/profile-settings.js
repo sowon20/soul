@@ -6,7 +6,7 @@
 export class ProfileSettings {
   constructor() {
     this.profile = null;
-    this.userId = 'sowon';
+    this.userId = localStorage.getItem('userId') || 'default';
   }
 
   /**
@@ -18,7 +18,7 @@ export class ProfileSettings {
 
     try {
       // 프로필 데이터 로드
-      const response = await apiClient.get('/profile/p?userId=sowon');
+      const response = await apiClient.get(`/profile/p?userId=${this.userId}`);
       this.profile = response.profile;
 
       // UI 렌더링
@@ -56,7 +56,7 @@ export class ProfileSettings {
               </div>
               <input type="file" id="profileImageInput" accept="image/*" style="display: none;">
               <div class="profile-image-info">
-                <span class="profile-image-name">${this.profile.basicInfo.name?.value || '소원'}</span>
+                <span class="profile-image-name">${this.profile.basicInfo.name?.value || 'User'}</span>
               </div>
             </div>
           </section>
@@ -439,7 +439,7 @@ export class ProfileSettings {
   updateMainProfile(fieldKey, value) {
     if (fieldKey === 'name') {
       const userName = document.querySelector('.profile-section .user-name');
-      if (userName) userName.textContent = value || '소원';
+      if (userName) userName.textContent = value || 'User';
     } else if (fieldKey === 'email') {
       const userEmail = document.querySelector('.profile-section .user-email');
       if (userEmail) userEmail.textContent = value || '';

@@ -16,6 +16,7 @@
  */
 
 const Anthropic = require('@anthropic-ai/sdk');
+const { AIServiceFactory } = require('./ai-service');
 
 class BatchProcessor {
   constructor() {
@@ -325,6 +326,22 @@ JSON 배열로 응답: ["태그1", "태그2", ...]`;
         const request = originalRequests.find(r => r.id === result.custom_id);
         if (!request) continue;
 
+        // 배치 결과에서 usage 추적
+        if (result.result?.type === 'succeeded' && result.result.message?.usage) {
+          try {
+            await AIServiceFactory.trackUsage({
+              serviceId: 'anthropic',
+              modelId: result.result.message?.model || 'claude-3-5-haiku-20241022',
+              tier: 'light',
+              usage: result.result.message.usage,
+              latency: 0, // 배치는 지연 시간 측정 불가
+              category: 'summary'
+            });
+          } catch (trackError) {
+            console.warn('[BatchProcessor] Batch usage tracking failed:', trackError.message);
+          }
+        }
+
         const parsedResult = this._parseResult(result, request.type);
         this.batchResults.set(request.id, parsedResult);
 
@@ -383,11 +400,27 @@ JSON 배열로 응답: ["태그1", "태그2", ...]`;
    * 개별 처리 (폴백) - Prefill 고려
    */
   async _processIndividually(req) {
+    const startTime = Date.now();
     try {
       const params = this._buildRequestParams(req);
       const response = await this.client.messages.create(params);
 
       const content = response.content?.[0]?.text || '';
+
+      // 사용량 추적
+      const latency = Date.now() - startTime;
+      try {
+        await AIServiceFactory.trackUsage({
+          serviceId: 'anthropic',
+          modelId: params.model || 'claude-3-5-haiku-20241022',
+          tier: 'light',
+          usage: response.usage || {},
+          latency,
+          category: 'summary'
+        });
+      } catch (trackError) {
+        console.warn('[BatchProcessor] Usage tracking failed:', trackError.message);
+      }
 
       // Prefill된 시작 문자 추가하여 파싱
       const prefix = req.type === 'tag_generation' ? '[' : '{';

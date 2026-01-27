@@ -28,8 +28,25 @@ const aiServiceSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ['openai', 'anthropic', 'google', 'ollama', 'openai-compatible'],
+    enum: ['openai', 'anthropic', 'google', 'ollama', 'openai-compatible', 'vertex'],
     default: 'openai-compatible'
+  },
+
+  // Vertex AI 전용 필드
+  projectId: {
+    type: String,
+    default: null,
+    trim: true
+  },
+  region: {
+    type: String,
+    default: 'us-east5',  // 기본 리전
+    trim: true
+  },
+  credentials: {
+    type: String,  // 서비스 계정 JSON 파일 경로 (선택)
+    default: null,
+    trim: true
   },
 
   // API Base URL
@@ -142,6 +159,17 @@ aiServiceSchema.statics.initializeBuiltInServices = async function() {
       apiKey: null,  // 필요 없음
       isBuiltIn: true,
       isActive: true
+    },
+    {
+      serviceId: 'vertex',
+      name: 'Vertex AI (Claude)',
+      type: 'vertex',
+      baseUrl: 'https://us-east5-aiplatform.googleapis.com',  // 리전에 따라 변경
+      apiKey: null,  // Google Cloud 인증 사용
+      projectId: null,  // UI에서 설정
+      region: 'us-east5',
+      isBuiltIn: true,
+      isActive: false
     }
   ];
 

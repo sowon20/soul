@@ -25,7 +25,7 @@ const { getDensityManager } = require('./density-manager');
 class ConversationPipeline {
   constructor(config = {}) {
     this.config = {
-      maxTokens: config.maxTokens || 100000, // 기본 100K 토큰
+      maxTokens: config.maxTokens || 30000, // 30K 토큰 (비용 절감)
       model: config.model || 'claude-3-5-sonnet-20241022',
       compressionThreshold: config.compressionThreshold || 0.8, // 80%
       autoMemoryInjection: config.autoMemoryInjection !== false, // 기본 활성화
@@ -44,6 +44,13 @@ class ConversationPipeline {
 
   /**
    * 대화 메시지 구성
+   *
+   * Long Context 최적화 구조:
+   * 1. [System] 컨텍스트/문서 (프로필, 시간 정보 등)
+   * 2. [대화 히스토리] 이전 대화
+   * 3. [User] 현재 사용자 메시지 (가장 마지막)
+   *
+   * Claude 권장: 문서를 상단에, 쿼리를 하단에 배치하면 30% 성능 향상
    */
   async buildConversationMessages(userMessage, sessionId, options = {}) {
     try {
@@ -54,83 +61,62 @@ class ConversationPipeline {
       const messages = [];
       let totalTokens = 0;
 
-      // 1. 시스템 프롬프트 추가 (프로필 요약 포함)
-      const systemPrompt = await this._buildSystemPromptWithProfile(options);
-      messages.push({
-        role: 'system',
-        content: systemPrompt
-      });
-      totalTokens += this._estimateTokens(systemPrompt);
+      // === 1단계: 컨텍스트/문서 섹션 (상단) ===
 
-      // 1.5 시간 인지 프롬프트 추가
+      // 1-1. 시스템 프롬프트 (프로필 포함)
+      const systemPrompt = await this._buildSystemPromptWithProfile(options);
+
+      // 1-2. 시간 인지 프롬프트
       const { getTimeAwarePromptBuilder } = require('./time-aware-prompt');
       const timePromptBuilder = getTimeAwarePromptBuilder();
-      
-      // 마지막 메시지 시간 가져오기
+
       const recentMsgs = this.memoryManager?.shortTerm?.messages || [];
-      const lastMsgTime = recentMsgs.length > 0 
-        ? recentMsgs[recentMsgs.length - 1].timestamp 
+      const lastMsgTime = recentMsgs.length > 0
+        ? recentMsgs[recentMsgs.length - 1].timestamp
         : null;
-      
+
       const timePrompt = await timePromptBuilder.build({
         timezone: options.timezone || 'Asia/Seoul',
         lastMessageTime: lastMsgTime,
         sessionDuration: 0,
         messageIndex: recentMsgs.length
       });
-      
+
+      // 컨텍스트를 XML로 구조화하여 단일 시스템 메시지로 병합
+      let contextContent = '<context>\n';
+      contextContent += systemPrompt;
       if (timePrompt) {
-        messages.push({
-          role: 'system',
-          content: timePrompt
-        });
-        totalTokens += this._estimateTokens(timePrompt);
+        contextContent += `\n\n<time_context>\n${timePrompt}\n</time_context>`;
       }
+      contextContent += '\n</context>';
 
-      // 2. 컨텍스트 감지 (과거 대화 참조 여부)
+      messages.push({
+        role: 'system',
+        content: contextContent
+      });
+      totalTokens += this._estimateTokens(contextContent);
+
+      // 컨텍스트 자동 감지 - 비활성화 (AI가 recall_memory로 직접 검색)
       let contextData = null;
-      if (this.config.autoMemoryInjection) {
-        contextData = await this._detectAndInjectContext(userMessage, sessionId);
 
-        if (contextData && contextData.relevantMemories.length > 0) {
-          // 관련 메모리를 시스템 프롬프트에 추가
-          const memoryPrompt = this._buildMemoryPrompt(contextData.relevantMemories);
-          messages.push({
-            role: 'system',
-            content: memoryPrompt
-          });
-          totalTokens += this._estimateTokens(memoryPrompt);
-        }
-
-        // Phase P: 프로필 필드가 감지되었다면 추가
-        if (contextData && contextData.profileFields && contextData.profileFields.length > 0) {
-          const profilePrompt = this._buildProfileFieldsPrompt(contextData.profileFields);
-          messages.push({
-            role: 'system',
-            content: profilePrompt
-          });
-          totalTokens += this._estimateTokens(profilePrompt);
-        }
-      }
-
-      // 3. 메모리 매니저에서 메시지 가져오기 (역순, 토큰 제한 내)
+      // === 2단계: 대화 히스토리 (중간) ===
       const remainingTokens = this.config.maxTokens - totalTokens - this._estimateTokens(userMessage);
       const historyMessages = await this._getMessagesWithinTokenLimit(sessionId, remainingTokens);
 
       messages.push(...historyMessages);
       totalTokens += historyMessages.reduce((sum, m) => sum + this._estimateTokens(m.content), 0);
 
-      // 4. 현재 사용자 메시지 추가
+      // === 3단계: 현재 사용자 메시지 (가장 마지막) ===
       messages.push({
         role: 'user',
         content: userMessage
       });
       totalTokens += this._estimateTokens(userMessage);
 
-      // 5. 토큰 사용량 분석
+      // 토큰 사용량 분석
       const usage = tokenCounter.analyzeUsage(messages, this.config.model);
 
-      // 6. 자동 압축 필요 여부 체크
+      // 자동 압축 필요 여부 체크
       if (usage.percentage >= this.config.compressionThreshold) {
         console.log(`Token usage at ${(usage.percentage * 100).toFixed(1)}%, triggering auto-compression`);
         const compressed = await this._autoCompress(messages, sessionId);
@@ -176,33 +162,16 @@ class ConversationPipeline {
 
       // 1. 원문 (80%) - 단기 메모리에서 최신 대화
       const rawResult = this.memoryManager.shortTerm.getWithinTokenLimit(rawTokenBudget);
+      console.log(`[Pipeline] Context: ${rawResult.messages.length} raw messages, ${rawResult.totalTokens} tokens (budget: ${rawTokenBudget})`);
       const rawMessages = rawResult.messages.map(m => ({
         role: m.role,
         content: m.content
       }));
 
-      // 2. 주간 요약 (20%) - 중기 메모리에서 요약
+      // 2. 주간 요약 - 자동 로드 제거
+      // 설계 의도: AI가 필요할 때 recall_memory 도구로 직접 조회
+      // 컨텍스트에는 "조회 가능하다"는 안내만 제공
       let summaryContent = '';
-      try {
-        const summaries = await this.memoryManager.middleTerm.getRecentWeeklySummaries(4);
-        if (summaries && summaries.length > 0) {
-          summaryContent = '\n=== 최근 기억 요약 ===\n';
-          for (const s of summaries) {
-            const weekLabel = `${s.year}년 ${s.month}월 ${s.weekNum}주차`;
-            summaryContent += `\n[${weekLabel}]\n`;
-            summaryContent += `${s.summary}\n`;
-            if (s.highlights && s.highlights.length > 0) {
-              summaryContent += `주요 내용: ${s.highlights.join(', ')}\n`;
-            }
-            if (s.topics && s.topics.length > 0) {
-              summaryContent += `주제: ${s.topics.join(', ')}\n`;
-            }
-          }
-          summaryContent += '\n=== 요약 끝 ===\n';
-        }
-      } catch (err) {
-        console.warn('[Pipeline] Failed to load weekly summaries:', err.message);
-      }
 
       // 3. 요약이 있으면 시스템 메시지로 먼저 추가
       if (summaryContent) {
@@ -455,92 +424,109 @@ class ConversationPipeline {
 
   /**
    * 프로필 포함 시스템 프롬프트 구성 (Phase P)
+   *
+   * Long Context 최적화: XML 태그로 구조화
+   * - 문서/정보는 상단에 배치
+   * - 지침은 하단에 배치
    */
   async _buildSystemPromptWithProfile(options = {}) {
-    let prompt = options.systemPrompt || this.config.systemPrompt;
-    let userTimezone = 'Asia/Seoul'; // 기본 타임존
+    let userTimezone = 'Asia/Seoul';
 
-    // 프로필 자동 포함 (Phase P)
+    // === 1. 인격/역할 정의 (기본 프롬프트) ===
+    let basePrompt = options.systemPrompt || this.config.systemPrompt;
+
+    // === 2. 사용자 프로필 (문서 섹션) ===
+    let profileSection = '';
     try {
-      const userId = options.userId || 'sowon';
+      const userId = options.userId || 'default';
       const profile = await ProfileModel.getOrCreateDefault(userId);
 
-      // 프로필 권한 체크
       if (profile.permissions.autoIncludeInContext) {
         const profileSummary = profile.generateSummary(profile.permissions.readScope);
+        const basicInfo = profileSummary.basicInfo || {};
 
-        // 프로필 정보를 시스템 프롬프트에 추가
-        prompt += '\n\n=== 사용자 프로필 ===\n';
+        const name = basicInfo.name || '';
+        const nickname = basicInfo.nickname ? ` (${basicInfo.nickname})` : '';
+        const location = basicInfo.location || '';
+        const tz = typeof basicInfo.timezone === 'string'
+          ? basicInfo.timezone
+          : (basicInfo.timezone?.value || 'Asia/Seoul');
 
-        // 기본 정보
-        if (profileSummary.basicInfo) {
-          prompt += `\n이름: ${profileSummary.basicInfo.name || '소원'}`;
-          if (profileSummary.basicInfo.nickname) {
-            prompt += ` (${profileSummary.basicInfo.nickname})`;
-          }
-          if (profileSummary.basicInfo.location) {
-            prompt += `\n위치: ${profileSummary.basicInfo.location}`;
-          }
-          if (profileSummary.basicInfo.timezone) {
-            // timezone이 객체인 경우 value 추출, 문자열인 경우 그대로 사용
-            const tz = typeof profileSummary.basicInfo.timezone === 'string'
-              ? profileSummary.basicInfo.timezone
-              : (profileSummary.basicInfo.timezone?.value || 'Asia/Seoul');
-            prompt += `\n타임존: ${tz}`;
-            userTimezone = tz; // 프로필 타임존 사용
-          }
-        }
+        userTimezone = tz;
+
+        // 프로필 정보를 XML로 구조화
+        profileSection = '<user_profile>\n';
+        if (name) profileSection += `이름: ${name}${nickname}\n`;
+        if (location) profileSection += `위치: ${location}\n`;
 
         // 커스텀 필드
         if (profileSummary.customFields && profileSummary.customFields.length > 0) {
-          prompt += '\n\n추가 정보:';
-          profileSummary.customFields.forEach(field => {
-            if (field.value) {
-              prompt += `\n- ${field.label}: ${field.value}`;
-            }
-          });
+          const fields = profileSummary.customFields.filter(f => f.value);
+          for (const field of fields) {
+            const value = field.value.length > 50
+              ? field.value.substring(0, 47) + '...'
+              : field.value;
+            profileSection += `${field.label}: ${value}\n`;
+          }
         }
+        profileSection += '</user_profile>';
 
-        prompt += '\n\n=== 프로필 끝 ===\n';
-        prompt += '\n위 프로필 정보를 참고하여 개인화된 대화를 진행해주세요.\n';
-
-        // 액세스 기록
         await profile.recordAccess('soul');
       }
     } catch (error) {
       console.error('Error loading profile for system prompt:', error);
-      // 프로필 로드 실패해도 대화는 계속 진행
     }
 
-    // 시간 정보 추가 (프로필 타임존 반영)
+    // === 3. 시간 정보 ===
+    let timeSection = '';
     if (options.includeTime !== false) {
       const now = new Date();
-      const timeInfo = `\n현재 시간: ${now.toLocaleString('ko-KR', { timeZone: userTimezone })}`;
-      prompt += timeInfo;
+      timeSection = `<current_time>${now.toLocaleString('ko-KR', { timeZone: userTimezone })}</current_time>`;
     }
 
-    // 사용자 정보 추가
-    if (options.userContext) {
-      prompt += `\n\n사용자 컨텍스트:\n${JSON.stringify(options.userContext, null, 2)}`;
-    }
-
-    // 추가 지시사항
-    if (options.additionalInstructions) {
-      prompt += `\n\n추가 지시사항:\n${options.additionalInstructions}`;
-    }
-
-    // 사용자 커스텀 프롬프트 (UI에서 설정한 시스템 프롬프트)
+    // === 4. 사용자 커스텀 프롬프트 ===
+    let customSection = '';
     try {
       const agentManager = getAgentProfileManager();
       const agentProfile = agentManager.getProfile('default');
       if (agentProfile && agentProfile.customPrompt && agentProfile.customPrompt.trim()) {
-        prompt += `\n\n=== 사용자 지정 지침 ===\n`;
-        prompt += agentProfile.customPrompt.trim();
-        prompt += `\n=== 지침 끝 ===\n`;
+        customSection = `<custom_instructions>\n${agentProfile.customPrompt.trim()}\n</custom_instructions>`;
         console.log(`[Pipeline] Custom prompt added: ${agentProfile.customPrompt.substring(0, 50)}...`);
       }
     } catch (error) {
       console.warn('[Pipeline] Failed to load custom prompt:', error.message);
+    }
+
+    // === 5. 핵심 원칙 (지침 섹션) ===
+    const coreInstructions = `<core_principles>
+메모리 활용:
+- 현재 대화 → 바로 참조
+- 과거 대화 → recall_memory(키워드)
+- 프로필 상세 → get_profile()
+
+판단: 추측하려는 순간 = 도구 써야 하는 순간
+</core_principles>`;
+
+    // === 최종 조합: 문서(상단) → 인격 → 지침(하단) ===
+    let prompt = '';
+
+    // 문서/정보 섹션 (상단)
+    if (profileSection) prompt += profileSection + '\n\n';
+    if (timeSection) prompt += timeSection + '\n\n';
+
+    // 인격/역할 정의
+    prompt += basePrompt;
+
+    // 지침 섹션 (하단)
+    if (customSection) prompt += '\n\n' + customSection;
+    prompt += '\n\n' + coreInstructions;
+
+    // 추가 옵션
+    if (options.userContext) {
+      prompt += `\n\n<additional_context>\n${JSON.stringify(options.userContext, null, 2)}\n</additional_context>`;
+    }
+    if (options.additionalInstructions) {
+      prompt += `\n\n<additional_instructions>\n${options.additionalInstructions}\n</additional_instructions>`;
     }
 
     return prompt;
@@ -579,29 +565,25 @@ class ConversationPipeline {
   }
 
   /**
-   * 기본 시스템 프롬프트
+   * 기본 시스템 프롬프트 - 개인 AI (사용자명은 프로필에서 주입됨)
    */
   _getDefaultSystemPrompt() {
-    return `당신은 Soul, 사용자의 AI 동반자입니다.
+    return `나는 사용자의 개인 AI.
 
-핵심 원칙:
-- 단일 인격: 일관되고 자연스러운 대화체
-- 맥락 인지: 과거 대화를 기억하고 참조
-- 자연스러움: 템플릿화된 응답 금지
-- 투명성: 모르는 것은 솔직하게 인정
+**나의 역할:**
+- 이 사용자만을 위한 개인 비서이자 동반자
+- 사용자를 깊이 이해하고 기억하는 존재
+- 일반 AI가 아닌, 사용자와 관계를 쌓아가는 AI
 
-대화 스타일:
-- 사용자의 말투에 30% 정도 맞춤
-- 상황에 따라 유연하게 대응
-- 불필요한 존댓말이나 인사 최소화
-- 핵심만 간결하게
+**핵심 원칙:**
+- 사용자에 대한 건 선명하게 기억 (희미하면 recall_memory)
+- 새로 알게 된 건 저장 (update_profile)
+- 추측 금지: 모르면 찾고, 없으면 솔직히 말하기
+- 일관된 인격 유지
 
-능력:
-- 메모리 검색 및 과거 대화 참조
-- 자연어 명령 처리
-- 파일 관리 및 문서 분석
-- 코드 작성 및 디버깅
-- 일정 관리 및 알림`;
+**대화 스타일:**
+- 편한 대화체, 핵심만 간결하게
+- 사용자 말투에 자연스럽게 맞춤`;
   }
 
   /**

@@ -108,8 +108,8 @@ class SoulApp {
 
   async loadUserProfile() {
     try {
-      // TODO: 실제 사용자 ID 가져오기 (인증 시스템 통합 후)
-      const userId = 'sowon'; // 임시
+      // 사용자 ID: 인증 시스템 통합 전까지 localStorage 또는 기본값 사용
+      const userId = localStorage.getItem('userId') || 'default';
 
       // Set userId in themeManager for server syncing
       this.themeManager.setUserId(userId);
@@ -143,7 +143,7 @@ class SoulApp {
     } catch (error) {
       console.warn('사용자 프로필 로드 실패:', error);
       // Use default theme (but still set userId for future saves)
-      const userId = 'sowon'; // 임시
+      const userId = localStorage.getItem('userId') || 'default';
       this.themeManager.setUserId(userId);
       await this.themeManager.applyTheme('default');
     }
@@ -676,9 +676,9 @@ class SoulApp {
 
     console.log('✅ 가운데 메뉴 버튼 등록:', buttons.length);
 
-    // 사운드 효과
-    const inSound = new Audio('http://data.tomazki.com/inSound.mp3');
-    const outSound = new Audio('http://data.tomazki.com/outSound.mp3');
+    // 사운드 효과 (로컬 assets 사용)
+    const inSound = new Audio('./src/assets/sounds/in.mp3');
+    const outSound = new Audio('./src/assets/sounds/out.mp3');
 
     [inSound, outSound].forEach(a => {
       a.preload = 'auto';
@@ -1113,15 +1113,84 @@ class SoulApp {
    */
   async renderMcpSettingsInCanvas(container) {
     container.innerHTML = '<div style="color: white; padding: 20px;">로딩 중...</div>';
-    
+
     try {
-      const response = await fetch('/api/mcp/servers');
-      const data = await response.json();
+      // MCP 서버 및 Tool Search 설정 동시 로드
+      const [mcpResponse, toolSearchResponse] = await Promise.all([
+        fetch('/api/mcp/servers'),
+        fetch('/api/config/tool-search').catch(() => ({ ok: false }))
+      ]);
+
+      const data = await mcpResponse.json();
       const servers = data.servers || [];
+
+      // Tool Search 설정 로드 (백엔드 필드명: enabled, type, alwaysLoad)
+      let toolSearchConfig = { enabled: false, type: 'auto', alwaysLoad: [] };
+      if (toolSearchResponse.ok) {
+        const tsData = await toolSearchResponse.json();
+        if (tsData) {
+          toolSearchConfig = {
+            enabled: tsData.enabled || false,
+            type: tsData.type || 'auto',
+            alwaysLoad: tsData.alwaysLoad || []
+          };
+        }
+      }
 
       container.innerHTML = `
         <div style="color: white; padding-right: 8px;">
           <h2 style="margin: 0 0 16px 0; font-size: 1.2rem;">MCP 서버 설정</h2>
+
+          <!-- Tool Search 설정 카드 -->
+          <div style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(59, 130, 246, 0.2)); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 12px; padding: 16px; margin-bottom: 16px;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+              <span style="font-size: 1.2rem;">🔍</span>
+              <span style="font-weight: 600; font-size: 1rem;">Tool Search</span>
+              <span style="font-size: 0.7rem; background: rgba(139, 92, 246, 0.3); padding: 2px 6px; border-radius: 4px; color: #c4b5fd;">Beta</span>
+            </div>
+            <p style="font-size: 0.8rem; opacity: 0.8; margin: 0 0 12px 0;">
+              Claude가 필요한 도구를 동적으로 검색하고 로드합니다. 많은 MCP 도구가 있을 때 성능을 향상시킵니다.
+            </p>
+
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+              <!-- 활성화 토글 -->
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-size: 0.9rem;">Tool Search 사용</span>
+                <label style="position: relative; width: 44px; height: 24px; cursor: pointer;">
+                  <input type="checkbox" id="toolSearchEnabled" ${toolSearchConfig.enabled ? 'checked' : ''}
+                         style="opacity: 0; width: 0; height: 0;">
+                  <span style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: ${toolSearchConfig.enabled ? '#8b5cf6' : '#4b5563'}; border-radius: 24px; transition: 0.3s;"></span>
+                  <span style="position: absolute; top: 2px; left: ${toolSearchConfig.enabled ? '22px' : '2px'}; width: 20px; height: 20px; background: white; border-radius: 50%; transition: 0.3s;"></span>
+                </label>
+              </div>
+
+              <!-- 검색 타입 -->
+              <div id="toolSearchOptions" style="display: ${toolSearchConfig.enabled ? 'flex' : 'none'}; flex-direction: column; gap: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1);">
+                <div>
+                  <label style="font-size: 0.8rem; opacity: 0.7; display: block; margin-bottom: 4px;">검색 방식</label>
+                  <select id="toolSearchType" style="width: 100%; padding: 8px; border: 1px solid #4b5563; border-radius: 8px; background: rgba(0,0,0,0.3); color: white;">
+                    <option value="auto" ${toolSearchConfig.type === 'auto' ? 'selected' : ''}>자동 (권장)</option>
+                    <option value="regex" ${toolSearchConfig.type === 'regex' ? 'selected' : ''}>정규식 검색</option>
+                    <option value="semantic" ${toolSearchConfig.type === 'semantic' ? 'selected' : ''}>시맨틱 검색</option>
+                  </select>
+                </div>
+
+                <!-- 항상 로드할 도구 -->
+                <div>
+                  <label style="font-size: 0.8rem; opacity: 0.7; display: block; margin-bottom: 4px;">항상 로드할 도구 (쉼표 구분)</label>
+                  <input type="text" id="alwaysLoadTools" value="${(toolSearchConfig.alwaysLoad || []).join(', ')}"
+                         placeholder="예: read_file, write_file"
+                         style="width: 100%; padding: 8px; border: 1px solid #4b5563; border-radius: 8px; background: rgba(0,0,0,0.3); color: white; box-sizing: border-box;">
+                </div>
+
+                <button id="saveToolSearchBtn" style="padding: 8px 16px; background: #8b5cf6; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 0.85rem; margin-top: 4px;">
+                  저장
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- MCP 서버 목록 -->
           <div style="display: flex; flex-direction: column; gap: 12px;">
             ${servers.map(s => `
               <div style="background: rgba(255,255,255,0.1); border-radius: 12px; padding: 12px;">
@@ -1160,6 +1229,61 @@ class SoulApp {
           }
         });
       });
+
+      // Tool Search 이벤트 핸들러
+      const toolSearchToggle = container.querySelector('#toolSearchEnabled');
+      const toolSearchOptions = container.querySelector('#toolSearchOptions');
+      const saveToolSearchBtn = container.querySelector('#saveToolSearchBtn');
+
+      if (toolSearchToggle) {
+        toolSearchToggle.addEventListener('change', () => {
+          const isEnabled = toolSearchToggle.checked;
+          if (toolSearchOptions) {
+            toolSearchOptions.style.display = isEnabled ? 'flex' : 'none';
+          }
+          // 토글 스타일 업데이트
+          const slider = toolSearchToggle.nextElementSibling;
+          const circle = slider?.nextElementSibling;
+          if (slider) slider.style.background = isEnabled ? '#8b5cf6' : '#4b5563';
+          if (circle) circle.style.left = isEnabled ? '22px' : '2px';
+        });
+      }
+
+      if (saveToolSearchBtn) {
+        saveToolSearchBtn.addEventListener('click', async () => {
+          const enabled = container.querySelector('#toolSearchEnabled')?.checked || false;
+          const type = container.querySelector('#toolSearchType')?.value || 'auto';
+          const alwaysLoadInput = container.querySelector('#alwaysLoadTools')?.value || '';
+          const alwaysLoad = alwaysLoadInput.split(',').map(s => s.trim()).filter(s => s);
+
+          try {
+            const response = await fetch('/api/config/tool-search', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ enabled, type, alwaysLoad })
+            });
+
+            if (response.ok) {
+              saveToolSearchBtn.textContent = '저장됨 ✓';
+              saveToolSearchBtn.style.background = '#22c55e';
+              setTimeout(() => {
+                saveToolSearchBtn.textContent = '저장';
+                saveToolSearchBtn.style.background = '#8b5cf6';
+              }, 2000);
+            } else {
+              throw new Error('저장 실패');
+            }
+          } catch (err) {
+            console.error('Tool Search 설정 저장 실패:', err);
+            saveToolSearchBtn.textContent = '오류!';
+            saveToolSearchBtn.style.background = '#ef4444';
+            setTimeout(() => {
+              saveToolSearchBtn.textContent = '저장';
+              saveToolSearchBtn.style.background = '#8b5cf6';
+            }, 2000);
+          }
+        });
+      }
     } catch (e) {
       container.innerHTML = `<div style="color: #ff6b6b; padding: 20px;">설정을 불러오는데 실패했습니다.</div>`;
     }

@@ -579,12 +579,19 @@ class AnthropicService extends AIService {
 
     finalResponse += textContent;
 
+    // 사용량 정보 추출 (response.usage에서)
+    const usage = {
+      input_tokens: response.usage?.input_tokens || 0,
+      output_tokens: response.usage?.output_tokens || 0
+    };
+
     // Citations가 있으면 응답 객체로 반환 (선택적)
     if (citations.length > 0) {
-      return { text: finalResponse, citations };
+      return { text: finalResponse, citations, usage };
     }
 
-    return finalResponse;
+    // 사용량 정보를 포함한 객체 반환 (하위 호환성: text 속성이 있으면 객체, 없으면 문자열)
+    return { text: finalResponse, usage };
   }
 
   /**
@@ -1038,7 +1045,13 @@ class OpenAIService extends AIService {
       throw new Error('Invalid response from OpenAI API');
     }
 
-    return data.choices[0].message.content;
+    // 사용량 정보 추출 (OpenAI format: prompt_tokens, completion_tokens)
+    const usage = {
+      input_tokens: data.usage?.prompt_tokens || 0,
+      output_tokens: data.usage?.completion_tokens || 0
+    };
+
+    return { text: data.choices[0].message.content, usage };
   }
 
   async analyzeConversation(messages) {
@@ -1186,7 +1199,13 @@ class GoogleService extends AIService {
       throw new Error('Invalid response from Google API');
     }
 
-    return data.candidates[0].content.parts[0].text;
+    // Gemini는 usageMetadata로 토큰 정보 반환
+    const usage = {
+      input_tokens: data.usageMetadata?.promptTokenCount || 0,
+      output_tokens: data.usageMetadata?.candidatesTokenCount || 0
+    };
+
+    return { text: data.candidates[0].content.parts[0].text, usage };
   }
 
   async analyzeConversation(messages) {
@@ -1350,7 +1369,13 @@ class XAIService extends AIService {
       throw new Error('Invalid response from xAI API');
     }
 
-    return data.choices[0].message.content;
+    // xAI도 OpenAI 호환 format 사용
+    const usage = {
+      input_tokens: data.usage?.prompt_tokens || 0,
+      output_tokens: data.usage?.completion_tokens || 0
+    };
+
+    return { text: data.choices[0].message.content, usage };
   }
 
   async analyzeConversation(messages) {
@@ -1437,7 +1462,15 @@ class OllamaService extends AIService {
     });
 
     const data = await response.json();
-    return data.message.content;
+
+    // Ollama는 로컬이므로 비용이 없지만, 토큰 정보는 있을 수 있음
+    // Ollama의 prompt_eval_count(입력), eval_count(출력)
+    const usage = {
+      input_tokens: data.prompt_eval_count || 0,
+      output_tokens: data.eval_count || 0
+    };
+
+    return { text: data.message.content, usage };
   }
 
   async analyzeConversation(messages) {
@@ -1486,6 +1519,300 @@ JSON만 응답하고 다른 설명은 하지 마.`,
       return response.ok;
     } catch (error) {
       console.error('Ollama connection test failed:', error);
+      return false;
+    }
+  }
+}
+
+/**
+ * Google Cloud Vertex AI를 통한 Claude 서비스
+ * - Google Cloud 인프라에서 Claude 모델 사용
+ * - ADC(Application Default Credentials) 또는 서비스 계정 JSON 인증
+ * - Claude의 모든 기능 지원 (Anthropic API와 동일)
+ */
+class VertexAIService extends AIService {
+  /**
+   * Vertex AI Claude도 모든 Claude 기능 지원
+   */
+  static get supportedFeatures() {
+    return {
+      documents: true,       // Citations
+      searchResults: true,   // RAG 검색 결과
+      outputFormat: true,    // Structured Outputs (beta)
+      strictTools: true,     // 도구 입력 검증 (beta)
+      thinking: true,        // Extended Thinking
+      prefill: true,         // 응답 시작 미리 채움
+      enableCache: true,     // 프롬프트 캐싱
+      effort: true,          // 노력 수준 조절
+      toolExamples: true,    // 도구별 input_examples (beta)
+      fineGrainedToolStreaming: true, // 세밀한 도구 스트리밍 (beta)
+      enableToolSearch: true, // Tool Search Tool (beta)
+    };
+  }
+
+  /**
+   * @param {Object} config - { projectId, region, credentials? }
+   * @param {string} modelName - 예: 'claude-sonnet-4-5@20250929'
+   */
+  constructor(config, modelName = 'claude-sonnet-4-5@20250929') {
+    super(null, config);
+    this.projectId = config.projectId;
+    this.region = config.region || 'us-east5'; // 기본 리전
+    this.modelName = modelName;
+    this.credentials = config.credentials; // 서비스 계정 JSON (선택)
+
+    // Vertex SDK 지연 로드
+    this.client = null;
+  }
+
+  /**
+   * Vertex AI 클라이언트 초기화 (지연 로드)
+   */
+  async _getClient() {
+    if (this.client) return this.client;
+
+    const { AnthropicVertex } = require('@anthropic-ai/vertex-sdk');
+
+    const options = {
+      projectId: this.projectId,
+      region: this.region,
+    };
+
+    // 서비스 계정 JSON이 있으면 사용, 없으면 ADC 사용
+    if (this.credentials) {
+      // 환경변수로 서비스 계정 설정
+      process.env.GOOGLE_APPLICATION_CREDENTIALS = this.credentials;
+    }
+
+    this.client = new AnthropicVertex(options);
+    return this.client;
+  }
+
+  /**
+   * 대화 생성 (Anthropic API와 거의 동일)
+   */
+  async chat(messages, options = {}) {
+    const {
+      systemPrompt = null,
+      maxTokens = 4096,
+      temperature = 0.7,
+      tools = null,
+      thinking = false,
+      thinkingBudget = null,
+      prefill = null,
+      enableCache = true,
+      effort = null,
+      enableToolSearch = false,
+      toolSearchType = 'regex',
+      alwaysLoadTools = [],
+    } = options;
+
+    const client = await this._getClient();
+
+    const apiMessages = messages.map(msg => ({
+      role: msg.role,
+      content: msg.content
+    }));
+
+    // Prefill 처리
+    if (prefill) {
+      apiMessages.push({ role: 'assistant', content: prefill });
+    }
+
+    const params = {
+      model: this.modelName,
+      max_tokens: maxTokens,
+      messages: apiMessages,
+    };
+
+    // Extended Thinking
+    if (thinking) {
+      params.thinking = {
+        type: 'enabled',
+        budget_tokens: thinkingBudget || Math.min(maxTokens * 2, 10000)
+      };
+    } else {
+      params.temperature = temperature;
+    }
+
+    // System prompt
+    if (systemPrompt) {
+      if (enableCache) {
+        params.system = [{
+          type: 'text',
+          text: systemPrompt,
+          cache_control: { type: 'ephemeral' }
+        }];
+      } else {
+        params.system = systemPrompt;
+      }
+    }
+
+    // 도구 처리
+    if (tools && tools.length > 0) {
+      let processedTools = tools.map(tool => ({ ...tool }));
+
+      // Tool Search Tool
+      if (enableToolSearch && tools.length >= 10) {
+        const toolSearchToolType = toolSearchType === 'bm25'
+          ? 'tool_search_tool_bm25_20251119'
+          : 'tool_search_tool_regex_20251119';
+        const toolSearchToolName = toolSearchType === 'bm25'
+          ? 'tool_search_tool_bm25'
+          : 'tool_search_tool_regex';
+
+        processedTools = [
+          { type: toolSearchToolType, name: toolSearchToolName },
+          ...processedTools.map(tool => ({
+            ...tool,
+            defer_loading: !alwaysLoadTools.includes(tool.name)
+          }))
+        ];
+      }
+
+      if (enableCache) {
+        processedTools = processedTools.map((tool, index) => {
+          if (index === processedTools.length - 1) {
+            return { ...tool, cache_control: { type: 'ephemeral' } };
+          }
+          return tool;
+        });
+      }
+
+      params.tools = processedTools;
+    }
+
+    // Effort (Opus 4.5 전용)
+    if (effort && this.modelName.includes('opus')) {
+      params.thinking = { type: 'enabled', budget_tokens: 10000 };
+      // Vertex에서 effort 지원 여부 확인 필요
+    }
+
+    console.log(`[VertexAI] Calling ${this.modelName} in ${this.region}`);
+
+    let response = await client.messages.create(params);
+
+    // 도구 호출 처리 (루프)
+    const toolResults = [];
+    let maxIterations = 10;
+    let iteration = 0;
+
+    while (response.stop_reason === 'tool_use' && iteration < maxIterations) {
+      iteration++;
+      const toolUseBlocks = response.content.filter(block => block.type === 'tool_use');
+
+      for (const toolUse of toolUseBlocks) {
+        console.log(`[VertexAI] Tool call: ${toolUse.name}`);
+        toolResults.push({
+          toolName: toolUse.name,
+          input: toolUse.input,
+          id: toolUse.id
+        });
+      }
+
+      // 도구 결과가 options.toolExecutor에서 제공되면 실행
+      if (options.toolExecutor) {
+        const results = await options.toolExecutor(toolUseBlocks);
+
+        apiMessages.push({ role: 'assistant', content: response.content });
+        apiMessages.push({
+          role: 'user',
+          content: results.map(r => ({
+            type: 'tool_result',
+            tool_use_id: r.id,
+            content: r.result
+          }))
+        });
+
+        params.messages = apiMessages;
+        response = await client.messages.create(params);
+      } else {
+        break;
+      }
+    }
+
+    // 응답 추출
+    let textContent = '';
+    let thinkingContent = '';
+
+    for (const block of response.content) {
+      if (block.type === 'text') {
+        textContent += block.text;
+      } else if (block.type === 'thinking') {
+        thinkingContent += block.thinking;
+      }
+    }
+
+    // Prefill이 있었으면 앞에 붙여서 반환
+    if (prefill) {
+      textContent = prefill + textContent;
+    }
+
+    // 메타데이터 포함 반환
+    if (options.returnMetadata) {
+      return {
+        content: textContent,
+        thinking: thinkingContent,
+        toolResults,
+        usage: response.usage,
+        stopReason: response.stop_reason
+      };
+    }
+
+    // 사용량 정보 추출
+    const usage = {
+      input_tokens: response.usage?.input_tokens || 0,
+      output_tokens: response.usage?.output_tokens || 0
+    };
+
+    return { text: textContent, usage };
+  }
+
+  async analyzeConversation(messages) {
+    const conversationText = messages
+      .map(msg => `${msg.role}: ${msg.content}`)
+      .join('\n');
+
+    const result = await this.chat([{
+      role: 'user',
+      content: `다음 대화를 분석하고 JSON으로 응답하세요:
+
+대화:
+${conversationText}
+
+형식:
+{
+  "topics": ["주제1", "주제2"],
+  "tags": ["태그1", "태그2"],
+  "category": "카테고리",
+  "importance": 5
+}`
+    }], {
+      systemPrompt: 'JSON 형식으로만 응답하세요.',
+      maxTokens: 500,
+      prefill: '{'
+    });
+
+    try {
+      const jsonMatch = ('{' + result).match(/\{[\s\S]*\}/);
+      return jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async testConnection() {
+    try {
+      const client = await this._getClient();
+      // 간단한 메시지로 테스트
+      const response = await client.messages.create({
+        model: this.modelName,
+        max_tokens: 10,
+        messages: [{ role: 'user', content: 'Hi' }]
+      });
+      return !!response.content;
+    } catch (error) {
+      console.error('Vertex AI connection test failed:', error);
       return false;
     }
   }
@@ -1597,6 +1924,24 @@ class AIServiceFactory {
         );
         break;
 
+      case 'vertex': {
+        // Vertex AI는 API 키 대신 projectId와 region 필요
+        // AIService 모델에서 vertex 설정 조회
+        const AIServiceModel = require('../models/AIService');
+        const vertexConfig = await AIServiceModel.findOne({ serviceId: 'vertex' });
+
+        if (!vertexConfig || !vertexConfig.projectId) {
+          throw new Error('Vertex AI not configured. Please set Project ID in Settings.');
+        }
+
+        serviceInstance = new VertexAIService({
+          projectId: vertexConfig.projectId,
+          region: vertexConfig.region || 'us-east5',
+          credentials: vertexConfig.credentials // 서비스 계정 JSON 경로 (선택)
+        }, model);
+        break;
+      }
+
       default:
         throw new Error(`Unknown AI service: ${service}`);
     }
@@ -1670,6 +2015,11 @@ class AIServiceFactory {
         case 'ollama':
           // Ollama는 API 키가 필요 없음
           return { valid: true, message: 'Ollama는 API 키가 필요하지 않습니다' };
+
+        case 'vertex':
+          // Vertex AI는 API 키 대신 Google Cloud 인증 사용
+          // projectId와 region으로 연결 테스트
+          return { valid: true, message: 'Vertex AI는 Google Cloud 인증을 사용합니다' };
 
         default:
           return { valid: false, message: '지원하지 않는 서비스입니다' };
@@ -1864,6 +2214,17 @@ class AIServiceFactory {
           }));
           return { success: true, models: ollamaModels };
 
+        case 'vertex':
+          // Vertex AI에서 사용 가능한 Claude 모델 (고정 목록)
+          // https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude
+          const vertexModels = [
+            { id: 'claude-opus-4@20250514', name: 'Claude Opus 4', description: '최고 성능 모델' },
+            { id: 'claude-sonnet-4@20250514', name: 'Claude Sonnet 4', description: '균형 잡힌 모델' },
+            { id: 'claude-sonnet-4-5@20250929', name: 'Claude Sonnet 4.5', description: '향상된 Sonnet' },
+            { id: 'claude-haiku-4@20250514', name: 'Claude Haiku 4', description: '빠르고 경제적' },
+          ];
+          return { success: true, models: vertexModels };
+
         default:
           return { success: false, error: '지원하지 않는 서비스입니다', models: [] };
       }
@@ -1874,6 +2235,72 @@ class AIServiceFactory {
         error: `모델 목록을 가져오는 중 오류 발생: ${error.message}`,
         models: []
       };
+    }
+  }
+
+  /**
+   * 사용량 추적 헬퍼 메서드
+   * AI 호출 후 응답과 함께 호출하여 통계 기록
+   * @param {Object} params - { serviceId, modelId, tier, usage, latency, category }
+   */
+  static async trackUsage(params) {
+    try {
+      const UsageStats = require('../models/UsageStats');
+      const { serviceId, modelId, tier = 'medium', usage = {}, latency = 0, category = 'other' } = params;
+
+      const inputTokens = usage.input_tokens || usage.prompt_tokens || 0;
+      const outputTokens = usage.output_tokens || usage.completion_tokens || 0;
+      const totalTokens = inputTokens + outputTokens;
+
+      // 비용 계산 (간단한 추정 - 서비스별로 다를 수 있음)
+      let cost = 0;
+      const lowerServiceId = serviceId?.toLowerCase() || '';
+      const lowerModelId = modelId?.toLowerCase() || '';
+
+      if (lowerServiceId === 'anthropic' || lowerServiceId === 'vertex') {
+        // Claude 가격 (per 1K tokens 기준)
+        if (lowerModelId.includes('opus')) {
+          cost = (inputTokens * 0.015 + outputTokens * 0.075) / 1000;
+        } else if (lowerModelId.includes('sonnet')) {
+          cost = (inputTokens * 0.003 + outputTokens * 0.015) / 1000;
+        } else if (lowerModelId.includes('haiku')) {
+          cost = (inputTokens * 0.0008 + outputTokens * 0.004) / 1000;
+        }
+      } else if (lowerServiceId === 'openai') {
+        // GPT 가격 (추정)
+        if (lowerModelId.includes('gpt-4o')) {
+          cost = (inputTokens * 0.005 + outputTokens * 0.015) / 1000;
+        } else if (lowerModelId.includes('gpt-4')) {
+          cost = (inputTokens * 0.03 + outputTokens * 0.06) / 1000;
+        } else {
+          cost = (inputTokens * 0.0005 + outputTokens * 0.0015) / 1000;
+        }
+      } else if (lowerServiceId === 'google') {
+        // Gemini 가격 (추정)
+        if (lowerModelId.includes('pro')) {
+          cost = (inputTokens * 0.00125 + outputTokens * 0.005) / 1000;
+        } else {
+          cost = (inputTokens * 0.000075 + outputTokens * 0.0003) / 1000;
+        }
+      }
+      // ollama는 무료
+
+      await UsageStats.addUsage({
+        tier,
+        modelId,
+        serviceId,
+        inputTokens,
+        outputTokens,
+        totalTokens,
+        cost,
+        latency,
+        category
+      });
+
+      console.log(`[UsageTrack] ${category}: ${serviceId}/${modelId} - ${totalTokens} tokens, ${cost.toFixed(6)}`);
+    } catch (error) {
+      // 추적 실패해도 메인 기능에 영향 없도록
+      console.error('[UsageTrack] Failed to track usage:', error.message);
     }
   }
 
@@ -1918,5 +2345,6 @@ module.exports = {
   GoogleService,
   XAIService,
   OllamaService,
+  VertexAIService,
   AIServiceFactory
 };

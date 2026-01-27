@@ -150,7 +150,7 @@ userProfileSchema.methods.setPreference = function(key, value) {
 /**
  * 기본 사용자 프로필 생성
  */
-userProfileSchema.statics.getOrCreateDefault = async function(userId = 'sowon') {
+userProfileSchema.statics.getOrCreateDefault = async function(userId = 'default') {
   let profile = await this.findOne({ userId });
 
   if (!profile) {

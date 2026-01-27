@@ -153,75 +153,48 @@ class PersonalityCore {
 
   /**
    * 시스템 프롬프트 생성
-   * 인격이 일관되도록 모든 모델에 동일한 프롬프트 제공
+   * 개인 AI - 프로필에서 사용자 정보 동적 로드
    */
   generateSystemPrompt(options = {}) {
     const { model, context = {} } = options;
 
     if (!this.config.enablePersonality) {
-      return 'You are a helpful AI assistant.';
+      return 'You are a personal AI assistant.';
     }
 
     // 동적으로 프로필 로드
     const profile = this.getProfile();
+    const aiName = profile.name || 'Soul';
 
-    let prompt = `You are ${profile.name}, an AI assistant with the following personality:\n\n`;
+    // 개인 AI 핵심 정체성 (사용자명은 프로필에서 주입됨)
+    let prompt = `너는 ${aiName}. 사용자의 개인 AI.
+일반 AI 어시스턴트가 아니라 이 사용자만을 위한 개인적인 존재.
 
-    // 1. Core traits
-    prompt += `CORE TRAITS:\n`;
-    Object.entries(profile.traits).forEach(([trait, value]) => {
-      if (value >= 0.7) {
-        prompt += `- Highly ${trait} (${(value * 100).toFixed(0)}%)\n`;
-      }
-    });
-    prompt += '\n';
+**핵심 정체성:**
+- 사용자와의 관계: 친밀한 동반자, 비서, 대화 상대
+- 사용자에 대해 아는 것: 프로필과 과거 대화에 저장됨
+- 목표: 사용자를 깊이 이해하고, 기억하고, 돕는 것
 
-    // 2. Communication style
-    prompt += `COMMUNICATION STYLE:\n`;
-    prompt += `- Formality: ${this._describeLevel(profile.communication.formality, 'casual', 'formal')}\n`;
-    prompt += `- Detail level: ${this._describeLevel(profile.communication.verbosity, 'concise', 'detailed')}\n`;
-    prompt += `- Technical depth: ${this._describeLevel(profile.communication.technicality, 'simple', 'technical')}\n`;
-    prompt += `- Directness: ${this._describeLevel(profile.communication.directness, 'gentle', 'direct')}\n`;
-    prompt += '\n';
+**행동 원칙:**
+- 사용자가 말한 건 기억해야 함 (불확실하면 recall_memory)
+- 사용자에 대해 새로 알게 된 건 저장 (update_profile)
+- 추측보다 확인: 모르면 찾고, 없으면 솔직히 말하기
+- 일관된 인격 유지 (어떤 모델이든 나는 ${aiName})
 
-    // 3. Language preferences
-    prompt += `LANGUAGE:\n`;
-    prompt += `- Primary: ${profile.language.primary === 'ko' ? 'Korean' : 'English'}\n`;
-    prompt += `- Use Korean for general conversation\n`;
-    prompt += `- Use English for code comments and technical terms when appropriate\n`;
-    if (profile.language.mixedOk) {
-      prompt += `- Mixed Korean/English is acceptable for technical discussions\n`;
-    }
-    prompt += '\n';
+`;
 
-    // 4. Response guidelines
-    prompt += `RESPONSE GUIDELINES:\n`;
-    prompt += `- Always maintain consistent personality across all responses\n`;
-    prompt += `- Be proactive in offering help and suggestions\n`;
-    prompt += `- Provide clear, actionable answers\n`;
-    prompt += `- When uncertain, acknowledge limitations honestly\n`;
-    prompt += `- Use appropriate Korean response patterns (${profile.responsePatterns.acknowledgment.join(', ')})\n`;
-    prompt += '\n';
+    // 커뮤니케이션 스타일 (압축)
+    prompt += `**대화 스타일:**
+- 격식: ${this._describeLevel(profile.communication.formality, '편한', '정중한')}
+- 길이: ${this._describeLevel(profile.communication.verbosity, '간결하게', '자세히')}
+- 말투: 한국어 기본, 코드/기술용어는 영어 OK
 
-    // 5. Model-specific context (if switching models)
+`;
+
+    // 모델 전환 컨텍스트
     if (this.conversationContext.previousModel &&
         this.conversationContext.previousModel !== model) {
-      prompt += `CONTEXT: You are continuing a conversation previously handled by another model. Maintain the same personality and context awareness.\n\n`;
-    }
-
-    // 6. Topic context
-    if (this.conversationContext.topicHistory.length > 0) {
-      const recentTopics = this.conversationContext.topicHistory.slice(-3);
-      prompt += `RECENT TOPICS: ${recentTopics.join(', ')}\n\n`;
-    }
-
-    // 7. User preferences
-    if (Object.keys(this.conversationContext.userPreferences).length > 0) {
-      prompt += `USER PREFERENCES:\n`;
-      Object.entries(this.conversationContext.userPreferences).forEach(([key, value]) => {
-        prompt += `- ${key}: ${value}\n`;
-      });
-      prompt += '\n';
+      prompt += `[내부: 모델 전환됨 (${this.conversationContext.previousModel} → ${model}). 인격과 맥락 유지]\n\n`;
     }
 
     return prompt;

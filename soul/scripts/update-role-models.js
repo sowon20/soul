@@ -2,14 +2,13 @@
  * 모든 역할의 모델을 최신 Claude Sonnet 4.5로 업데이트
  */
 
+require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') });
 const mongoose = require('mongoose');
 
 async function updateRoleModels() {
   try {
-    await mongoose.connect('mongodb://127.0.0.1:27017/soul', {
-      useNewUrlParser: true,
-      useUnifiedTopology: true
-    });
+    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/soul';
+    await mongoose.connect(mongoUri);
 
     console.log('✅ MongoDB 연결됨');
 

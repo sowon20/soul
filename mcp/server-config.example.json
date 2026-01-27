@@ -1,0 +1,28 @@
+{
+  "servers": {
+    "mcp_example_smarthome": {
+      "enabled": true
+    },
+    "mcp_example_todo": {
+      "enabled": true
+    }
+  },
+  "externalServers": {
+    "mcp_example_smarthome": {
+      "name": "Smart Home",
+      "url": "https://mcp.example.com/smarthome/sse",
+      "icon": "smarthome-icon.webp",
+      "uiUrl": "https://mcp.example.com/smarthome/",
+      "showInDock": true,
+      "description": "Smart home control"
+    },
+    "mcp_example_todo": {
+      "name": "Todo List",
+      "url": "https://mcp.example.com/todo/sse",
+      "icon": "checklist-icon.webp",
+      "uiUrl": "https://mcp.example.com/todo/",
+      "showInDock": true,
+      "description": "Todo and memo management"
+    }
+  }
+}

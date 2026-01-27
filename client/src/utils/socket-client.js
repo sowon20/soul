@@ -29,7 +29,13 @@ class SoulSocketClient {
    */
   _connect() {
     // 백엔드 서버로 연결 (프론트엔드와 포트 다름)
-    const backendUrl = window.location.origin.replace(':3080', ':3001');
+    // Vite dev(5173), 빌드(3080) 모두 → 백엔드(3001)
+    let backendUrl = window.location.origin;
+    if (backendUrl.includes(':5173')) {
+      backendUrl = backendUrl.replace(':5173', ':3001');
+    } else if (backendUrl.includes(':3080')) {
+      backendUrl = backendUrl.replace(':3080', ':3001');
+    }
     console.log('🔌 Socket.io 연결 시도:', backendUrl);
     
     // io 함수 체크
@@ -276,8 +282,9 @@ class SoulSocketClient {
    * 연결 상태 인디케이터 업데이트
    */
   _updateConnectionIndicator(connected) {
+    // 기존 .socket-indicator
     let indicator = document.querySelector('.socket-indicator');
-    
+
     if (!indicator) {
       indicator = document.createElement('div');
       indicator.className = 'socket-indicator';
@@ -286,6 +293,12 @@ class SoulSocketClient {
 
     indicator.classList.toggle('connected', connected);
     indicator.title = connected ? '실시간 연결됨' : '연결 끊김';
+
+    // 대시보드의 websocket 서버 상태 인디케이터도 업데이트
+    const dashboardWsItem = document.querySelector('[data-service="websocket"] .server-indicator');
+    if (dashboardWsItem) {
+      dashboardWsItem.className = `server-indicator ${connected ? 'online' : 'offline'}`;
+    }
   }
 
   /**

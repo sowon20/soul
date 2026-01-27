@@ -121,19 +121,82 @@ class ConversationStore {
     return { id, timestamp };
   }
 
+  /**
+   * 최근 메시지만 효율적으로 가져오기 (tail 알고리즘)
+   * 전체 파일을 읽지 않고 끝에서부터 필요한 만큼만 읽음
+   */
   async getRecentMessages(limit = 50) {
     await this.init();
-    const lines = await this.readAllLines();
-    // 마지막 N개만
-    const lastLines = lines.slice(-limit);
-    
-    return lastLines.map(line => {
-      try {
-        return JSON.parse(line);
-      } catch {
-        return null;
+
+    // FTP는 기존 방식 유지
+    if (this.storageType === 'ftp') {
+      const lines = await this.readAllLines();
+      const lastLines = lines.slice(-limit);
+      return lastLines.map(line => {
+        try { return JSON.parse(line); } catch { return null; }
+      }).filter(Boolean);
+    }
+
+    // 로컬: tail 알고리즘 사용
+    return this._tailReadLines(limit);
+  }
+
+  /**
+   * 파일 끝에서부터 N개 라인만 읽기 (메모리 효율적)
+   */
+  async _tailReadLines(limit) {
+    const CHUNK_SIZE = 8192; // 8KB씩 읽기
+    const fd = fs.openSync(this.filePath, 'r');
+    const stats = fs.fstatSync(fd);
+    const fileSize = stats.size;
+
+    if (fileSize === 0) {
+      fs.closeSync(fd);
+      return [];
+    }
+
+    const lines = [];
+    let position = fileSize;
+    let buffer = '';
+
+    try {
+      while (position > 0 && lines.length < limit) {
+        const readSize = Math.min(CHUNK_SIZE, position);
+        position -= readSize;
+
+        const chunk = Buffer.alloc(readSize);
+        fs.readSync(fd, chunk, 0, readSize, position);
+        buffer = chunk.toString('utf-8') + buffer;
+
+        // 줄바꿈으로 분리
+        const parts = buffer.split('\n');
+
+        // 마지막 부분은 불완전할 수 있으므로 버퍼에 유지
+        buffer = parts[0];
+
+        // 나머지 완전한 라인들 추가 (역순으로)
+        for (let i = parts.length - 1; i > 0; i--) {
+          const line = parts[i].trim();
+          if (line) {
+            try {
+              lines.unshift(JSON.parse(line));
+              if (lines.length >= limit) break;
+            } catch { /* 파싱 실패 무시 */ }
+          }
+        }
       }
-    }).filter(Boolean);
+
+      // 마지막 버퍼 처리
+      if (lines.length < limit && buffer.trim()) {
+        try {
+          lines.unshift(JSON.parse(buffer.trim()));
+        } catch { /* 파싱 실패 무시 */ }
+      }
+    } finally {
+      fs.closeSync(fd);
+    }
+
+    return lines.slice(-limit);
   }
 
   /**

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Soul</title>
-  <link rel="stylesheet" href="/src/styles/main.css?v=37">
+  <link rel="stylesheet" href="/src/styles/main.css?v=39">
   <!-- Prism.js CSS - VSCode Dark Theme -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
   <!-- Marked.js for Markdown rendering -->
@@ -42,8 +42,46 @@
 
       <!-- 대시보드 - AI 라우팅 통계 -->
       <div class="dashboard">
+        <!-- 서버 상태 -->
+        <div class="dashboard-section server-status-section">
+          <h3 class="dashboard-title">🖥️ 서버 상태</h3>
+          <div class="server-status-grid" id="serverStatusGrid">
+            <div class="server-item" data-service="backend">
+              <span class="server-indicator"></span>
+              <span class="server-name">Backend</span>
+              <span class="server-port">:3001</span>
+            </div>
+            <div class="server-item" data-service="mongodb">
+              <span class="server-indicator"></span>
+              <span class="server-name">MongoDB</span>
+              <span class="server-port">:27017</span>
+            </div>
+            <div class="server-item" data-service="chroma">
+              <span class="server-indicator"></span>
+              <span class="server-name">ChromaDB</span>
+              <span class="server-port">:8000</span>
+            </div>
+            <div class="server-item" data-service="ftp">
+              <span class="server-indicator"></span>
+              <span class="server-name">FTP</span>
+              <span class="server-port">:21</span>
+            </div>
+            <div class="server-item" data-service="websocket">
+              <span class="server-indicator" id="socketIndicator"></span>
+              <span class="server-name">WebSocket</span>
+              <span class="server-port">실시간</span>
+            </div>
+          </div>
+        </div>
+
         <div class="dashboard-section">
-          <h3 class="dashboard-title">AI 사용 통계</h3>
+          <div class="dashboard-title-row">
+            <h3 class="dashboard-title">AI 사용 통계</h3>
+            <div class="stats-actions">
+              <button class="stats-action-btn" id="refreshStatsBtn" title="새로고침">🔄</button>
+              <button class="stats-action-btn stats-action-danger" id="resetStatsBtn" title="초기화">🗑️</button>
+            </div>
+          </div>
           <!-- 기간 선택 탭 -->
           <div class="stats-period-tabs">
             <button class="stats-period-tab active" data-period="today">오늘</button>
@@ -87,11 +125,42 @@
               <div class="stat-value" id="stat-latency">-</div>
             </div>
           </div>
+          <!-- 토큰 사용량 (눈에 띄게) -->
+          <div class="token-usage-highlight">
+            <div class="token-usage-header">
+              <span class="token-icon">🔥</span>
+              <span class="token-label">토큰 사용량</span>
+            </div>
+            <div class="token-usage-values">
+              <div class="token-stat">
+                <span class="token-stat-label">총</span>
+                <span class="token-stat-value" id="stat-total-tokens">0</span>
+              </div>
+              <div class="token-stat">
+                <span class="token-stat-label">입력</span>
+                <span class="token-stat-value" id="stat-input-tokens">0</span>
+              </div>
+              <div class="token-stat">
+                <span class="token-stat-label">출력</span>
+                <span class="token-stat-value" id="stat-output-tokens">0</span>
+              </div>
+            </div>
+            <div class="token-per-request" id="stat-tokens-per-request">
+              평균 <span>0</span> 토큰/요청
+            </div>
+          </div>
           <!-- 모델별 사용량 -->
           <div class="model-usage-section">
             <h4 class="model-usage-title">모델별 사용량</h4>
             <div id="model-usage-list" class="model-usage-list">
               <div class="no-data">아직 사용 기록이 없습니다</div>
+            </div>
+          </div>
+          <!-- 카테고리별 사용량 (내부/외부 구분) -->
+          <div class="category-usage-section">
+            <h4 class="category-usage-title">용도별 사용량</h4>
+            <div id="category-usage-list" class="category-usage-list">
+              <div class="no-data">카테고리별 기록 없음</div>
             </div>
           </div>
         </div>
@@ -104,10 +173,10 @@
       <div class="profile-section" id="profileSection" style="cursor: pointer;" title="프로필 관리">
         <div class="avatar"></div>
         <div class="user-info">
-          <div class="user-name">소원</div>
-          <div class="user-email">sowon@soul.ai</div>
+          <div class="user-name">User</div>
+          <div class="user-email">user@soul.ai</div>
         </div>
-        <div class="socket-indicator" id="socketIndicator" title="연결 상태"></div>
+        <div class="socket-indicator" id="socketIndicator" title="연결 상태" style="display:none;"></div>
       </div>
     </div>
 

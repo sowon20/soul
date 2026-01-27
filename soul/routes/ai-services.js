@@ -27,7 +27,10 @@ router.get('/', async (req, res) => {
       hasApiKey: !!service.apiKey,
       modelCount: service.models?.length || 0,
       models: service.models || [],  // 모델 목록 포함
-      lastRefresh: service.lastRefresh
+      lastRefresh: service.lastRefresh,
+      // Vertex AI 전용 필드
+      projectId: service.projectId || null,
+      region: service.region || 'us-east5'
     }));
 
     res.json({
@@ -154,7 +157,7 @@ router.patch('/:id', async (req, res) => {
       });
     }
 
-    const { name, baseUrl, apiKey, isActive } = req.body;
+    const { name, baseUrl, apiKey, isActive, projectId, region, credentials } = req.body;
 
     // 업데이트 가능한 필드만 수정
     if (name) service.name = name;
@@ -164,6 +167,17 @@ router.patch('/:id', async (req, res) => {
     // API 키 업데이트
     if (apiKey !== undefined) {
       service.apiKey = apiKey && apiKey.trim() ? apiKey : null;
+    }
+
+    // Vertex AI 전용 필드 업데이트
+    if (projectId !== undefined) {
+      service.projectId = projectId && projectId.trim() ? projectId : null;
+    }
+    if (region !== undefined) {
+      service.region = region && region.trim() ? region : 'us-east5';
+    }
+    if (credentials !== undefined) {
+      service.credentials = credentials && credentials.trim() ? credentials : null;
     }
 
     await service.save();
@@ -271,8 +285,16 @@ router.post('/:id/refresh-models', async (req, res) => {
       });
     }
 
-    // API 키 확인
-    if (!service.apiKey) {
+    // Vertex AI는 API 키 대신 projectId 필요
+    if (service.type === 'vertex') {
+      if (!service.projectId) {
+        return res.status(400).json({
+          success: false,
+          error: 'Vertex AI Project ID가 설정되지 않았습니다'
+        });
+      }
+    } else if (!service.apiKey && service.type !== 'ollama') {
+      // API 키 확인 (Ollama와 Vertex 제외)
       return res.status(400).json({
         success: false,
         error: 'API 키가 설정되지 않았습니다'

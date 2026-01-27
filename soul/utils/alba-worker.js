@@ -9,7 +9,7 @@
  * - 주제 분류
  */
 
-const Anthropic = require('@anthropic-ai/sdk');
+const { AIServiceFactory } = require('./ai-service');
 
 // 백그라운드 태스크별 고정 프롬프트
 const BACKGROUND_PROMPTS = {
@@ -49,57 +49,96 @@ const BACKGROUND_PROMPTS = {
 class AlbaWorker {
   constructor(config = {}) {
     this.config = {
-      model: config.model || 'claude-3-haiku-20240307', // 저렴한 모델
       maxTokens: config.maxTokens || 500,
       temperature: config.temperature || 0.3,
       ...config
     };
     
-    this.client = null;
+    this.aiService = null;
+    this.modelId = null;
     this.queue = [];
     this.isProcessing = false;
   }
 
   /**
-   * 초기화
+   * 초기화 - Role(background) 설정에서 모델 읽기
    */
   async initialize() {
     try {
-      // API 키 확인 - DB에서 가져옴 (AIServiceFactory와 동일 방식)
-      const { AIServiceFactory } = require('./ai-service');
-      const apiKey = await AIServiceFactory.getApiKey('anthropic');
+      const Role = require('../models/Role');
       
-      if (!apiKey) {
-        console.warn('AlbaWorker: Anthropic API key not found in DB, will skip AI tasks');
-        return;
+      // background 카테고리 Role에서 설정 가져오기
+      const backgroundRole = await Role.findOne({ category: 'background', active: true });
+      
+      if (backgroundRole && backgroundRole.preferredModel) {
+        this.modelId = backgroundRole.preferredModel;
+        
+        // 서비스 결정
+        const serviceName = this.modelId.includes('claude') ? 'anthropic'
+          : this.modelId.includes('gpt') ? 'openai'
+          : this.modelId.includes('gemini') ? 'google'
+          : this.modelId.includes('grok') ? 'xai'
+          : 'anthropic';
+        
+        this.aiService = await AIServiceFactory.createService(serviceName, this.modelId);
+        console.log('AlbaWorker initialized with model:', this.modelId, '(from Role settings)');
+      } else {
+        // background Role 없으면 워커 비활성화
+        console.warn('AlbaWorker: No background role configured, worker disabled');
+        this.aiService = null;
       }
-      
-      this.client = new Anthropic({ apiKey });
-      console.log('AlbaWorker initialized with model:', this.config.model);
     } catch (error) {
       console.error('AlbaWorker initialization error:', error);
     }
   }
 
   /**
-   * AI 호출 (기본)
+   * AI 호출 (AIServiceFactory 사용)
+   * @param {string} systemPrompt - 시스템 프롬프트
+   * @param {string} userMessage - 사용자 메시지
+   * @param {string} taskType - 작업 유형 (alba 카테고리 세분화용)
    */
-  async _callAI(systemPrompt, userMessage) {
-    if (!this.client) {
-      console.warn('AlbaWorker: No API client, skipping AI call');
+  async _callAI(systemPrompt, userMessage, taskType = 'alba') {
+    if (!this.aiService) {
+      console.warn('AlbaWorker: No AI service, skipping AI call');
       return null;
     }
 
-    try {
-      const response = await this.client.messages.create({
-        model: this.config.model,
-        max_tokens: this.config.maxTokens,
-        temperature: this.config.temperature,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userMessage }]
-      });
+    const startTime = Date.now();
 
-      return response.content[0]?.text || null;
+    try {
+      const response = await this.aiService.chat(
+        [{ role: 'user', content: userMessage }],
+        {
+          systemPrompt,
+          maxTokens: this.config.maxTokens,
+          temperature: this.config.temperature
+        }
+      );
+
+      // 사용량 추적 (토큰 수는 추정치 - 정확한 값은 API 응답에서 가져와야 함)
+      const latency = Date.now() - startTime;
+      const estimatedInputTokens = Math.ceil((systemPrompt.length + userMessage.length) / 4);
+      const estimatedOutputTokens = response ? Math.ceil(response.length / 4) : 0;
+
+      try {
+        await AIServiceFactory.trackUsage({
+          serviceId: this.serviceId,
+          modelId: this.modelId,
+          tier: 'light',
+          usage: {
+            input_tokens: estimatedInputTokens,
+            output_tokens: estimatedOutputTokens
+          },
+          latency,
+          category: 'alba'
+        });
+      } catch (trackError) {
+        // 추적 실패해도 메인 기능에 영향 없음
+        console.warn('AlbaWorker: Usage tracking failed:', trackError.message);
+      }
+
+      return response || null;
     } catch (error) {
       console.error('AlbaWorker AI call error:', error);
       return null;

@@ -1,12 +1,12 @@
 /**
  * Profile Manager - Phase P
- * 소원의 프로필 관리 (inline 편집, 드래그 정렬)
+ * 프로필 관리 (inline 편집, 드래그 정렬)
  */
 
 export class ProfileManager {
   constructor(apiClient) {
     this.apiClient = apiClient;
-    this.userId = 'sowon';
+    this.userId = localStorage.getItem('userId') || 'default';
     this.profile = null;
     this.draggedElement = null;
   }
@@ -61,7 +61,7 @@ export class ProfileManager {
               </div>
               <input type="file" id="profileImageInput" accept="image/*" style="display: none;">
               <div class="profile-image-info">
-                <span class="profile-image-name">${this.profile.basicInfo.name?.value || '소원'}</span>
+                <span class="profile-image-name">${this.profile.basicInfo.name?.value || 'User'}</span>
               </div>
             </div>
           </div>

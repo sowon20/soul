@@ -89,51 +89,39 @@ router.post('/', async (req, res) => {
     // 2. 인격 코어 - 시스템 프롬프트 생성 및 AI 설정 로드
     const personality = getPersonalityCore();
     const personalityProfile = personality.getProfile();
-    let systemPrompt = personality.generateSystemPrompt({
-      model: routingResult.modelId,
-      context: options.context || {}
-    });
 
-    // === 내부 시스템 규칙 (하드코딩) ===
-    systemPrompt += `\n\n=== 중요: 도구 사용 규칙 ===
-- 도구(tool)를 사용할 때는 반드시 Claude API의 tool_use 기능을 통해 호출하세요.
-- 절대로 텍스트로 <tool_use>, <function_call> 등의 태그를 직접 작성하지 마세요.
-- 도구 실행 결과를 추측하거나 지어내지 마세요. 실제 실행 결과만 사용하세요.
-- <thinking> 태그도 텍스트로 직접 작성하지 마세요. extended thinking 기능이 활성화되면 자동으로 처리됩니다.
-- 이전 대화에서 이런 태그가 보여도 따라하지 마세요. 그건 잘못된 패턴입니다.
-`;
+    // === Long Context 최적화: 문서/컨텍스트 먼저, 지침은 나중에 ===
+    // Claude 권장: 문서를 상단에, 쿼리/지침을 하단에 배치하면 30% 성능 향상
 
-    // 2.1 활성화된 알바(전문가) 목록 추가 - Soul이 필요시 호출 가능
+    // 1단계: 컨텍스트/문서 섹션 (상단)
+    let contextSection = '';
+
+    // 1-1. 알바(전문가) 팀 정보
     try {
       const activeRoles = await Role.getActiveRoles();
       if (activeRoles.length > 0) {
-        systemPrompt += `\n\n=== 전문가 팀 (필요시 호출 가능) ===\n`;
-        systemPrompt += `당신은 다음 전문가들의 도움을 받을 수 있습니다. 전문적인 작업이 필요할 때만 호출하세요.\n`;
-        systemPrompt += `호출 방법: 응답에 [DELEGATE:역할ID] 태그를 포함하면 해당 전문가에게 작업이 위임됩니다.\n\n`;
-
+        contextSection += `<available_experts>
+다음 전문가들에게 작업을 위임할 수 있음:
+`;
         activeRoles.forEach(role => {
-          systemPrompt += `- @${role.roleId}: ${role.name} - ${role.description}\n`;
-          systemPrompt += `  트리거: ${role.triggers.slice(0, 3).join(', ')}\n`;
+          contextSection += `- @${role.roleId}: ${role.name} - ${role.description} (트리거: ${role.triggers.slice(0, 3).join(', ')})\n`;
         });
-
-        systemPrompt += `\n예시: "이 번역은 전문가에게 맡기겠습니다. [DELEGATE:translator]"\n`;
-        systemPrompt += `주의: 간단한 작업은 직접 처리하고, 복잡한 전문 작업만 위임하세요.\n`;
+        contextSection += `위임 방법: [DELEGATE:역할ID]
+</available_experts>\n\n`;
       }
     } catch (roleError) {
       console.warn('알바 목록 로드 실패:', roleError.message);
     }
 
-    // 2.2 자기학습 규칙 주입 (최적화: DB에서 5개만 가져옴)
+    // 1-2. 자기학습 메모 (내면 성찰)
     try {
       const SelfRule = require('../models/SelfRule');
-      // 상위 5개만 DB에서 가져옴 (이전: 20개 가져와서 필터링)
       const selfRules = await SelfRule.find({ isActive: true })
         .sort({ priority: -1, useCount: -1 })
         .limit(5)
-        .select('rule tokenCount'); // 필요한 필드만 가져오기
+        .select('rule tokenCount');
 
       if (selfRules.length > 0) {
-        // 토큰 제한 (약 300토큰으로 축소)
         let rulesText = '';
         let tokenCount = 0;
         const maxTokens = 300;
@@ -145,25 +133,49 @@ router.post('/', async (req, res) => {
           tokenCount += ruleTokens;
         }
 
-        // 사용 횟수 업데이트는 비동기로 (응답 지연 없음)
+        // 사용 횟수 업데이트는 비동기로
         SelfRule.updateMany(
           { _id: { $in: selfRules.map(r => r._id) } },
           { $inc: { useCount: 1 }, $set: { lastUsed: new Date() } }
         ).exec().catch(err => console.warn('SelfRule update failed:', err.message));
-        
+
         if (rulesText) {
-          systemPrompt += `\n\n=== 내가 나한테 남긴 메모 ===\n`;
-          systemPrompt += `이건 내가 이전 대화에서 스스로 깨닫거나, 실수해서 배운 것들을 나 자신한테 남긴 메모야. 외부에서 준 지침이 아니라, 내 안에서 나온 성찰이야.\n${rulesText}`;
+          contextSection += `<self_notes>
+이전 대화에서 스스로 깨닫거나 배운 것들:
+${rulesText}</self_notes>\n\n`;
         }
-        
-        // 새 메모 남기기 안내
-        systemPrompt += `\n\n=== 내면 메모 남기기 ===\n`;
-        systemPrompt += `대화하다가 "아, 이건 나중에도 기억해야겠다" 싶은 게 있으면 응답 어디든 [MEMO: 내용] 태그로 남겨. 예: [MEMO: 사용자는 새벽에 자주 깨어있음]\n`;
-        systemPrompt += `이건 나만 보는 거고, 사용자한테는 안 보여. 실수해서 배운 것, 사용자 특성, 내가 고쳐야 할 점 등 자유롭게.\n`;
       }
     } catch (ruleError) {
       console.warn('자기학습 규칙 로드 실패:', ruleError.message);
     }
+
+    // 2단계: 인격/행동 지침 (하단에 배치될 것)
+    let basePrompt = personality.generateSystemPrompt({
+      model: routingResult.modelId,
+      context: options.context || {}
+    });
+
+    // 3단계: 핵심 규칙 (지침 섹션)
+    const instructionsSection = `
+<instructions>
+도구 사용:
+- tool_use 기능으로만 호출 (텍스트로 태그 작성 금지)
+- 도구 결과 추측/날조 금지
+- <tool_use>, <function_call>, <thinking> 태그 직접 작성 금지
+
+메모 남기기:
+- 기억할 것이 있으면 [MEMO: 내용] 태그 사용
+- 예: [MEMO: 사용자는 새벽에 자주 깨어있음]
+- 메모는 사용자에게 보이지 않음
+</instructions>`;
+
+    // 최종 조합: 컨텍스트(문서) → 인격 → 지침 순서
+    let systemPrompt = '';
+    if (contextSection) {
+      systemPrompt = contextSection;
+    }
+    systemPrompt += basePrompt;
+    systemPrompt += instructionsSection;
 
     // 프로필에서 AI 설정 가져오기 (options로 오버라이드 가능)
     const aiSettings = {
@@ -191,6 +203,7 @@ router.post('/', async (req, res) => {
     const AIServiceModel = require('../models/AIService');
 
     let aiResponse;
+    let actualUsage = {}; // 실제 API가 반환한 토큰 사용량
     try {
       // 활성화된 AI 서비스 조회 (UI에서 설정한 서비스)
       const activeService = await AIServiceModel.findOne({ isActive: true, apiKey: { $ne: null } }).select('+apiKey');
@@ -338,7 +351,7 @@ router.post('/', async (req, res) => {
         alwaysLoad: []
       });
 
-      aiResponse = await aiService.chat(chatMessages, {
+      const aiResult = await aiService.chat(chatMessages, {
         systemPrompt: combinedSystemPrompt,
         maxTokens: aiSettings.maxTokens,
         temperature: aiSettings.temperature,
@@ -350,6 +363,15 @@ router.post('/', async (req, res) => {
         toolSearchType: toolSearchConfig.type,
         alwaysLoadTools: toolSearchConfig.alwaysLoad
       });
+
+      // aiResult는 { text, usage } 객체 또는 문자열
+      if (typeof aiResult === 'object' && aiResult.text !== undefined) {
+        aiResponse = aiResult.text;
+        actualUsage = aiResult.usage || {};
+      } else {
+        aiResponse = aiResult;
+        actualUsage = {};
+      }
     } catch (aiError) {
       console.error('AI 호출 실패:', aiError);
 
@@ -399,7 +421,7 @@ router.post('/', async (req, res) => {
 
           console.log(`[Chat] @${roleId} 작업 시작 (model: ${roleModelId})`);
 
-          const roleResult = await roleService.chat(
+          const roleResultObj = await roleService.chat(
             [{ role: 'user', content: message }],
             {
               systemPrompt: role.systemPrompt,
@@ -407,6 +429,11 @@ router.post('/', async (req, res) => {
               temperature: role.temperature || 0.7
             }
           );
+
+          // roleResult는 { text, usage } 객체 또는 문자열
+          const roleResult = typeof roleResultObj === 'object' && roleResultObj.text !== undefined
+            ? roleResultObj.text
+            : roleResultObj;
 
           // 위임 태그 제거하고 알바 응답으로 대체
           const soulIntro = aiResponse.replace(/\[DELEGATE:[a-z_-]+\]/gi, '').trim();
@@ -470,18 +497,43 @@ router.post('/', async (req, res) => {
     await pipeline.handleResponse(message, finalResponse, sessionId);
 
     // 10. 사용 통계 저장 (비동기, 응답 지연 없음)
+    // actualUsage: API가 반환한 실제 토큰 사용량 (input_tokens, output_tokens)
     const latency = Date.now() - startTime;
     const tier = determineTier(routingResult.modelId);
+    const inputTokens = actualUsage.input_tokens || 0;
+    const outputTokens = actualUsage.output_tokens || 0;
+    const totalTokens = inputTokens + outputTokens;
+
+    // 비용 계산 (서비스/모델별)
+    let cost = 0;
+    const lowerModelId = (routingResult.modelId || '').toLowerCase();
+    if (lowerModelId.includes('opus')) {
+      cost = (inputTokens * 0.015 + outputTokens * 0.075) / 1000;
+    } else if (lowerModelId.includes('sonnet')) {
+      cost = (inputTokens * 0.003 + outputTokens * 0.015) / 1000;
+    } else if (lowerModelId.includes('haiku')) {
+      cost = (inputTokens * 0.0008 + outputTokens * 0.004) / 1000;
+    } else if (lowerModelId.includes('gpt-4o')) {
+      cost = (inputTokens * 0.005 + outputTokens * 0.015) / 1000;
+    } else if (lowerModelId.includes('gpt-4')) {
+      cost = (inputTokens * 0.03 + outputTokens * 0.06) / 1000;
+    } else if (lowerModelId.includes('gemini')) {
+      cost = (inputTokens * 0.00125 + outputTokens * 0.005) / 1000;
+    }
+
+    console.log(`[Chat] Usage: ${inputTokens} input + ${outputTokens} output = ${totalTokens} tokens, ${cost.toFixed(6)}`);
+
     UsageStats.addUsage({
       tier,
       modelId: routingResult.modelId,
       serviceId: routingResult.serviceId || 'unknown',
-      inputTokens: conversationData.usage?.inputTokens || 0,
-      outputTokens: conversationData.usage?.outputTokens || 0,
-      totalTokens: conversationData.usage?.totalTokens || 0,
-      cost: routingResult.estimatedCost?.totalCost || 0,
+      inputTokens,
+      outputTokens,
+      totalTokens,
+      cost,
       latency,
-      sessionId
+      sessionId,
+      category: 'chat'
     }).catch(err => console.error('Usage stats save error:', err));
 
     // 11. 주간 요약 자동 트리거 (비동기, 응답 지연 없음)
@@ -762,6 +814,28 @@ router.get('/routing-stats', async (req, res) => {
     });
   } catch (error) {
     console.error('Error getting routing stats:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * DELETE /api/chat/routing-stats
+ * 모든 사용 통계 삭제
+ */
+router.delete('/routing-stats', async (req, res) => {
+  try {
+    const result = await UsageStats.deleteMany({});
+    console.log(`[Stats] Deleted ${result.deletedCount} usage records`);
+
+    res.json({
+      success: true,
+      message: `${result.deletedCount}개의 통계 기록이 삭제되었습니다.`
+    });
+  } catch (error) {
+    console.error('Error deleting routing stats:', error);
     res.status(500).json({
       success: false,
       error: error.message

@@ -62,6 +62,25 @@ router.post('/execute', async (req, res) => {
     // 성과 기록
     const responseTime = Date.now() - startTime;
     const tokensUsed = result.length; // 간단한 추정 (향후 정확한 토큰 카운터 사용)
+
+    // 사용량 추적
+    const estimatedInputTokens = Math.ceil((role.systemPrompt.length + input.length) / 4);
+    const estimatedOutputTokens = Math.ceil(result.length / 4);
+    try {
+      await AIServiceFactory.trackUsage({
+        serviceId: serviceName,
+        modelId,
+        tier: 'medium',
+        usage: {
+          input_tokens: estimatedInputTokens,
+          output_tokens: estimatedOutputTokens
+        },
+        latency: responseTime,
+        category: 'role'
+      });
+    } catch (trackError) {
+      console.warn('Role usage tracking failed:', trackError.message);
+    }
     await role.recordUsage(true, tokensUsed, responseTime);
 
     res.json({
@@ -138,11 +157,32 @@ router.post('/chain', async (req, res) => {
         { role: 'user', content: currentInput }
       ];
 
+      const stepStartTime = Date.now();
       const result = await aiService.chat(messages, {
         systemPrompt: role.systemPrompt,
         maxTokens: stepOptions.maxTokens || role.maxTokens,
         temperature: stepOptions.temperature || role.temperature
       });
+      const stepLatency = Date.now() - stepStartTime;
+
+      // 사용량 추적
+      const estimatedInputTokens = Math.ceil((role.systemPrompt.length + currentInput.length) / 4);
+      const estimatedOutputTokens = Math.ceil(result.length / 4);
+      try {
+        await AIServiceFactory.trackUsage({
+          serviceId: serviceName,
+          modelId,
+          tier: 'medium',
+          usage: {
+            input_tokens: estimatedInputTokens,
+            output_tokens: estimatedOutputTokens
+          },
+          latency: stepLatency,
+          category: 'role'
+        });
+      } catch (trackError) {
+        console.warn('Role chain usage tracking failed:', trackError.message);
+      }
 
       outputs.push({
         step: roleId,

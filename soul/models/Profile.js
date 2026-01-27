@@ -1,6 +1,6 @@
 /**
  * Profile Model - Phase P 프로필 시스템
- * 사용자(소원)의 개인 정보를 저장하고 소울이 참조할 수 있는 프로필 시스템
+ * 사용자의 개인 정보를 저장하고 AI가 참조할 수 있는 프로필 시스템
  */
 
 const mongoose = require('mongoose');
@@ -105,7 +105,7 @@ const profileSchema = new mongoose.Schema({
     type: String,
     required: true,
     unique: true,
-    default: 'sowon'
+    default: 'default'
   },
   // 프로필 사진 (Base64 또는 URL)
   profileImage: {
@@ -116,7 +116,7 @@ const profileSchema = new mongoose.Schema({
   basicInfo: {
     // 이름
     name: {
-      value: { type: String, default: '소원' },
+      value: { type: String, default: '' },  // 사용자가 UI에서 설정
       visibility: { type: fieldVisibilitySchema, default: () => ({ visibleToSoul: true, autoIncludeInContext: true }) }
     },
     // 닉네임
@@ -183,7 +183,7 @@ const profileSchema = new mongoose.Schema({
       canWrite: false,
       canDelete: false,
       autoIncludeInContext: true,
-      includeOnKeywords: ['개인', '나', '내', '소원', '취향', '좋아하는']
+      includeOnKeywords: ['개인', '나', '내', '취향', '좋아하는']
     })
   },
   // 메타데이터
@@ -399,28 +399,30 @@ profileSchema.methods.findFieldsByKeywords = function(keywords) {
 
 /**
  * 기본 프로필 생성 또는 가져오기
+ * userId 기본값은 'default' - 배포용 (하드코딩된 사용자명 없음)
  */
-profileSchema.statics.getOrCreateDefault = async function(userId = 'sowon') {
+profileSchema.statics.getOrCreateDefault = async function(userId = 'default') {
   let profile = await this.findOne({ userId });
 
   if (!profile) {
+    // 기본 프로필 생성 - 값은 비워두고 사용자가 UI에서 설정
     profile = await this.create({
       userId,
       basicInfo: {
         name: {
-          value: '소원',
+          value: '',  // 사용자가 설정
           visibility: { visibleToSoul: true, autoIncludeInContext: true }
         },
         country: {
-          value: '대한민국',
+          value: '',  // 사용자가 설정
           visibility: { visibleToSoul: true, autoIncludeInContext: true }
         },
         timezone: {
-          value: 'Asia/Seoul',
+          value: 'UTC',  // 기본 UTC, 사용자가 변경
           visibility: { visibleToSoul: true, autoIncludeInContext: true }
         },
         language: {
-          value: 'ko',
+          value: 'ko',  // 기본 한국어
           visibility: { visibleToSoul: true, autoIncludeInContext: true }
         }
       },
@@ -430,7 +432,7 @@ profileSchema.statics.getOrCreateDefault = async function(userId = 'sowon') {
         canWrite: false,
         canDelete: false,
         autoIncludeInContext: true,
-        includeOnKeywords: ['개인', '나', '내', '소원', '취향', '좋아하는']
+        includeOnKeywords: ['개인', '나', '내', '취향', '좋아하는']  // '소원' 제거
       }
     });
     console.log(`✅ 기본 프로필 생성: ${userId}`);

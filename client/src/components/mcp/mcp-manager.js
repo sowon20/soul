@@ -54,13 +54,18 @@ export class MCPManager {
           </button>
         </div>
 
+        <!-- Tool Search 설정 (상단 배치) -->
+        ${this.renderToolSearchCard()}
+
+        <!-- MCP 서버 섹션 제목 -->
+        <div style="margin-top: 1rem; margin-bottom: 0.5rem;">
+          <h4 style="margin: 0; font-size: 0.9rem; color: #666;">MCP 서버</h4>
+        </div>
+
         <!-- 서버 카드 목록 -->
         <div id="serverCards" style="display: grid; gap: 0.75rem;">
           ${this.renderServerCards()}
         </div>
-
-        <!-- Tool Search 설정 -->
-        ${this.renderToolSearchCard()}
 
         <!-- 도구 목록 패널 (선택시 표시) -->
         <div id="toolsPanel" style="display: none; margin-top: 1rem;"></div>
@@ -255,7 +260,7 @@ export class MCPManager {
     const isEnabled = this.toolSearchConfig.enabled;
 
     return `
-      <div style="margin-top: 1rem;">
+      <div>
         <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px; padding: 1rem;">
           <!-- 헤더 -->
           <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
