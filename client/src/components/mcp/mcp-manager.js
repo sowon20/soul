@@ -11,6 +11,11 @@ export class MCPManager {
     this.servers = [];
     this.selectedServer = null;
     this.serverTools = {}; // 서버별 도구 캐시
+    this.toolSearchConfig = {
+      enabled: false,
+      type: 'regex',
+      alwaysLoad: []
+    };
   }
 
   /**
@@ -21,6 +26,7 @@ export class MCPManager {
 
     try {
       await this.loadServers();
+      await this.loadToolSearchConfig();
       this.renderUI();
       this.attachEventListeners();
     } catch (error) {
@@ -52,6 +58,9 @@ export class MCPManager {
         <div id="serverCards" style="display: grid; gap: 0.75rem;">
           ${this.renderServerCards()}
         </div>
+
+        <!-- Tool Search 설정 -->
+        ${this.renderToolSearchCard()}
 
         <!-- 도구 목록 패널 (선택시 표시) -->
         <div id="toolsPanel" style="display: none; margin-top: 1rem;"></div>
@@ -221,6 +230,83 @@ export class MCPManager {
   }
 
   /**
+   * Tool Search 설정 로드
+   */
+  async loadToolSearchConfig() {
+    try {
+      const response = await this.apiClient.get('/config/tool-search');
+      if (response) {
+        this.toolSearchConfig = {
+          enabled: response.enabled ?? false,
+          type: response.type ?? 'regex',
+          alwaysLoad: response.alwaysLoad ?? []
+        };
+      }
+    } catch (error) {
+      console.error('Failed to load tool search config:', error);
+    }
+  }
+
+  /**
+   * Tool Search 카드 렌더링
+   */
+  renderToolSearchCard() {
+    const totalTools = this.servers.reduce((sum, s) => sum + (s.tools?.length || 0), 0);
+    const isEnabled = this.toolSearchConfig.enabled;
+
+    return `
+      <div style="margin-top: 1rem;">
+        <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px; padding: 1rem;">
+          <!-- 헤더 -->
+          <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
+            <span style="font-size: 1.5rem;">🔍</span>
+            <div style="flex: 1;">
+              <h4 style="margin: 0; font-size: 0.95rem; font-weight: 600; color: #0369a1;">
+                Tool Search
+                <span style="font-size: 0.65rem; background: #fef3c7; color: #92400e; padding: 0.1rem 0.3rem; border-radius: 4px; margin-left: 0.4rem;">베타</span>
+              </h4>
+              <p style="margin: 0.2rem 0 0 0; font-size: 0.75rem; color: #0369a1;">도구가 많을 때 토큰 절약 (Claude 전용)</p>
+            </div>
+            <label style="position: relative; width: 44px; height: 24px; cursor: pointer;">
+              <input type="checkbox" id="toolSearchToggle" ${isEnabled ? 'checked' : ''} style="opacity: 0; width: 0; height: 0;">
+              <span style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: ${isEnabled ? '#4285f4' : '#ccc'}; border-radius: 24px; transition: 0.3s;">
+                <span style="position: absolute; width: 18px; height: 18px; left: ${isEnabled ? '23px' : '3px'}; top: 3px; background: white; border-radius: 50%; transition: 0.3s; box-shadow: 0 1px 3px rgba(0,0,0,0.2);"></span>
+              </span>
+            </label>
+          </div>
+
+          <!-- 상세 설정 (토글 on일 때만 표시) -->
+          <div id="toolSearchDetails" style="display: ${isEnabled ? 'block' : 'none'}; margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #bae6fd;">
+            <div style="margin-bottom: 0.75rem;">
+              <label style="font-size: 0.75rem; color: #0369a1; display: block; margin-bottom: 0.25rem;">검색 방식</label>
+              <select id="toolSearchType" style="width: 100%; padding: 0.4rem; border: 1px solid #bae6fd; border-radius: 6px; font-size: 0.85rem; background: white;">
+                <option value="regex" ${this.toolSearchConfig.type === 'regex' ? 'selected' : ''}>Regex (빠름, 권장)</option>
+                <option value="bm25" ${this.toolSearchConfig.type === 'bm25' ? 'selected' : ''}>BM25 (의미 기반)</option>
+              </select>
+            </div>
+
+            <div style="margin-bottom: 0.75rem;">
+              <label style="font-size: 0.75rem; color: #0369a1; display: block; margin-bottom: 0.25rem;">항상 로드할 도구 (쉼표 구분)</label>
+              <input type="text" id="toolSearchAlwaysLoad" value="${this.toolSearchConfig.alwaysLoad.join(', ')}"
+                placeholder="send_message, schedule_message"
+                style="width: 100%; padding: 0.4rem; border: 1px solid #bae6fd; border-radius: 6px; font-size: 0.85rem; box-sizing: border-box;">
+            </div>
+
+            <button id="saveToolSearchBtn" style="width: 100%; padding: 0.5rem; background: #0284c7; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">
+              저장
+            </button>
+          </div>
+
+          <!-- 현황 표시 -->
+          <div style="font-size: 0.7rem; color: #0369a1; margin-top: 0.5rem;">
+            현재 총 ${totalTools}개 도구 등록됨 ${totalTools >= 10 ? '(✓ 10개+ 시 자동 활성화 권장)' : ''}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  /**
    * 서버 도구 목록 로드
    */
   async loadServerTools(serverId) {
@@ -273,13 +359,67 @@ export class MCPManager {
       refreshBtn.addEventListener('click', async () => {
         refreshBtn.textContent = '⏳ 로딩...';
         await this.loadServers();
+        await this.loadToolSearchConfig();
         this.serverTools = {}; // 캐시 클리어
         this.renderUI();
         this.attachEventListeners();
       });
     }
 
+    // Tool Search 토글
+    const toolSearchToggle = this.container.querySelector('#toolSearchToggle');
+    if (toolSearchToggle) {
+      toolSearchToggle.addEventListener('change', (e) => {
+        const details = this.container.querySelector('#toolSearchDetails');
+        const toggleSpan = e.target.nextElementSibling;
+        const innerSpan = toggleSpan.querySelector('span');
+
+        if (e.target.checked) {
+          details.style.display = 'block';
+          toggleSpan.style.background = '#4285f4';
+          innerSpan.style.left = '23px';
+        } else {
+          details.style.display = 'none';
+          toggleSpan.style.background = '#ccc';
+          innerSpan.style.left = '3px';
+        }
+      });
+    }
+
+    // Tool Search 저장 버튼
+    const saveToolSearchBtn = this.container.querySelector('#saveToolSearchBtn');
+    if (saveToolSearchBtn) {
+      saveToolSearchBtn.addEventListener('click', async () => {
+        await this.saveToolSearchConfig();
+      });
+    }
+
     this.attachCardListeners();
+  }
+
+  /**
+   * Tool Search 설정 저장
+   */
+  async saveToolSearchConfig() {
+    try {
+      const enabled = this.container.querySelector('#toolSearchToggle')?.checked || false;
+      const type = this.container.querySelector('#toolSearchType')?.value || 'regex';
+      const alwaysLoadInput = this.container.querySelector('#toolSearchAlwaysLoad')?.value || '';
+      const alwaysLoad = alwaysLoadInput
+        .split(',')
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+
+      const config = { enabled, type, alwaysLoad };
+
+      await this.apiClient.put('/config/tool-search', config);
+      this.toolSearchConfig = config;
+
+      alert('Tool Search 설정이 저장되었습니다.');
+    } catch (error) {
+      console.error('Failed to save tool search config:', error);
+      alert('설정 저장에 실패했습니다.');
+    }
   }
 
   /**

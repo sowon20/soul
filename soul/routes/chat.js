@@ -21,6 +21,7 @@ const Message = require('../models/Message');
 const ConversationStore = require('../utils/conversation-store');
 const { loadMCPTools, executeMCPTool } = require('../utils/mcp-tools');
 const { builtinTools, executeBuiltinTool, isBuiltinTool } = require('../utils/builtin-tools');
+const configManager = require('../utils/config');
 
 // JSONL 대화 저장소 (lazy init)
 let _conversationStore = null;
@@ -32,6 +33,30 @@ async function getConversationStore() {
   return _conversationStore;
 }
 
+// 도구 정의 캐시 (토큰 절약: 매 요청마다 로드하지 않음)
+let _cachedTools = null;
+let _cachedToolsTimestamp = 0;
+const TOOLS_CACHE_TTL = 60000; // 1분 캐시
+
+async function getCachedTools() {
+  const now = Date.now();
+  if (_cachedTools && (now - _cachedToolsTimestamp) < TOOLS_CACHE_TTL) {
+    return _cachedTools;
+  }
+
+  const mcpTools = await loadMCPTools();
+  _cachedTools = [...builtinTools, ...mcpTools];
+  _cachedToolsTimestamp = now;
+  console.log(`[Chat] Tools cache refreshed: ${_cachedTools.length} tools`);
+  return _cachedTools;
+}
+
+// 도구 캐시 무효화 (설정 변경 시 호출)
+function invalidateToolsCache() {
+  _cachedTools = null;
+  _cachedToolsTimestamp = 0;
+}
+
 /**
  * POST /api/chat
  * 메시지 전송 및 응답 (핵심 엔드포인트)
@@ -40,6 +65,9 @@ async function getConversationStore() {
 router.post('/', async (req, res) => {
   try {
     const { message, sessionId = 'main-conversation', options = {} } = req.body;
+
+    // 실행된 도구 기록 (응답에 포함)
+    const executedTools = [];
 
     if (!message) {
       return res.status(400).json({
@@ -95,30 +123,33 @@ router.post('/', async (req, res) => {
       console.warn('알바 목록 로드 실패:', roleError.message);
     }
 
-    // 2.2 자기학습 규칙 주입
+    // 2.2 자기학습 규칙 주입 (최적화: DB에서 5개만 가져옴)
     try {
       const SelfRule = require('../models/SelfRule');
+      // 상위 5개만 DB에서 가져옴 (이전: 20개 가져와서 필터링)
       const selfRules = await SelfRule.find({ isActive: true })
         .sort({ priority: -1, useCount: -1 })
-        .limit(20);
-      
+        .limit(5)
+        .select('rule tokenCount'); // 필요한 필드만 가져오기
+
       if (selfRules.length > 0) {
-        // 토큰 제한 (약 500토큰)
+        // 토큰 제한 (약 300토큰으로 축소)
         let rulesText = '';
         let tokenCount = 0;
-        const maxTokens = 500;
-        
+        const maxTokens = 300;
+
         for (const rule of selfRules) {
           const ruleTokens = rule.tokenCount || Math.ceil(rule.rule.length / 4);
           if (tokenCount + ruleTokens > maxTokens) break;
           rulesText += `- ${rule.rule}\n`;
           tokenCount += ruleTokens;
-          
-          // 사용 횟수 증가
-          rule.useCount += 1;
-          rule.lastUsed = new Date();
-          await rule.save();
         }
+
+        // 사용 횟수 업데이트는 비동기로 (응답 지연 없음)
+        SelfRule.updateMany(
+          { _id: { $in: selfRules.map(r => r._id) } },
+          { $inc: { useCount: 1 }, $set: { lastUsed: new Date() } }
+        ).exec().catch(err => console.warn('SelfRule update failed:', err.message));
         
         if (rulesText) {
           systemPrompt += `\n\n=== 내가 나한테 남긴 메모 ===\n`;
@@ -127,7 +158,7 @@ router.post('/', async (req, res) => {
         
         // 새 메모 남기기 안내
         systemPrompt += `\n\n=== 내면 메모 남기기 ===\n`;
-        systemPrompt += `대화하다가 "아, 이건 나중에도 기억해야겠다" 싶은 게 있으면 응답 어디든 [MEMO: 내용] 태그로 남겨. 예: [MEMO: 소원이는 새벽에 자주 깨어있음]\n`;
+        systemPrompt += `대화하다가 "아, 이건 나중에도 기억해야겠다" 싶은 게 있으면 응답 어디든 [MEMO: 내용] 태그로 남겨. 예: [MEMO: 사용자는 새벽에 자주 깨어있음]\n`;
         systemPrompt += `이건 나만 보는 거고, 사용자한테는 안 보여. 실수해서 배운 것, 사용자 특성, 내가 고쳐야 할 점 등 자유롭게.\n`;
       }
     } catch (ruleError) {
@@ -200,11 +231,8 @@ router.post('/', async (req, res) => {
         console.log(`[Chat] System prompt preview: ${combinedSystemPrompt.substring(0, 200)}...`);
       }
 
-      // MCP 도구 로드 (스마트홈 등)
-      const mcpTools = await loadMCPTools();
-      
-      // 내장 도구 + MCP 도구 합치기
-      const allTools = [...builtinTools, ...mcpTools];
+      // MCP 도구 로드 (캐시 사용으로 토큰 절약)
+      const allTools = await getCachedTools();
       console.log('[Chat] Available tools:', allTools.map(t => t.name).join(', '));
       
       // MCP 서버 이름 매핑
@@ -258,6 +286,13 @@ router.post('/', async (req, res) => {
             result = await executeMCPTool(toolName, input);
           }
           
+          // 실행된 도구 기록
+          executedTools.push({
+            name: toolName,
+            display: parsed.display,
+            success: true
+          });
+          
           // 도구 실행 완료 알림
           if (global.io) {
             global.io.emit('tool_end', {
@@ -268,6 +303,14 @@ router.post('/', async (req, res) => {
             });
           }
         } catch (toolError) {
+          // 실행된 도구 기록 (실패)
+          executedTools.push({
+            name: toolName,
+            display: parsed.display,
+            success: false,
+            error: toolError.message
+          });
+          
           // 도구 실행 실패 알림
           if (global.io) {
             global.io.emit('tool_end', {
@@ -284,13 +327,28 @@ router.post('/', async (req, res) => {
       };
 
       // AI 호출 (도구 포함) - 프로필 설정 적용
+      const totalChars = chatMessages.reduce((sum, m) => sum + (m.content?.length || 0), 0);
+      console.log(`[Chat] Sending to AI: ${chatMessages.length} messages, ~${totalChars} chars, ~${Math.ceil(totalChars/4)} tokens (estimate)`);
+      console.log(`[Chat] System prompt: ${combinedSystemPrompt.length} chars`);
+      
+      // Tool Search 설정 로드
+      const toolSearchConfig = await configManager.getConfigValue('toolSearch', {
+        enabled: false,
+        type: 'regex',
+        alwaysLoad: []
+      });
+
       aiResponse = await aiService.chat(chatMessages, {
         systemPrompt: combinedSystemPrompt,
         maxTokens: aiSettings.maxTokens,
         temperature: aiSettings.temperature,
         tools: allTools.length > 0 ? allTools : null,
         toolExecutor: allTools.length > 0 ? toolExecutor : null,
-        thinking: routingResult.thinking || false
+        thinking: routingResult.thinking || false,
+        // Tool Search 설정 (Claude 전용)
+        enableToolSearch: toolSearchConfig.enabled,
+        toolSearchType: toolSearchConfig.type,
+        alwaysLoadTools: toolSearchConfig.alwaysLoad
       });
     } catch (aiError) {
       console.error('AI 호출 실패:', aiError);
@@ -382,7 +440,7 @@ router.post('/', async (req, res) => {
             let category = 'general';
             if (/코드|코딩|개발|버그|에러/.test(memoContent)) category = 'coding';
             else if (/시스템|서버|설정|인프라/.test(memoContent)) category = 'system';
-            else if (/소원|사용자|유저/.test(memoContent)) category = 'user';
+            else if (/사용자|유저|user/.test(memoContent)) category = 'user';
             else if (/성격|말투|태도/.test(memoContent)) category = 'personality';
             
             await SelfRule.create({
@@ -438,6 +496,7 @@ router.post('/', async (req, res) => {
       sessionId,
       message: finalResponse,
       reply: finalResponse, // 프론트엔드 호환성
+      toolsUsed: executedTools, // 사용된 도구 목록
       usage: conversationData.usage,
       compressed: conversationData.compressed,
       contextData: conversationData.contextData,
@@ -809,3 +868,4 @@ function determineTier(modelId) {
 }
 
 module.exports = router;
+module.exports.invalidateToolsCache = invalidateToolsCache;

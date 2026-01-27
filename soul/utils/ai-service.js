@@ -11,6 +11,26 @@ class AIService {
   }
 
   /**
+   * 서비스별 지원 기능 (서브클래스에서 오버라이드)
+   * Claude 전용 기능들이 다른 서비스에 전달되면 무시됨
+   */
+  static get supportedFeatures() {
+    return {
+      documents: false,      // Citations용 문서
+      searchResults: false,  // RAG 검색 결과
+      outputFormat: false,   // Structured Outputs
+      strictTools: false,    // 도구 입력 검증
+      thinking: false,       // Extended Thinking
+      prefill: false,        // 응답 시작 미리 채움
+      enableCache: false,    // 프롬프트 캐싱
+      effort: false,         // 노력 수준 조절
+      toolExamples: false,   // 도구별 input_examples
+      fineGrainedToolStreaming: false, // 세밀한 도구 스트리밍
+      enableToolSearch: false, // Tool Search Tool
+    };
+  }
+
+  /**
    * 대화 메시지 생성 (핵심 메서드)
    * @param {Array} messages - 메시지 배열 [{ role: 'user'|'assistant', content: '...' }]
    * @param {Object} options - { systemPrompt, maxTokens, temperature, stream }
@@ -42,11 +62,30 @@ class AIService {
  * Anthropic Claude AI 서비스
  */
 class AnthropicService extends AIService {
-  constructor(apiKey, modelName = 'claude-3-haiku-20240307') {
+  /**
+   * Claude 지원 기능 (모두 지원)
+   */
+  static get supportedFeatures() {
+    return {
+      documents: true,       // Citations
+      searchResults: true,   // RAG 검색 결과
+      outputFormat: true,    // Structured Outputs (beta)
+      strictTools: true,     // 도구 입력 검증 (beta)
+      thinking: true,        // Extended Thinking
+      prefill: true,         // 응답 시작 미리 채움
+      enableCache: true,     // 프롬프트 캐싱 (90% 비용 절감)
+      effort: true,          // 노력 수준 조절 (Opus 4.5 전용)
+      toolExamples: true,    // 도구별 input_examples (beta)
+      fineGrainedToolStreaming: true, // 세밀한 도구 스트리밍 (beta)
+      enableToolSearch: true, // Tool Search Tool (beta)
+    };
+  }
+
+  constructor(apiKey, modelName = 'claude-haiku-4-5-20251001') {
     super(apiKey);
     this.client = new Anthropic({ apiKey });
     this.modelName = modelName;
-    
+
     // MCP 서버 이름 매핑
     this.mcpServerNames = {
       'ssh-commander': '터미널',
@@ -110,12 +149,175 @@ class AnthropicService extends AIService {
       tools = null,
       toolExecutor = null, // 도구 실행 함수
       thinking = false, // extended thinking 활성화
+      thinkingBudget = null, // thinking 토큰 예산 (기본: maxTokens의 60%)
+      enableCache = true, // 프롬프트 캐싱 (기본 활성화)
+      prefill = null, // JSON 응답 강제용 prefill (예: '{', '[')
+      enableContextEditing = true, // Context Editing (기본 활성화) - 토큰 절약
+      effort = null, // 노력 수준: 'high' | 'medium' | 'low' (Opus 4.5 전용, 베타)
+      documents = null, // Citations용 문서 배열 [{ title, content, type? }]
+      searchResults = null, // RAG용 검색 결과 [{ source, title, content: [{type:'text',text}] }]
+      outputFormat = null, // Structured Outputs: JSON 스키마 { type: 'json_schema', schema: {...} }
+      strictTools = false, // Structured Outputs: 도구 입력 검증 (베타)
+      toolExamples = null, // 도구별 예제 입력 { toolName: [{ input: {...}, description?: '...' }] } (베타)
+      fineGrainedToolStreaming = false, // 세밀한 도구 파라미터 스트리밍 (베타) - 지연 시간 감소
+      disableParallelToolUse = false, // 병렬 도구 사용 비활성화 (한 번에 하나의 도구만)
+      enableToolSearch = false, // Tool Search Tool 활성화 (도구 30개+ 시 유용, 베타)
+      toolSearchType = 'regex', // 'regex' | 'bm25' - 검색 방식
+      alwaysLoadTools = [], // Tool Search 사용 시에도 항상 로드할 도구 이름 배열
     } = options;
 
+    // Citations: 문서가 있으면 user 메시지에 문서를 포함
+    // Claude API는 content를 배열로 받아 document 블록과 text 블록을 함께 전달
     const apiMessages = messages.map(msg => ({
       role: msg.role,
       content: msg.content
     }));
+
+    // 문서/파일이 있으면 첫 번째 user 메시지에 문서 블록 추가
+    // documents 배열 형식:
+    // - 텍스트: { type: 'text', title, content, context? }
+    // - PDF (base64): { type: 'pdf', title, data (base64), context? }
+    // - PDF (URL): { type: 'pdf_url', title, url, context? }
+    // - PDF (file_id): { type: 'file', title, file_id, context? }
+    // - 이미지 (base64): { type: 'image', media_type, data (base64) }
+    // - 이미지 (URL): { type: 'image_url', url }
+    // - 이미지 (file_id): { type: 'image_file', file_id }
+    if (documents && documents.length > 0) {
+      const firstUserIdx = apiMessages.findIndex(m => m.role === 'user');
+      if (firstUserIdx >= 0) {
+        const originalContent = apiMessages[firstUserIdx].content;
+        const contentBlocks = documents.map((doc, idx) => {
+          const baseBlock = {
+            title: doc.title || `문서 ${idx + 1}`,
+            context: doc.context || undefined
+          };
+
+          switch (doc.type) {
+            case 'pdf':
+              // PDF (base64)
+              return {
+                type: 'document',
+                source: {
+                  type: 'base64',
+                  media_type: 'application/pdf',
+                  data: doc.data
+                },
+                ...baseBlock,
+                citations: { enabled: doc.citations !== false }
+              };
+
+            case 'pdf_url':
+              // PDF (URL)
+              return {
+                type: 'document',
+                source: {
+                  type: 'url',
+                  url: doc.url
+                },
+                ...baseBlock,
+                citations: { enabled: doc.citations !== false }
+              };
+
+            case 'file':
+              // Files API (file_id)
+              return {
+                type: 'document',
+                source: {
+                  type: 'file',
+                  file_id: doc.file_id
+                },
+                ...baseBlock,
+                citations: { enabled: doc.citations !== false }
+              };
+
+            case 'image':
+              // 이미지 (base64)
+              return {
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: doc.media_type || 'image/jpeg',
+                  data: doc.data
+                }
+              };
+
+            case 'image_url':
+              // 이미지 (URL)
+              return {
+                type: 'image',
+                source: {
+                  type: 'url',
+                  url: doc.url
+                }
+              };
+
+            case 'image_file':
+              // 이미지 (file_id)
+              return {
+                type: 'image',
+                source: {
+                  type: 'file',
+                  file_id: doc.file_id
+                }
+              };
+
+            case 'text':
+            default:
+              // 텍스트 문서 (기존)
+              return {
+                type: 'document',
+                source: {
+                  type: 'text',
+                  media_type: 'text/plain',
+                  data: doc.content
+                },
+                ...baseBlock,
+                citations: { enabled: doc.citations !== false }
+              };
+          }
+        });
+
+        // content를 배열로 변환: [documents..., text]
+        apiMessages[firstUserIdx].content = [
+          ...contentBlocks,
+          { type: 'text', text: typeof originalContent === 'string' ? originalContent : JSON.stringify(originalContent) }
+        ];
+        console.log(`[Anthropic] Documents/files enabled: ${documents.length} items`);
+      }
+    }
+
+    // Search Results: RAG 애플리케이션용 검색 결과
+    // tool_result 내 또는 최상위 user 메시지에 search_result 블록으로 포함
+    // Claude가 자동으로 인용하며 답변함 (citations 필요 없이 source 링크 사용)
+    // searchResults 형식: [{ source: 'URL', title: '제목', content: [{type:'text', text:'내용'}] }]
+    if (searchResults && searchResults.length > 0) {
+      const lastUserIdx = apiMessages.map((m, i) => ({ m, i }))
+        .filter(x => x.m.role === 'user')
+        .pop()?.i;
+
+      if (lastUserIdx !== undefined) {
+        const originalContent = apiMessages[lastUserIdx].content;
+        const searchBlocks = searchResults.map(sr => ({
+          type: 'search_result',
+          source: sr.source || sr.url || '',
+          title: sr.title || '',
+          content: Array.isArray(sr.content) ? sr.content : [{ type: 'text', text: sr.content || '' }]
+        }));
+
+        // content를 배열로 변환: [search_results..., text]
+        apiMessages[lastUserIdx].content = [
+          ...searchBlocks,
+          { type: 'text', text: typeof originalContent === 'string' ? originalContent : JSON.stringify(originalContent) }
+        ];
+        console.log(`[Anthropic] Search results enabled: ${searchResults.length} results`);
+      }
+    }
+
+    // Prefill: assistant 메시지로 응답 시작 부분 미리 채움
+    // JSON 응답 강제 시 유용 (예: prefill: '{' → JSON 객체 응답 보장)
+    if (prefill) {
+      apiMessages.push({ role: 'assistant', content: prefill });
+    }
 
     const params = {
       model: this.modelName,
@@ -124,29 +326,177 @@ class AnthropicService extends AIService {
     };
 
     // extended thinking 설정 (활성화 시 temperature 사용 불가)
-    // 지원하지 않는 모델은 API에서 무시되거나 에러 발생 가능 - UI에서 안내
+    // 지원 모델: Sonnet 4.5, Sonnet 4, Haiku 4.5, Opus 4.5, Opus 4.1, Opus 4
     if (thinking) {
+      const budgetTokens = thinkingBudget || Math.min(10000, Math.floor(maxTokens * 0.6));
       params.thinking = {
         type: 'enabled',
-        budget_tokens: Math.min(10000, Math.floor(maxTokens * 0.6)) // 최대 토큰의 60%를 thinking에 할당
+        budget_tokens: budgetTokens
       };
-      console.log(`[Anthropic] Extended thinking enabled with budget: ${params.thinking.budget_tokens}`);
+      console.log(`[Anthropic] Extended thinking enabled with budget: ${budgetTokens}`);
     } else {
       params.temperature = temperature;
     }
 
+    // 시스템 프롬프트 (캐싱 적용: 90% 비용 절감)
     if (systemPrompt) {
-      params.system = systemPrompt;
+      if (enableCache) {
+        // 캐싱을 위해 배열 형태로 전달
+        params.system = [{
+          type: 'text',
+          text: systemPrompt,
+          cache_control: { type: 'ephemeral' }
+        }];
+        console.log(`[Anthropic] System prompt cached (${systemPrompt.length} chars)`);
+      } else {
+        params.system = systemPrompt;
+      }
     }
 
+    // 도구 정의 (캐싱 적용: 매 요청마다 동일하므로 캐싱 효과 큼)
     if (tools && tools.length > 0) {
-      params.tools = tools;
+      let processedTools = tools.map(tool => ({ ...tool }));
+
+      // Tool Search Tool (베타: advanced-tool-use-2025-11-20)
+      // 도구가 많을 때 (30개+) 필요한 도구만 동적으로 검색/로드하여 컨텍스트 절약
+      // alwaysLoadTools에 지정된 도구는 항상 로드, 나머지는 defer_loading: true
+      if (enableToolSearch && tools.length >= 10) {
+        betas.push('advanced-tool-use-2025-11-20');
+
+        // Tool Search Tool 추가
+        const toolSearchToolType = toolSearchType === 'bm25'
+          ? 'tool_search_tool_bm25_20251119'
+          : 'tool_search_tool_regex_20251119';
+        const toolSearchToolName = toolSearchType === 'bm25'
+          ? 'tool_search_tool_bm25'
+          : 'tool_search_tool_regex';
+
+        processedTools = [
+          { type: toolSearchToolType, name: toolSearchToolName },
+          ...processedTools.map(tool => ({
+            ...tool,
+            defer_loading: !alwaysLoadTools.includes(tool.name)
+          }))
+        ];
+
+        const deferredCount = processedTools.filter(t => t.defer_loading).length;
+        console.log(`[Anthropic] Tool Search enabled (${toolSearchType}): ${deferredCount} deferred, ${alwaysLoadTools.length} always loaded`);
+      }
+
+      // input_examples 추가 (베타: advanced-tool-use-2025-11-20)
+      // 복잡한 도구에 예제 입력을 제공하여 Claude의 도구 사용 정확도 향상
+      // 예: toolExamples = { 'search': [{ input: { query: '날씨' }, description: '날씨 검색 예시' }] }
+      if (toolExamples) {
+        betas.push('advanced-tool-use-2025-11-20');
+        processedTools = processedTools.map(tool => {
+          if (toolExamples[tool.name]) {
+            return {
+              ...tool,
+              input_examples: toolExamples[tool.name]
+            };
+          }
+          return tool;
+        });
+        const exampleCount = Object.keys(toolExamples).length;
+        console.log(`[Anthropic] Tool examples added for ${exampleCount} tools`);
+      }
+
+      if (enableCache) {
+        // 마지막 도구에 cache_control 추가 (도구 전체가 캐싱됨)
+        processedTools = processedTools.map((tool, index) => {
+          if (index === processedTools.length - 1) {
+            return { ...tool, cache_control: { type: 'ephemeral' } };
+          }
+          return tool;
+        });
+        console.log(`[Anthropic] Tools cached: ${tools.length} tools`);
+      }
+
+      params.tools = processedTools;
       console.log(`[Anthropic] Tools passed: ${tools.length} tools (${tools.map(t => t.name).join(', ')})`);
+
+      // 병렬 도구 사용 비활성화 (한 번에 하나의 도구만 호출)
+      if (disableParallelToolUse) {
+        params.tool_choice = { type: 'auto', disable_parallel_tool_use: true };
+        console.log(`[Anthropic] Parallel tool use disabled`);
+      }
     } else {
       console.log(`[Anthropic] No tools passed!`);
     }
 
-    let response = await this.client.messages.create(params);
+    // Context Editing: 서버에서 tool_result와 thinking 블록 자동 정리 (토큰 절약)
+    // - clear_tool_uses: 이전 tool_result 내용을 빈 문자열로 교체
+    // - clear_thinking: 마지막 N개 턴 제외하고 thinking 블록 제거
+    // 베타 기능이므로 betas 헤더 필요
+    const requestOptions = {};
+    const betas = [];
+
+    if (enableContextEditing) {
+      betas.push('context-management-2025-06-27');
+      params.context_management = {
+        edits: [
+          {
+            type: 'clear_tool_uses_20250919',
+            // trigger 없으면 항상 적용
+          },
+          {
+            type: 'clear_thinking_20251015',
+            keep: { type: 'thinking_turns', value: 1 } // 마지막 1턴만 유지
+          }
+        ]
+      };
+      console.log(`[Anthropic] Context Editing enabled (clear_tool_uses + clear_thinking)`);
+    }
+
+    // Effort: 토큰 사용량 조절 (Opus 4.5 전용, 베타)
+    // - high: 최대 기능 (기본값, 생략과 동일)
+    // - medium: 균형 잡힌 접근
+    // - low: 가장 효율적, 빠른 응답
+    if (effort && this.modelName.includes('opus-4-5')) {
+      betas.push('effort-2025-11-24');
+      params.output_config = {
+        effort: effort
+      };
+      console.log(`[Anthropic] Effort level: ${effort}`);
+    }
+
+    // Structured Outputs: JSON 스키마 강제 (베타)
+    // Claude가 지정한 JSON 스키마에 맞는 응답만 생성
+    // outputFormat: { type: 'json_schema', schema: { ... JSON Schema ... } }
+    // 주의: schema에 additionalProperties: false 필수, 재귀 스키마 불가
+    if (outputFormat) {
+      betas.push('structured-outputs-2025-11-13');
+      params.output_format = outputFormat;
+      console.log(`[Anthropic] Structured output enabled (JSON schema)`);
+    }
+
+    // Strict Tools: 도구 입력 스키마 검증 (베타)
+    // tools 배열의 각 도구에 strict: true 추가하면 입력값 검증
+    // 잘못된 입력 시 오류 발생 (기본: 허용적)
+    if (strictTools && params.tools && params.tools.length > 0) {
+      if (!betas.includes('structured-outputs-2025-11-13')) {
+        betas.push('structured-outputs-2025-11-13');
+      }
+      params.tools = params.tools.map(tool => ({
+        ...tool,
+        strict: true
+      }));
+      console.log(`[Anthropic] Strict tool validation enabled`);
+    }
+
+    // Fine-grained Tool Streaming (베타: fine-grained-tool-streaming-2025-05-14)
+    // 도구 파라미터를 JSON 검증 없이 바로 스트리밍하여 지연 시간 감소
+    // 주의: 불완전한 JSON이 전달될 수 있으므로 에러 처리 필요
+    if (fineGrainedToolStreaming) {
+      betas.push('fine-grained-tool-streaming-2025-05-14');
+      console.log(`[Anthropic] Fine-grained tool streaming enabled`);
+    }
+
+    if (betas.length > 0) {
+      requestOptions.betas = betas;
+    }
+
+    let response = await this.client.messages.create(params, requestOptions);
     console.log(`[Anthropic] stop_reason: ${response.stop_reason}, content types: ${response.content.map(b => b.type).join(', ')}`);
 
     // 도구 사용 정보 수집
@@ -186,32 +536,369 @@ class AnthropicService extends AIService {
         content: toolResults
       });
 
-      // 다시 API 호출
+      // 다시 API 호출 (Context Editing 옵션 유지)
       params.messages = apiMessages;
-      response = await this.client.messages.create(params);
+      response = await this.client.messages.create(params, requestOptions);
     }
 
     // 최종 응답 추출 (thinking + tool_use + text)
     const thinkingBlock = response.content.find(block => block.type === 'thinking');
     const textBlock = response.content.find(block => block.type === 'text');
 
-    const textContent = textBlock ? textBlock.text : '';
-    
+    let textContent = textBlock ? textBlock.text : '';
+
+    // Prefill이 있으면 응답 앞에 붙여서 완전한 JSON으로 만듦
+    if (prefill) {
+      textContent = prefill + textContent;
+    }
+
+    // Citations: 인용 정보 추출 (문서가 있을 때만)
+    let citations = [];
+    if (documents && documents.length > 0 && textBlock?.citations) {
+      citations = textBlock.citations.map(cite => ({
+        documentTitle: cite.document_title || documents[cite.document_index]?.title,
+        documentIndex: cite.document_index,
+        startIndex: cite.start_char_index,
+        endIndex: cite.end_char_index,
+        citedText: cite.cited_text
+      }));
+      console.log(`[Anthropic] Found ${citations.length} citations in response`);
+    }
+
     // 응답 조립
     let finalResponse = '';
-    
+
     // thinking이 있으면 추가
     if (thinkingBlock) {
       console.log(`[Anthropic] Thinking content length: ${thinkingBlock.thinking.length}`);
       finalResponse += `<thinking>${thinkingBlock.thinking}</thinking>\n\n`;
     }
-    
+
     // 도구 사용 정보는 소켓으로 이미 전송됨 - 텍스트에 포함하지 않음
     // (이전에 <tool_use> 태그로 추가했으나, AI가 이를 학습해서 흉내내는 문제 발생)
-    
+
     finalResponse += textContent;
-    
+
+    // Citations가 있으면 응답 객체로 반환 (선택적)
+    if (citations.length > 0) {
+      return { text: finalResponse, citations };
+    }
+
     return finalResponse;
+  }
+
+  /**
+   * 토큰 카운팅 (무료 API)
+   * 요청 전에 토큰 수를 미리 계산하여 비용/속도 제한 관리
+   * @param {Array} messages - 메시지 배열
+   * @param {Object} options - { systemPrompt, tools, thinking }
+   * @returns {Promise<number>} 입력 토큰 수
+   */
+  async countTokens(messages, options = {}) {
+    const { systemPrompt = null, tools = null, thinking = false, thinkingBudget = null } = options;
+
+    const params = {
+      model: this.modelName,
+      messages: messages.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }))
+    };
+
+    if (systemPrompt) {
+      params.system = systemPrompt;
+    }
+
+    if (tools && tools.length > 0) {
+      params.tools = tools;
+    }
+
+    if (thinking) {
+      params.thinking = {
+        type: 'enabled',
+        budget_tokens: thinkingBudget || 10000
+      };
+    }
+
+    try {
+      const response = await this.client.messages.countTokens(params);
+      console.log(`[Anthropic] Token count: ${response.input_tokens}`);
+      return response.input_tokens;
+    } catch (error) {
+      console.error('[Anthropic] Token counting error:', error.message);
+      // 실패 시 대략적인 추정 (4자 = 1토큰)
+      const textLength = JSON.stringify(messages).length;
+      return Math.ceil(textLength / 4);
+    }
+  }
+
+  /**
+   * 문서 기반 대화 (Citations)
+   * 문서를 참조하여 답변하고, 인용 정보를 함께 반환
+   *
+   * @param {string} question - 사용자 질문
+   * @param {Array} documents - 문서 배열 [{ title, content, context? }]
+   * @param {Object} options - chat() 옵션과 동일
+   * @returns {Promise<{text: string, citations: Array}>}
+   *
+   * @example
+   * const result = await aiService.chatWithDocuments(
+   *   '계약 해지 조건이 뭐야?',
+   *   [{ title: '임대차계약서', content: '...' }]
+   * );
+   * // result.text: "계약 해지 조건은 ... 입니다."
+   * // result.citations: [{ documentTitle, citedText, startIndex, endIndex }]
+   */
+  async chatWithDocuments(question, documents, options = {}) {
+    if (!documents || documents.length === 0) {
+      throw new Error('문서가 필요합니다');
+    }
+
+    const messages = [{ role: 'user', content: question }];
+
+    // systemPrompt에 문서 참조 지시 추가
+    const defaultSystemPrompt = options.systemPrompt || '';
+    const docSystemPrompt = `${defaultSystemPrompt}
+제공된 문서를 참조하여 답변하세요. 문서에서 관련 내용을 인용하며 답변하고, 문서에 없는 내용은 추측하지 마세요.`.trim();
+
+    const result = await this.chat(messages, {
+      ...options,
+      systemPrompt: docSystemPrompt,
+      documents
+    });
+
+    // chat()이 citations와 함께 객체를 반환하면 그대로 반환
+    if (typeof result === 'object' && result.text) {
+      return result;
+    }
+
+    // citations 없이 문자열만 반환된 경우
+    return { text: result, citations: [] };
+  }
+
+  /**
+   * Files API: 파일 업로드 (베타)
+   * 한 번 업로드하면 file_id로 여러 요청에서 재사용 가능
+   *
+   * @param {Buffer|ReadableStream} fileContent - 파일 내용
+   * @param {string} filename - 파일명
+   * @param {string} mimeType - MIME 타입 (application/pdf, image/jpeg 등)
+   * @returns {Promise<{id: string, filename: string, size_bytes: number}>}
+   *
+   * @example
+   * const file = await aiService.uploadFile(pdfBuffer, 'contract.pdf', 'application/pdf');
+   * // 이후 chat()에서 사용: documents: [{ type: 'file', file_id: file.id }]
+   */
+  async uploadFile(fileContent, filename, mimeType = 'application/pdf') {
+    try {
+      const response = await this.client.beta.files.upload(
+        { file: (filename, fileContent, mimeType) },
+        { betas: ['files-api-2025-04-14'] }
+      );
+      console.log(`[Anthropic] File uploaded: ${response.id} (${filename}, ${response.size_bytes} bytes)`);
+      return response;
+    } catch (error) {
+      console.error('[Anthropic] File upload error:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Files API: 파일 다운로드 (스킬/코드 실행 결과만)
+   * @param {string} fileId - 파일 ID
+   * @returns {Promise<Buffer>}
+   */
+  async downloadFile(fileId) {
+    try {
+      const content = await this.client.beta.files.download(
+        fileId,
+        { betas: ['files-api-2025-04-14'] }
+      );
+      console.log(`[Anthropic] File downloaded: ${fileId}`);
+      return content;
+    } catch (error) {
+      console.error('[Anthropic] File download error:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Files API: 파일 목록 조회
+   * @returns {Promise<Array>}
+   */
+  async listFiles() {
+    try {
+      const files = await this.client.beta.files.list({
+        betas: ['files-api-2025-04-14']
+      });
+      return files.data || [];
+    } catch (error) {
+      console.error('[Anthropic] File list error:', error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Files API: 파일 삭제
+   * @param {string} fileId - 파일 ID
+   * @returns {Promise<boolean>}
+   */
+  async deleteFile(fileId) {
+    try {
+      await this.client.beta.files.delete(
+        fileId,
+        { betas: ['files-api-2025-04-14'] }
+      );
+      console.log(`[Anthropic] File deleted: ${fileId}`);
+      return true;
+    } catch (error) {
+      console.error('[Anthropic] File delete error:', error.message);
+      return false;
+    }
+  }
+
+  /**
+   * PDF 분석 헬퍼 (URL 또는 base64)
+   * @param {string} pdfSource - PDF URL 또는 base64 문자열
+   * @param {string} question - 질문
+   * @param {Object} options - { isUrl: false, enableCitations: true }
+   * @returns {Promise<{text: string, citations?: Array}>}
+   */
+  async analyzePdf(pdfSource, question, options = {}) {
+    const { isUrl = false, enableCitations = true } = options;
+
+    const doc = isUrl
+      ? { type: 'pdf_url', url: pdfSource, citations: enableCitations }
+      : { type: 'pdf', data: pdfSource, citations: enableCitations };
+
+    return this.chatWithDocuments(question, [doc], options);
+  }
+
+  /**
+   * RAG 검색 결과 기반 대화 (Search Results)
+   * 검색 결과를 참조하여 답변하고, 자동으로 소스 링크 포함
+   *
+   * @param {string} question - 사용자 질문
+   * @param {Array} searchResults - 검색 결과 배열
+   *   [{ source: 'URL', title: '제목', content: '내용' 또는 [{type:'text',text}] }]
+   * @param {Object} options - chat() 옵션과 동일
+   * @returns {Promise<string>} AI 응답 (소스 링크 포함)
+   *
+   * @example
+   * const result = await aiService.chatWithSearchResults(
+   *   '최신 AI 트렌드가 뭐야?',
+   *   [
+   *     { source: 'https://example.com/ai', title: 'AI 트렌드 2024', content: '...' },
+   *     { source: 'https://blog.com/ml', title: 'ML 동향', content: '...' }
+   *   ]
+   * );
+   */
+  async chatWithSearchResults(question, searchResults, options = {}) {
+    if (!searchResults || searchResults.length === 0) {
+      throw new Error('검색 결과가 필요합니다');
+    }
+
+    const messages = [{ role: 'user', content: question }];
+
+    // systemPrompt에 검색 결과 참조 지시 추가
+    const defaultSystemPrompt = options.systemPrompt || '';
+    const ragSystemPrompt = `${defaultSystemPrompt}
+검색 결과를 참조하여 답변하세요. 정보의 출처를 명시하고, 검색 결과에 없는 내용은 추측하지 마세요.`.trim();
+
+    return this.chat(messages, {
+      ...options,
+      systemPrompt: ragSystemPrompt,
+      searchResults
+    });
+  }
+
+  /**
+   * JSON 스키마 기반 대화 (Structured Outputs)
+   * Claude가 지정한 JSON 스키마에 맞는 응답만 생성
+   *
+   * @param {Array} messages - 메시지 배열
+   * @param {Object} jsonSchema - JSON Schema 객체
+   *   주의: additionalProperties: false 필수, 재귀 스키마 불가
+   * @param {Object} options - chat() 옵션과 동일
+   * @returns {Promise<Object>} 파싱된 JSON 객체
+   *
+   * @example
+   * const result = await aiService.chatWithJsonSchema(
+   *   [{ role: 'user', content: '서울 날씨 알려줘' }],
+   *   {
+   *     type: 'object',
+   *     properties: {
+   *       city: { type: 'string' },
+   *       temperature: { type: 'number' },
+   *       condition: { type: 'string', enum: ['sunny', 'cloudy', 'rainy'] }
+   *     },
+   *     required: ['city', 'temperature', 'condition'],
+   *     additionalProperties: false
+   *   }
+   * );
+   * // result: { city: '서울', temperature: 15, condition: 'cloudy' }
+   */
+  async chatWithJsonSchema(messages, jsonSchema, options = {}) {
+    if (!jsonSchema) {
+      throw new Error('JSON 스키마가 필요합니다');
+    }
+
+    // additionalProperties: false 강제 (API 요구사항)
+    const schemaWithDefaults = this._ensureAdditionalPropertiesFalse(jsonSchema);
+
+    const response = await this.chat(messages, {
+      ...options,
+      outputFormat: {
+        type: 'json_schema',
+        schema: schemaWithDefaults
+      }
+    });
+
+    // JSON 파싱
+    try {
+      const text = typeof response === 'object' ? response.text : response;
+      return JSON.parse(text);
+    } catch (error) {
+      console.error('[Anthropic] JSON parsing failed:', error.message);
+      throw new Error(`JSON 파싱 실패: ${error.message}`);
+    }
+  }
+
+  /**
+   * JSON Schema에 additionalProperties: false 추가 (재귀적)
+   * Structured Outputs API 요구사항
+   */
+  _ensureAdditionalPropertiesFalse(schema) {
+    if (!schema || typeof schema !== 'object') return schema;
+
+    const result = { ...schema };
+
+    // object 타입이면 additionalProperties: false 추가
+    if (result.type === 'object') {
+      result.additionalProperties = false;
+
+      // properties 내부도 재귀 처리
+      if (result.properties) {
+        result.properties = {};
+        for (const [key, value] of Object.entries(schema.properties)) {
+          result.properties[key] = this._ensureAdditionalPropertiesFalse(value);
+        }
+      }
+    }
+
+    // array의 items도 처리
+    if (result.type === 'array' && result.items) {
+      result.items = this._ensureAdditionalPropertiesFalse(result.items);
+    }
+
+    // anyOf, oneOf, allOf 처리
+    for (const key of ['anyOf', 'oneOf', 'allOf']) {
+      if (Array.isArray(result[key])) {
+        result[key] = result[key].map(s => this._ensureAdditionalPropertiesFalse(s));
+      }
+    }
+
+    return result;
   }
 
   async analyzeConversation(messages) {
@@ -283,7 +970,29 @@ class OpenAIService extends AIService {
       systemPrompt = null,
       maxTokens = 4096,
       temperature = 1.0,
+      // Claude 전용 옵션들 - 무시되지만 경고 출력
+      documents = null,
+      searchResults = null,
+      outputFormat = null,
+      strictTools = false,
+      thinking = false,
+      prefill = null,
+      enableCache = false,
+      effort = null,
+      toolExamples = null,
+      fineGrainedToolStreaming = false,
+      disableParallelToolUse = false,
+      enableToolSearch = false,
     } = options;
+
+    // Claude 전용 옵션 사용 시 경고
+    const claudeOnlyOptions = { documents, searchResults, outputFormat, strictTools, thinking, prefill, enableCache, effort, toolExamples, fineGrainedToolStreaming, disableParallelToolUse, enableToolSearch };
+    const usedClaudeOptions = Object.entries(claudeOnlyOptions)
+      .filter(([, v]) => v)
+      .map(([k]) => k);
+    if (usedClaudeOptions.length > 0) {
+      console.warn(`[OpenAI] Claude-only options ignored: ${usedClaudeOptions.join(', ')}`);
+    }
 
     const apiMessages = [...messages];
     if (systemPrompt) {
@@ -405,7 +1114,29 @@ class GoogleService extends AIService {
       systemPrompt = null,
       maxTokens = 4096,
       temperature = 1.0,
+      // Claude 전용 옵션들 - 무시되지만 경고 출력
+      documents = null,
+      searchResults = null,
+      outputFormat = null,
+      strictTools = false,
+      thinking = false,
+      prefill = null,
+      enableCache = false,
+      effort = null,
+      toolExamples = null,
+      fineGrainedToolStreaming = false,
+      disableParallelToolUse = false,
+      enableToolSearch = false,
     } = options;
+
+    // Claude 전용 옵션 사용 시 경고
+    const claudeOnlyOptions = { documents, searchResults, outputFormat, strictTools, thinking, prefill, enableCache, effort, toolExamples, fineGrainedToolStreaming, disableParallelToolUse, enableToolSearch };
+    const usedClaudeOptions = Object.entries(claudeOnlyOptions)
+      .filter(([, v]) => v)
+      .map(([k]) => k);
+    if (usedClaudeOptions.length > 0) {
+      console.warn(`[Google] Claude-only options ignored: ${usedClaudeOptions.join(', ')}`);
+    }
 
     // Gemini는 contents 배열로 메시지 전달
     const contents = messages.map(msg => ({
@@ -538,7 +1269,29 @@ class XAIService extends AIService {
       systemPrompt = null,
       maxTokens = 4096,
       temperature = 1.0,
+      // Claude 전용 옵션들 - 무시되지만 경고 출력
+      documents = null,
+      searchResults = null,
+      outputFormat = null,
+      strictTools = false,
+      thinking = false,
+      prefill = null,
+      enableCache = false,
+      effort = null,
+      toolExamples = null,
+      fineGrainedToolStreaming = false,
+      disableParallelToolUse = false,
+      enableToolSearch = false,
     } = options;
+
+    // Claude 전용 옵션 사용 시 경고
+    const claudeOnlyOptions = { documents, searchResults, outputFormat, strictTools, thinking, prefill, enableCache, effort, toolExamples, fineGrainedToolStreaming, disableParallelToolUse, enableToolSearch };
+    const usedClaudeOptions = Object.entries(claudeOnlyOptions)
+      .filter(([, v]) => v)
+      .map(([k]) => k);
+    if (usedClaudeOptions.length > 0) {
+      console.warn(`[xAI] Claude-only options ignored: ${usedClaudeOptions.join(', ')}`);
+    }
 
     const apiMessages = [...messages];
     if (systemPrompt) {
@@ -640,7 +1393,29 @@ class OllamaService extends AIService {
       systemPrompt = null,
       maxTokens = 4096,
       temperature = 1.0,
+      // Claude 전용 옵션들 - 무시되지만 경고 출력
+      documents = null,
+      searchResults = null,
+      outputFormat = null,
+      strictTools = false,
+      thinking = false,
+      prefill = null,
+      enableCache = false,
+      effort = null,
+      toolExamples = null,
+      fineGrainedToolStreaming = false,
+      disableParallelToolUse = false,
+      enableToolSearch = false,
     } = options;
+
+    // Claude 전용 옵션 사용 시 경고
+    const claudeOnlyOptions = { documents, searchResults, outputFormat, strictTools, thinking, prefill, enableCache, effort, toolExamples, fineGrainedToolStreaming, disableParallelToolUse, enableToolSearch };
+    const usedClaudeOptions = Object.entries(claudeOnlyOptions)
+      .filter(([, v]) => v)
+      .map(([k]) => k);
+    if (usedClaudeOptions.length > 0) {
+      console.warn(`[Ollama] Claude-only options ignored: ${usedClaudeOptions.join(', ')}`);
+    }
 
     // Ollama는 /api/chat 엔드포인트 사용
     const requestBody = {
@@ -757,8 +1532,16 @@ class AIServiceFactory {
   }
 
   static async createService(serviceName = null, modelName = null) {
-    const service = serviceName || process.env.DEFAULT_AI_SERVICE || 'anthropic';
+    const service = serviceName || process.env.DEFAULT_AI_SERVICE;
     const model = modelName || process.env.DEFAULT_AI_MODEL;
+
+    // 서비스와 모델 필수
+    if (!service) {
+      throw new Error('AI service not specified. Please configure in Settings or pass serviceName.');
+    }
+    if (!model) {
+      throw new Error('AI model not specified. Please configure in Settings or pass modelName.');
+    }
 
     // 캐시 키
     const cacheKey = `${service}-${model}`;
@@ -776,10 +1559,7 @@ class AIServiceFactory {
         if (!apiKey) {
           throw new Error('ANTHROPIC_API_KEY not configured. Please save it in Settings.');
         }
-        serviceInstance = new AnthropicService(
-          apiKey,
-          model || 'claude-3-haiku-20240307'
-        );
+        serviceInstance = new AnthropicService(apiKey, model);
         break;
       }
 
@@ -788,10 +1568,7 @@ class AIServiceFactory {
         if (!apiKey) {
           throw new Error('OPENAI_API_KEY not configured. Please save it in Settings.');
         }
-        serviceInstance = new OpenAIService(
-          apiKey,
-          model || 'gpt-4o-mini'
-        );
+        serviceInstance = new OpenAIService(apiKey, model);
         break;
       }
 
@@ -800,10 +1577,7 @@ class AIServiceFactory {
         if (!apiKey) {
           throw new Error('GOOGLE_API_KEY not configured. Please save it in Settings.');
         }
-        serviceInstance = new GoogleService(
-          apiKey,
-          model || 'gemini-2.0-flash-exp'
-        );
+        serviceInstance = new GoogleService(apiKey, model);
         break;
       }
 
@@ -812,17 +1586,14 @@ class AIServiceFactory {
         if (!apiKey) {
           throw new Error('XAI_API_KEY not configured. Please save it in Settings.');
         }
-        serviceInstance = new XAIService(
-          apiKey,
-          model || 'grok-4-1-fast-non-reasoning'
-        );
+        serviceInstance = new XAIService(apiKey, model);
         break;
       }
 
       case 'ollama':
         serviceInstance = new OllamaService(
           process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
-          model || 'llama3.2'
+          model
         );
         break;
 
@@ -1074,7 +1845,8 @@ class AIServiceFactory {
           return { success: true, models: xaiModels };
 
         case 'ollama':
-          const ollamaResponse = await fetch('http://localhost:11434/api/tags');
+          const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+          const ollamaResponse = await fetch(`${ollamaBaseUrl}/api/tags`);
 
           if (!ollamaResponse.ok) {
             return {
@@ -1111,7 +1883,7 @@ class AIServiceFactory {
     if (process.env.ANTHROPIC_API_KEY) {
       services.push({
         name: 'anthropic',
-        models: ['claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307']
+        models: ['claude-opus-4-5-20251101', 'claude-sonnet-4-5-20250929', 'claude-haiku-4-5-20251001']
       });
     }
 

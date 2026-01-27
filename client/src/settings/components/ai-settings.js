@@ -32,6 +32,11 @@ export class AISettings {
     this.availableRoles = [];  // 알바(Role) 목록
     this.expandedRoleId = null;  // 확장된 알바 ID
     this.abortController = null;  // 이벤트 리스너 중복 방지용
+    this.toolSearchConfig = {
+      enabled: false,
+      type: 'regex',
+      alwaysLoad: []
+    };
   }
 
   /**
@@ -68,6 +73,9 @@ export class AISettings {
       // 에이전트 체인 설정 로드
       await this.loadAgentChains();
 
+      // Tool Search 설정 로드
+      await this.loadToolSearchConfig();
+
       // UI 렌더링
       container.innerHTML = `
         <div class="ai-settings-panel">
@@ -99,6 +107,13 @@ export class AISettings {
             <h3 class="settings-section-title">알바</h3>
             <p class="settings-section-desc">전문 AI 알바들이 각자의 역할에 맞게 작업을 수행합니다.</p>
             ${this.renderAgentChainSettings()}
+          </section>
+
+          <!-- Tool Search 설정 (Claude 전용) -->
+          <section class="settings-section">
+            <h3 class="settings-section-title">🔍 Tool Search <span style="font-size: 0.7rem; background: #fef3c7; color: #92400e; padding: 0.1rem 0.4rem; border-radius: 4px; margin-left: 0.5rem;">베타</span></h3>
+            <p class="settings-section-desc">MCP 도구가 많을 때 필요한 도구만 동적으로 검색하여 토큰 절약 (Claude 전용)</p>
+            ${this.renderToolSearchSettings()}
           </section>
 
           <!-- 메모리 설정 -->
@@ -281,6 +296,24 @@ export class AISettings {
       }
     } catch (error) {
       console.error('Failed to load storage config:', error);
+    }
+  }
+
+  /**
+   * Tool Search 설정 로드
+   */
+  async loadToolSearchConfig() {
+    try {
+      const response = await this.apiClient.get('/config/tool-search');
+      if (response) {
+        this.toolSearchConfig = {
+          enabled: response.enabled ?? false,
+          type: response.type ?? 'regex',
+          alwaysLoad: response.alwaysLoad ?? []
+        };
+      }
+    } catch (error) {
+      console.error('Failed to load tool search config:', error);
     }
   }
 
@@ -933,6 +966,58 @@ export class AISettings {
           </button>
           <button class="settings-btn settings-btn-outline" id="resetMemoryBtn">
             기본값으로 초기화
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Tool Search 설정 렌더링
+   */
+  renderToolSearchSettings() {
+    return `
+      <div class="tool-search-settings-container">
+        <div class="memory-toggle-group">
+          <div class="memory-toggle-item">
+            <div class="toggle-info">
+              <span class="label-text">Tool Search 활성화</span>
+              <span class="label-hint">도구가 많을 때(10개+) 필요한 도구만 동적으로 로드하여 토큰 절약 (Claude 전용 베타)</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toolSearchEnabled" ${this.toolSearchConfig.enabled ? 'checked' : ''}>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="memory-field" style="margin-top: 1rem;">
+          <label class="memory-label">
+            <span class="label-text">검색 방식</span>
+            <span class="label-hint">regex: 정규표현식 기반 빠른 검색 / bm25: 의미 기반 검색</span>
+          </label>
+          <select id="toolSearchType" class="memory-input" style="width: 100%; padding: 0.5rem;">
+            <option value="regex" ${this.toolSearchConfig.type === 'regex' ? 'selected' : ''}>Regex (권장)</option>
+            <option value="bm25" ${this.toolSearchConfig.type === 'bm25' ? 'selected' : ''}>BM25</option>
+          </select>
+        </div>
+
+        <div class="memory-field" style="margin-top: 1rem;">
+          <label class="memory-label">
+            <span class="label-text">항상 로드할 도구</span>
+            <span class="label-hint">쉼표로 구분 (예: send_message, schedule_message)</span>
+          </label>
+          <input type="text"
+                 class="memory-input"
+                 id="toolSearchAlwaysLoad"
+                 value="${this.toolSearchConfig.alwaysLoad.join(', ')}"
+                 placeholder="도구 이름을 쉼표로 구분"
+                 style="width: 100%; padding: 0.5rem;">
+        </div>
+
+        <div class="memory-actions" style="margin-top: 1rem;">
+          <button class="settings-btn settings-btn-primary" id="saveToolSearchBtn">
+            저장
           </button>
         </div>
       </div>
@@ -1892,6 +1977,12 @@ export class AISettings {
       });
     }
 
+    // Tool Search 설정 버튼
+    const saveToolSearchBtn = container.querySelector('#saveToolSearchBtn');
+    if (saveToolSearchBtn) {
+      saveToolSearchBtn.addEventListener('click', () => this.saveToolSearchSettings());
+    }
+
     // 프롬프트 설정 버튼
     const savePromptBtn = container.querySelector('#savePromptBtn');
     const resetPromptBtn = container.querySelector('#resetPromptBtn');
@@ -2542,6 +2633,31 @@ export class AISettings {
     } catch (error) {
       console.error('Failed to reset memory settings:', error);
       this.showSaveStatus('메모리 설정 초기화에 실패했습니다.', 'error');
+    }
+  }
+
+  /**
+   * Tool Search 설정 저장
+   */
+  async saveToolSearchSettings() {
+    try {
+      const enabled = document.getElementById('toolSearchEnabled')?.checked || false;
+      const type = document.getElementById('toolSearchType')?.value || 'regex';
+      const alwaysLoadInput = document.getElementById('toolSearchAlwaysLoad')?.value || '';
+      const alwaysLoad = alwaysLoadInput
+        .split(',')
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+
+      const config = { enabled, type, alwaysLoad };
+
+      await this.apiClient.put('/config/tool-search', config);
+
+      this.toolSearchConfig = config;
+      this.showSaveStatus('Tool Search 설정이 저장되었습니다.', 'success');
+    } catch (error) {
+      console.error('Failed to save tool search settings:', error);
+      this.showSaveStatus('Tool Search 설정 저장에 실패했습니다.', 'error');
     }
   }
 

@@ -9,7 +9,7 @@ class ConfigManager {
     this.defaultConfig = {
       ai: {
         defaultService: process.env.DEFAULT_AI_SERVICE || 'anthropic',
-        defaultModel: process.env.DEFAULT_AI_MODEL || 'claude-3-haiku-20240307',
+        defaultModel: process.env.DEFAULT_AI_MODEL || 'claude-haiku-4-5-20251001',
         services: {
           anthropic: {
             enabled: !!process.env.ANTHROPIC_API_KEY,
@@ -45,6 +45,11 @@ class ConfigManager {
         light: 'auto',
         medium: 'auto',
         heavy: 'auto'
+      },
+      toolSearch: {
+        enabled: false, // Tool Search Tool 활성화 (도구 10개+ 시 유용)
+        type: 'regex', // 'regex' | 'bm25'
+        alwaysLoad: [] // 항상 로드할 도구 이름 배열
       }
     };
   }
@@ -88,8 +93,9 @@ class ConfigManager {
       const memory = await this.getConfigValue('memory', this.defaultConfig.memory);
       const files = await this.getConfigValue('files', this.defaultConfig.files);
       const routing = await this.getConfigValue('routing', this.defaultConfig.routing);
+      const toolSearch = await this.getConfigValue('toolSearch', this.defaultConfig.toolSearch);
 
-      return { ai, memory, files, routing };
+      return { ai, memory, files, routing, toolSearch };
     } catch (error) {
       console.error('Failed to read config:', error);
       return this.defaultConfig;
@@ -105,6 +111,7 @@ class ConfigManager {
       if (config.memory) await this.setConfigValue('memory', config.memory, 'Memory storage configuration');
       if (config.files) await this.setConfigValue('files', config.files, 'File storage configuration');
       if (config.routing) await this.setConfigValue('routing', config.routing, 'Smart routing configuration');
+      if (config.toolSearch) await this.setConfigValue('toolSearch', config.toolSearch, 'Tool Search configuration');
 
       return config;
     } catch (error) {

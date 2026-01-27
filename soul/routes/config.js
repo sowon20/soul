@@ -411,6 +411,45 @@ router.put('/routing', async (req, res) => {
 });
 
 /**
+ * GET /api/config/tool-search
+ * Tool Search 설정 조회
+ */
+router.get('/tool-search', async (req, res) => {
+  try {
+    const defaultConfig = {
+      enabled: false,
+      type: 'regex',
+      alwaysLoad: []
+    };
+    const toolSearchConfig = await configManager.getConfigValue('toolSearch', defaultConfig);
+    res.json(toolSearchConfig);
+  } catch (error) {
+    console.error('Error reading tool search config:', error);
+    res.status(500).json({ error: 'Internal Server Error', message: error.message });
+  }
+});
+
+/**
+ * PUT /api/config/tool-search
+ * Tool Search 설정 저장
+ */
+router.put('/tool-search', async (req, res) => {
+  try {
+    const { enabled, type, alwaysLoad } = req.body;
+    const config = {
+      enabled: !!enabled,
+      type: type || 'regex',
+      alwaysLoad: Array.isArray(alwaysLoad) ? alwaysLoad : []
+    };
+    await configManager.setConfigValue('toolSearch', config, 'Tool Search configuration');
+    res.json(config);
+  } catch (error) {
+    console.error('Error saving tool search config:', error);
+    res.status(500).json({ error: 'Internal Server Error', message: error.message });
+  }
+});
+
+/**
  * GET /api/config/dock
  * 독 아이템 목록 조회
  */
@@ -468,6 +507,86 @@ router.post('/restart', async (req, res) => {
     console.error('Restart error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
+});
+
+/**
+ * GET /api/config/server-status
+ * 서버 상태 확인
+ */
+router.get('/server-status', async (req, res) => {
+  const status = {
+    backend: { online: true, port: 3001 },
+    mongodb: { online: false, port: 27017 },
+    chroma: { online: false, port: 8000 },
+    ftp: { online: false, port: 21 }
+  };
+  
+  // MongoDB 체크
+  try {
+    const mongoose = require('mongoose');
+    status.mongodb.online = mongoose.connection.readyState === 1;
+  } catch (e) {
+    status.mongodb.online = false;
+  }
+  
+  // ChromaDB 체크
+  try {
+    const http = require('http');
+    await new Promise((resolve) => {
+      const req = http.get('http://localhost:8000/api/v2/heartbeat', (res) => {
+        status.chroma.online = res.statusCode === 200;
+        resolve();
+      });
+      req.on('error', () => {
+        status.chroma.online = false;
+        resolve();
+      });
+      req.setTimeout(2000, () => {
+        status.chroma.online = false;
+        req.destroy();
+        resolve();
+      });
+    });
+  } catch (e) {
+    status.chroma.online = false;
+  }
+  
+  // FTP 체크 (설정에서 가져오기)
+  try {
+    const SystemConfig = require('../models/SystemConfig');
+    const config = await SystemConfig.findOne({ configKey: 'memory' });
+    if (config?.value?.storageType === 'ftp' && config?.value?.ftp) {
+      const ftpConfig = config.value.ftp;
+      status.ftp.port = ftpConfig.port || 21;
+      status.ftp.host = ftpConfig.host;
+      
+      // 간단한 TCP 연결 체크
+      const net = require('net');
+      await new Promise((resolve) => {
+        const socket = new net.Socket();
+        socket.setTimeout(2000);
+        socket.on('connect', () => {
+          status.ftp.online = true;
+          socket.destroy();
+          resolve();
+        });
+        socket.on('error', () => {
+          status.ftp.online = false;
+          resolve();
+        });
+        socket.on('timeout', () => {
+          status.ftp.online = false;
+          socket.destroy();
+          resolve();
+        });
+        socket.connect(ftpConfig.port || 21, ftpConfig.host);
+      });
+    }
+  } catch (e) {
+    status.ftp.online = false;
+  }
+  
+  res.json(status);
 });
 
 module.exports = router;
