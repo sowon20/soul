@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Soul</title>
-  <link rel="stylesheet" href="/src/styles/main.css?v=39">
+  <link rel="stylesheet" href="/src/styles/main.css?v=44">
   <!-- Prism.js CSS - VSCode Dark Theme -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
   <!-- Marked.js for Markdown rendering -->
@@ -42,44 +42,12 @@
 
       <!-- 대시보드 - AI 라우팅 통계 -->
       <div class="dashboard">
-        <!-- 서버 상태 -->
-        <div class="dashboard-section server-status-section">
-          <h3 class="dashboard-title">🖥️ 서버 상태</h3>
-          <div class="server-status-grid" id="serverStatusGrid">
-            <div class="server-item" data-service="backend">
-              <span class="server-indicator"></span>
-              <span class="server-name">Backend</span>
-              <span class="server-port">:3001</span>
-            </div>
-            <div class="server-item" data-service="mongodb">
-              <span class="server-indicator"></span>
-              <span class="server-name">MongoDB</span>
-              <span class="server-port">:27017</span>
-            </div>
-            <div class="server-item" data-service="chroma">
-              <span class="server-indicator"></span>
-              <span class="server-name">ChromaDB</span>
-              <span class="server-port">:8000</span>
-            </div>
-            <div class="server-item" data-service="ftp">
-              <span class="server-indicator"></span>
-              <span class="server-name">FTP</span>
-              <span class="server-port">:21</span>
-            </div>
-            <div class="server-item" data-service="websocket">
-              <span class="server-indicator" id="socketIndicator"></span>
-              <span class="server-name">WebSocket</span>
-              <span class="server-port">실시간</span>
-            </div>
-          </div>
-        </div>
-
         <div class="dashboard-section">
           <div class="dashboard-title-row">
             <h3 class="dashboard-title">AI 사용 통계</h3>
             <div class="stats-actions">
-              <button class="stats-action-btn" id="refreshStatsBtn" title="새로고침">🔄</button>
-              <button class="stats-action-btn stats-action-danger" id="resetStatsBtn" title="초기화">🗑️</button>
+              <button class="stats-text-btn" id="refreshStatsBtn">새로고침</button>
+              <button class="stats-text-btn stats-text-danger" id="resetStatsBtn">초기화</button>
             </div>
           </div>
           <!-- 기간 선택 탭 -->
@@ -116,9 +84,15 @@
             </div>
           </div>
           <div class="stats-grid stats-secondary">
-            <div class="stat-item">
+            <div class="stat-item stat-cost-item">
               <div class="stat-label">예상 비용</div>
-              <div class="stat-value" id="stat-cost">$0.00</div>
+              <div class="stat-value stat-cost-wrapper">
+                <span id="stat-cost">$0.00</span>
+                <div class="currency-dropdown" id="currencyDropdown">
+                  <button class="currency-option" data-currency="USD">$</button>
+                  <button class="currency-option" data-currency="KRW">₩</button>
+                </div>
+              </div>
             </div>
             <div class="stat-item">
               <div class="stat-label">평균 응답</div>
@@ -128,7 +102,6 @@
           <!-- 토큰 사용량 (눈에 띄게) -->
           <div class="token-usage-highlight">
             <div class="token-usage-header">
-              <span class="token-icon">🔥</span>
               <span class="token-label">토큰 사용량</span>
             </div>
             <div class="token-usage-values">
@@ -166,18 +139,6 @@
         </div>
       </div>
 
-      <button class="add-page-btn">
-        <span class="add-icon">+</span> New page
-      </button>
-
-      <div class="profile-section" id="profileSection" style="cursor: pointer;" title="프로필 관리">
-        <div class="avatar"></div>
-        <div class="user-info">
-          <div class="user-name">User</div>
-          <div class="user-email">user@soul.ai</div>
-        </div>
-        <div class="socket-indicator" id="socketIndicator" title="연결 상태" style="display:none;"></div>
-      </div>
     </div>
 
     <!-- 가운데 카드 + 토글 버튼 래퍼 -->
@@ -205,42 +166,44 @@
 
         <!-- 뉴모픽 버튼 (별도) -->
         <button class="neo-btn neo-btn-1">
-          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1">
-            <rect x="4" y="4" width="6" height="6" rx="1"/>
-            <rect x="14" y="4" width="6" height="6" rx="1"/>
-            <rect x="14" y="14" width="6" height="6" rx="1"/>
-            <rect x="4" y="14" width="6" height="6" rx="1"/>
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/>
+            <rect x="14" y="14" width="7" height="7" rx="1"/>
           </svg>
           <span>대시보드</span>
         </button>
         <button class="neo-btn neo-btn-2">
-          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-            <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/>
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2a3 3 0 0 0-3 3v1H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-3V5a3 3 0 0 0-3-3z"/>
+            <circle cx="9" cy="13" r="1"/>
+            <circle cx="15" cy="13" r="1"/>
+            <path d="M9 17h6"/>
           </svg>
-          <span>북마크</span>
+          <span>AI</span>
         </button>
         <button class="neo-btn neo-btn-3">
-          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1">
-            <circle cx="18" cy="5" r="3"/>
-            <circle cx="6" cy="12" r="3"/>
-            <circle cx="18" cy="19" r="3"/>
-            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
-            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
           </svg>
-          <span>MCP</span>
+          <span>APP</span>
         </button>
         <button class="neo-btn neo-btn-4">
-          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1">
-            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
-            <line x1="9" y1="10" x2="15" y2="10"/>
-            <line x1="12" y1="7" x2="12" y2="13"/>
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="2" width="20" height="8" rx="2"/>
+            <rect x="2" y="14" width="20" height="8" rx="2"/>
+            <circle cx="6" cy="6" r="1" fill="currentColor"/>
+            <circle cx="6" cy="18" r="1" fill="currentColor"/>
           </svg>
-          <span>프롬프트</span>
+          <span>서버</span>
         </button>
 
-        <!-- 원형 추가 버튼 -->
-        <button class="circular-add-btn">
-          <span class="add-icon">+</span>
+        <!-- 프로필 영역 -->
+        <div class="profile-nickname" id="profileNickname"></div>
+        <button class="profile-btn" id="profileBtn" title="프로필 관리">
+          <div class="profile-avatar"></div>
         </button>
       </div>
 
@@ -442,6 +405,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
-  <script type="module" src="/src/main.js?v=20"></script>
+  <script type="module" src="/src/main.js?v=27"></script>
 </body>
 </html>

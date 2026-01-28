@@ -9,6 +9,9 @@ class DashboardManager {
     this.currentPeriod = 'today';
     this.customStartDate = null;
     this.customEndDate = null;
+    this.currentCurrency = 'USD';
+    this.exchangeRate = null;
+    this.costInUSD = 0;
   }
 
   async init() {
@@ -18,6 +21,9 @@ class DashboardManager {
       this.setupPeriodTabs();
       this.setupDateRange();
       this.setupStatsActions();
+      await this.loadCurrencyPreference();
+      this.setupCurrencyDropdown();
+      await this.fetchExchangeRate();
       await this.loadServerStatus();
       await this.loadRoutingStats();
       this.initialized = true;
@@ -39,13 +45,11 @@ class DashboardManager {
 
     if (refreshBtn) {
       refreshBtn.addEventListener('click', async () => {
-        refreshBtn.style.transform = 'rotate(360deg)';
-        refreshBtn.style.transition = 'transform 0.5s';
+        refreshBtn.disabled = true;
+        refreshBtn.textContent = '로딩...';
         await this.loadRoutingStats();
-        setTimeout(() => {
-          refreshBtn.style.transform = '';
-          refreshBtn.style.transition = '';
-        }, 500);
+        refreshBtn.textContent = '새로고침';
+        refreshBtn.disabled = false;
       });
     }
 
@@ -56,6 +60,107 @@ class DashboardManager {
         }
         await this.resetStats();
       });
+    }
+  }
+
+  /**
+   * 통화 드롭다운 설정
+   */
+  setupCurrencyDropdown() {
+    const dropdown = document.getElementById('currencyDropdown');
+    if (!dropdown) return;
+
+    const options = dropdown.querySelectorAll('.currency-option');
+    options.forEach(opt => {
+      // 초기 활성화 표시
+      if (opt.dataset.currency === this.currentCurrency) {
+        opt.classList.add('active');
+      }
+
+      opt.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const currency = opt.dataset.currency;
+        this.currentCurrency = currency;
+
+        // 활성화 표시 업데이트
+        options.forEach(o => o.classList.remove('active'));
+        opt.classList.add('active');
+
+        // 비용 업데이트
+        this.updateCostDisplay();
+
+        // DB에 저장
+        await this.saveCurrencyPreference(currency);
+      });
+    });
+  }
+
+  /**
+   * 통화 설정 저장
+   */
+  async saveCurrencyPreference(currency) {
+    try {
+      await fetch('/api/config/preferences', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currency })
+      });
+      console.log('💱 통화 설정 저장:', currency);
+    } catch (error) {
+      console.error('통화 설정 저장 실패:', error);
+    }
+  }
+
+  /**
+   * 통화 설정 불러오기
+   */
+  async loadCurrencyPreference() {
+    try {
+      const response = await fetch('/api/config/preferences');
+      const prefs = await response.json();
+      if (prefs.currency) {
+        this.currentCurrency = prefs.currency;
+        // 드롭다운 UI 업데이트
+        const dropdown = document.getElementById('currencyDropdown');
+        if (dropdown) {
+          const options = dropdown.querySelectorAll('.currency-option');
+          options.forEach(opt => {
+            opt.classList.toggle('active', opt.dataset.currency === this.currentCurrency);
+          });
+        }
+      }
+    } catch (error) {
+      console.error('통화 설정 불러오기 실패:', error);
+    }
+  }
+
+  /**
+   * 환율 가져오기 (무료 API)
+   */
+  async fetchExchangeRate() {
+    try {
+      const response = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
+      const data = await response.json();
+      this.exchangeRate = data.rates.KRW;
+      console.log('💱 환율 로드:', this.exchangeRate);
+    } catch (error) {
+      console.error('환율 가져오기 실패:', error);
+      this.exchangeRate = 1400; // 기본값
+    }
+  }
+
+  /**
+   * 비용 표시 업데이트
+   */
+  updateCostDisplay() {
+    const costEl = document.getElementById('stat-cost');
+    if (!costEl) return;
+
+    if (this.currentCurrency === 'KRW' && this.exchangeRate) {
+      const krw = this.costInUSD * this.exchangeRate;
+      costEl.textContent = `₩${Math.round(krw).toLocaleString()}`;
+    } else {
+      costEl.textContent = `$${this.costInUSD.toFixed(2)}`;
     }
   }
 
@@ -179,8 +284,8 @@ class DashboardManager {
         this.updateStat('stat-medium', stats.distribution?.medium || '0%');
         this.updateStat('stat-heavy', stats.distribution?.heavy || '0%');
 
-        const cost = stats.totalCost || 0;
-        this.updateStat('stat-cost', '$' + cost.toFixed(4));
+        this.costInUSD = stats.totalCost || 0;
+        this.updateCostDisplay();
 
         const latency = stats.averageLatency;
         this.updateStat('stat-latency', latency ? latency.toFixed(0) + 'ms' : '-');
@@ -367,7 +472,8 @@ class DashboardManager {
     this.updateStat('stat-light', '0%');
     this.updateStat('stat-medium', '0%');
     this.updateStat('stat-heavy', '0%');
-    this.updateStat('stat-cost', '$0.00');
+    this.costInUSD = 0;
+    this.updateCostDisplay();
     this.updateStat('stat-latency', '-');
 
     this.updateStat('stat-total-tokens', '0');

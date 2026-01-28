@@ -150,7 +150,7 @@ class SoulApp {
   }
 
   /**
-   * Phase P 프로필 정보 로드 및 표시 (사진, 이름, 이메일)
+   * Phase P 프로필 정보 로드 및 표시 (center-card 프로필 버튼)
    */
   async loadProfileImage(userId) {
     try {
@@ -161,9 +161,9 @@ class SoulApp {
       if (data.success && data.profile) {
         const profile = data.profile;
 
-        // 프로필 사진 업데이트
+        // center-card 프로필 버튼에 사진 업데이트
         if (profile.profileImage) {
-          const avatar = document.querySelector('.profile-section .avatar');
+          const avatar = document.querySelector('.profile-btn .profile-avatar');
           if (avatar) {
             avatar.style.backgroundImage = `url(${profile.profileImage})`;
             avatar.style.backgroundSize = 'cover';
@@ -171,16 +171,11 @@ class SoulApp {
           }
         }
 
-        // 이름 업데이트
-        const userName = document.querySelector('.profile-section .user-name');
-        if (userName && profile.basicInfo?.name?.value) {
-          userName.textContent = profile.basicInfo.name.value;
-        }
-
-        // 이메일 업데이트
-        const userEmail = document.querySelector('.profile-section .user-email');
-        if (userEmail && profile.basicInfo?.email?.value) {
-          userEmail.textContent = profile.basicInfo.email.value;
+        // 닉네임 표시
+        const nicknameEl = document.getElementById('profileNickname');
+        const nickname = profile.basicInfo?.nickname?.value;
+        if (nicknameEl && nickname) {
+          nicknameEl.textContent = nickname;
         }
 
         console.log('✅ 프로필 정보 로드 완료');
@@ -260,29 +255,32 @@ class SoulApp {
       mcpInputBtn.addEventListener('click', async (e) => {
         e.preventDefault();
         console.log('🖱️ 입력창 MCP 버튼 클릭');
-        await this.showMCPManager();
+        await this.showAppSettings();
+        // MCP 탭 자동 선택 (약간의 딜레이 후)
+        setTimeout(() => {
+          const mcpTab = document.querySelector('.app-tab[data-tab="mcp"]');
+          if (mcpTab) mcpTab.click();
+        }, 100);
       });
     } else {
       console.log('❌ 입력창 MCP 버튼을 찾을 수 없음');
     }
 
-    // Settings section click - 새로운 설정 프레임워크
-    const profileSection = document.getElementById('profileSection');
-    if (profileSection) {
-      console.log('✅ 설정 섹션 클릭 이벤트 등록 (왼쪽 베이지 레이어)');
-      profileSection.addEventListener('click', async () => {
-        console.log('🖱️ 설정 섹션 클릭 - 설정 페이지 로드');
+    // 프로필 버튼 클릭 - 설정 프레임워크 (center-card 하단)
+    const profileBtn = document.getElementById('profileBtn');
+    if (profileBtn) {
+      console.log('✅ 프로필 버튼 클릭 이벤트 등록 (center-card)');
+      profileBtn.addEventListener('click', async () => {
+        console.log('🖱️ 프로필 버튼 클릭 - 설정 페이지 로드');
 
         // 왼쪽 카드의 요소들 찾기
         const dashboard = document.querySelector('.dashboard');
         const addPageBtn = document.querySelector('.add-page-btn');
-        const profileCard = document.querySelector('.profile-section');
 
         if (dashboard) {
-          // 대시보드, 버튼, 프로필 카드 숨기기
+          // 대시보드, 버튼 숨기기
           dashboard.style.display = 'none';
           if (addPageBtn) addPageBtn.style.display = 'none';
-          if (profileCard) profileCard.style.display = 'none';
 
           // 설정 컨테이너 생성 또는 찾기
           let settingsContainer = document.getElementById('settingsContainer');
@@ -312,7 +310,6 @@ class SoulApp {
             dashboard.style.display = 'block';
             settingsContainer.style.display = 'none';
             if (addPageBtn) addPageBtn.style.display = 'block';
-            if (profileCard) profileCard.style.display = 'flex';
           };
           settingsContainer.appendChild(backBtn);
 
@@ -323,7 +320,7 @@ class SoulApp {
         }
       });
     } else {
-      console.log('❌ 설정 섹션을 찾을 수 없음');
+      console.log('❌ 프로필 버튼을 찾을 수 없음');
     }
 
     // Center menu buttons (neo buttons with sound)
@@ -676,7 +673,7 @@ class SoulApp {
 
     console.log('✅ 가운데 메뉴 버튼 등록:', buttons.length);
 
-    // 사운드 효과 (로컬 assets 사용)
+    // 사운드 효과 (로컬)
     const inSound = new Audio('./src/assets/sounds/in.mp3');
     const outSound = new Audio('./src/assets/sounds/out.mp3');
 
@@ -707,29 +704,59 @@ class SoulApp {
           inSound.currentTime = 0;
           inSound.play().catch(() => {});
 
-          // MCP 버튼인 경우 MCP 관리자 표시
+          // 버튼별 동작
           const btnText = btn.querySelector('span')?.textContent?.trim();
-          if (btnText === 'MCP' || btn.classList.contains('neo-btn-3')) {
-            await this.showMCPManager();
+
+          if (btnText === '대시보드' || btn.classList.contains('neo-btn-1')) {
+            // 대시보드 표시 (설정 닫고 대시보드 보이기)
+            this.showDashboard();
+          } else if (btnText === 'AI' || btn.classList.contains('neo-btn-2')) {
+            // AI 설정 페이지 표시
+            await this.showAISettings();
+          } else if (btnText === 'APP' || btn.classList.contains('neo-btn-3')) {
+            await this.showAppSettings();
+          } else if (btnText === '서버' || btn.classList.contains('neo-btn-4')) {
+            await this.showServerStatus();
           }
         }
       });
     });
   }
 
-  async showMCPManager() {
-    // 앱설정 페이지의 MCP 탭으로 이동
-    console.log('🔌 MCP 관리자 → 앱설정으로 이동');
-    
-    // 설정 페이지 열기 (profileSection 클릭과 동일한 로직)
+  /**
+   * 대시보드 표시 (왼쪽 카드)
+   */
+  showDashboard() {
     const dashboard = document.querySelector('.dashboard');
     const addPageBtn = document.querySelector('.add-page-btn');
-    const profileCard = document.querySelector('.profile-section');
+    const settingsContainer = document.getElementById('settingsContainer');
+
+    // 설정 컨테이너 숨기고 대시보드 표시
+    if (settingsContainer) {
+      settingsContainer.style.display = 'none';
+    }
+    if (dashboard) {
+      dashboard.style.display = 'block';
+    }
+    if (addPageBtn) {
+      addPageBtn.style.display = 'block';
+    }
+
+    console.log('📊 대시보드 표시');
+  }
+
+  /**
+   * AI 설정 페이지 표시 (.soul 버튼)
+   */
+  async showAISettings() {
+    console.log('🤖 AI 설정 페이지 표시');
+
+    const dashboard = document.querySelector('.dashboard');
+    const addPageBtn = document.querySelector('.add-page-btn');
 
     if (dashboard) {
       dashboard.style.display = 'none';
       if (addPageBtn) addPageBtn.style.display = 'none';
-      if (profileCard) profileCard.style.display = 'none';
 
       let settingsContainer = document.getElementById('settingsContainer');
       if (!settingsContainer) {
@@ -739,19 +766,113 @@ class SoulApp {
         settingsContainer.style.cssText = 'padding: 0; flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden;';
         dashboard.parentElement.appendChild(settingsContainer);
       }
-      
+
+      settingsContainer.style.display = 'flex';
+
+      // 설정 매니저로 AI 설정 페이지 렌더링
+      const { SettingsManager } = await import('./settings/settings-manager.js');
+      const settingsManager = new SettingsManager(this.apiClient);
+      await settingsManager.render(settingsContainer, 'ai');
+    }
+  }
+
+  /**
+   * 서버 상태 페이지 표시
+   */
+  async showServerStatus() {
+    console.log('🖥️ 서버 상태 페이지 표시');
+
+    const dashboard = document.querySelector('.dashboard');
+    const addPageBtn = document.querySelector('.add-page-btn');
+
+    if (dashboard) {
+      dashboard.style.display = 'none';
+      if (addPageBtn) addPageBtn.style.display = 'none';
+
+      let settingsContainer = document.getElementById('settingsContainer');
+      if (!settingsContainer) {
+        settingsContainer = document.createElement('div');
+        settingsContainer.id = 'settingsContainer';
+        settingsContainer.className = 'settings-wrapper';
+        settingsContainer.style.cssText = 'padding: 0; flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden;';
+        dashboard.parentElement.appendChild(settingsContainer);
+      }
+
+      settingsContainer.style.display = 'flex';
+      settingsContainer.innerHTML = `
+        <div class="server-status-page" style="padding: 20px; width: 100%; overflow-y: auto;">
+          <h2 style="margin-bottom: 20px; font-size: 18px; font-weight: 600;">🖥️ 서버 상태</h2>
+          <div class="server-status-grid" id="serverStatusGrid">
+            <div class="server-item" data-service="backend">
+              <span class="server-indicator"></span>
+              <span class="server-name">Backend</span>
+              <span class="server-port">:3001</span>
+            </div>
+            <div class="server-item" data-service="mongodb">
+              <span class="server-indicator"></span>
+              <span class="server-name">MongoDB</span>
+              <span class="server-port">:27017</span>
+            </div>
+            <div class="server-item" data-service="chroma">
+              <span class="server-indicator"></span>
+              <span class="server-name">ChromaDB</span>
+              <span class="server-port">:8000</span>
+            </div>
+            <div class="server-item" data-service="ftp">
+              <span class="server-indicator"></span>
+              <span class="server-name">FTP</span>
+              <span class="server-port">:21</span>
+            </div>
+            <div class="server-item" data-service="websocket">
+              <span class="server-indicator" id="socketIndicator"></span>
+              <span class="server-name">WebSocket</span>
+              <span class="server-port">실시간</span>
+            </div>
+          </div>
+          <p style="margin-top: 20px; font-size: 12px; color: #888;">※ 개발자용 페이지입니다. 프로덕션 빌드 시 제거됩니다.</p>
+        </div>
+      `;
+
+      // 서버 상태 업데이트
+      const dashboardManager = (await import('./utils/dashboard-manager.js')).default;
+      await dashboardManager.loadServerStatus();
+
+      // 웹소켓 상태 반영
+      if (this.socketClient && this.socketClient.connected) {
+        const wsIndicator = document.querySelector('[data-service="websocket"] .server-indicator');
+        if (wsIndicator) {
+          wsIndicator.className = 'server-indicator online';
+        }
+      }
+    }
+  }
+
+  async showAppSettings() {
+    // 앱설정 페이지로 이동
+    console.log('⚙️ 앱설정 페이지 표시');
+
+    const dashboard = document.querySelector('.dashboard');
+    const addPageBtn = document.querySelector('.add-page-btn');
+
+    if (dashboard) {
+      dashboard.style.display = 'none';
+      if (addPageBtn) addPageBtn.style.display = 'none';
+
+      let settingsContainer = document.getElementById('settingsContainer');
+      if (!settingsContainer) {
+        settingsContainer = document.createElement('div');
+        settingsContainer.id = 'settingsContainer';
+        settingsContainer.className = 'settings-wrapper';
+        settingsContainer.style.cssText = 'padding: 0; flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden;';
+        dashboard.parentElement.appendChild(settingsContainer);
+      }
+
       settingsContainer.style.display = 'flex';
 
       // 설정 매니저로 앱설정 페이지 렌더링
       const { SettingsManager } = await import('./settings/settings-manager.js');
       const settingsManager = new SettingsManager(this.apiClient);
       await settingsManager.render(settingsContainer, 'app');
-      
-      // MCP 탭 자동 선택 (약간의 딜레이 후)
-      setTimeout(() => {
-        const mcpTab = document.querySelector('.app-tab[data-tab="mcp"]');
-        if (mcpTab) mcpTab.click();
-      }, 100);
     }
   }
 
@@ -1169,9 +1290,8 @@ class SoulApp {
                 <div>
                   <label style="font-size: 0.8rem; opacity: 0.7; display: block; margin-bottom: 4px;">검색 방식</label>
                   <select id="toolSearchType" style="width: 100%; padding: 8px; border: 1px solid #4b5563; border-radius: 8px; background: rgba(0,0,0,0.3); color: white;">
-                    <option value="auto" ${toolSearchConfig.type === 'auto' ? 'selected' : ''}>자동 (권장)</option>
-                    <option value="regex" ${toolSearchConfig.type === 'regex' ? 'selected' : ''}>정규식 검색</option>
-                    <option value="semantic" ${toolSearchConfig.type === 'semantic' ? 'selected' : ''}>시맨틱 검색</option>
+                    <option value="regex" ${toolSearchConfig.type === 'regex' || toolSearchConfig.type === 'auto' ? 'selected' : ''}>정규식 (권장)</option>
+                    <option value="bm25" ${toolSearchConfig.type === 'bm25' || toolSearchConfig.type === 'semantic' ? 'selected' : ''}>BM25</option>
                   </select>
                 </div>
 

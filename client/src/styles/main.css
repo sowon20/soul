@@ -665,7 +665,7 @@ body {
 }
 
 .search-result-type {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   padding: 2px 6px;
   border-radius: 4px;
@@ -713,7 +713,7 @@ body {
 }
 
 .search-tag {
-  font-size: 10px;
+  font-size: 11px;
   padding: 2px 6px;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 4px;
@@ -927,7 +927,7 @@ body {
   font-size: 13px;
   font-weight: 600;
   color: #2a2a2a;
-  margin-bottom: 2px;
+  margin-bottom: 0;
 }
 
 .workspace-domain {
@@ -987,6 +987,7 @@ body {
   gap: 16px;
   flex: 1;
   overflow-y: auto;
+  width: 100%;
 }
 
 .dashboard.hide {
@@ -1011,9 +1012,10 @@ body {
 }
 
 .dashboard-section {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 12px;
-  padding: 16px;
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  width: 100%;
 }
 
 /* 서버 상태 */
@@ -1093,24 +1095,36 @@ body {
   gap: 4px;
 }
 
-.stats-action-btn {
-  background: none;
-  border: none;
+.stats-text-btn {
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.1);
   cursor: pointer;
-  font-size: 14px;
-  padding: 2px 6px;
+  font-size: 11px;
+  padding: 3px 7px;
   border-radius: 4px;
-  opacity: 0.6;
+  color: #555;
   transition: all 0.2s;
 }
 
-.stats-action-btn:hover {
-  opacity: 1;
-  background: rgba(0, 0, 0, 0.05);
+.stats-text-btn:hover {
+  color: #333;
+  background: rgba(0, 0, 0, 0.1);
+  border-color: rgba(0, 0, 0, 0.15);
 }
 
-.stats-action-btn.stats-action-danger:hover {
+.stats-text-btn.stats-text-danger {
+  color: #555;
+}
+
+.stats-text-btn.stats-text-danger:hover {
+  color: #ef4444;
   background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.stats-text-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .stats-grid {
@@ -1126,14 +1140,62 @@ body {
   border-top: 1px solid rgba(0, 0, 0, 0.08);
 }
 
+/* 통화 드롭다운 */
+.stat-cost-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.currency-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: white;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  display: none;
+  flex-direction: row;
+  gap: 2px;
+  padding: 4px;
+  z-index: 10;
+}
+
+.stat-cost-item:hover .currency-dropdown {
+  display: flex;
+}
+
+.currency-option {
+  background: none;
+  border: none;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 12px;
+  border-radius: 4px;
+  color: #666;
+  transition: all 0.15s;
+}
+
+.currency-option:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: #333;
+}
+
+.currency-option.active {
+  background: rgba(0, 0, 0, 0.1);
+  color: #333;
+  font-weight: 600;
+}
+
 .stat-item {
   text-align: center;
 }
 
 .stat-label {
-  font-size: 10px;
+  font-size: 11px;
   color: rgba(0, 0, 0, 0.5);
-  margin-bottom: 2px;
+  margin-bottom: 0;
 }
 
 .stat-value {
@@ -1245,29 +1307,6 @@ body {
   gap: 4px;
 }
 
-.stats-action-btn {
-  width: 26px;
-  height: 26px;
-  border: none;
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.08);
-  cursor: pointer;
-  font-size: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-}
-
-.stats-action-btn:hover {
-  background: rgba(0, 0, 0, 0.15);
-  transform: scale(1.05);
-}
-
-.stats-action-btn.stats-action-danger:hover {
-  background: rgba(239, 68, 68, 0.2);
-}
-
 /* 모델별 사용량 */
 .model-usage-section {
   margin-top: 14px;
@@ -1338,7 +1377,7 @@ body {
 .model-usage-details {
   display: flex;
   justify-content: space-between;
-  font-size: 10px;
+  font-size: 11px;
   color: rgba(0, 0, 0, 0.4);
 }
 
@@ -1500,7 +1539,7 @@ body {
 .category-usage-details {
   display: flex;
   justify-content: space-between;
-  font-size: 10px;
+  font-size: 11px;
   color: rgba(0, 0, 0, 0.4);
 }
 
@@ -1541,7 +1580,7 @@ body {
 }
 
 .activity-time {
-  font-size: 10px;
+  font-size: 11px;
   color: rgba(0, 0, 0, 0.4);
   margin-top: 2px;
 }
@@ -1611,7 +1650,7 @@ body {
   font-size: 13px;
   font-weight: 600;
   color: #2a2a2a;
-  margin-bottom: 2px;
+  margin-bottom: 0;
 }
 
 .user-email {
@@ -1745,7 +1784,7 @@ body {
   right: 8px;
   background: #ff4444;
   color: white;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   padding: 2px 5px;
   border-radius: 8px;
@@ -2679,7 +2718,7 @@ body {
   font-size: 9px;
   font-weight: 600;
   color: #848484;
-  margin-bottom: 2px;
+  margin-bottom: 0;
   text-align: center;
   width: 100%;
   text-transform: uppercase;
@@ -2699,36 +2738,52 @@ body {
   justify-content: center;
 }
 
-.circular-add-btn {
+/* 프로필 닉네임 */
+.profile-nickname {
+  font-size: 11px;
+  font-weight: 500;
+  color: #666;
+  text-align: center;
+  margin-top: auto;
+  margin-bottom: 0;
+  max-width: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 프로필 버튼 (center-card 하단) */
+.profile-btn {
   width: 48px;
   height: 48px;
   padding: 0;
-  margin-top: auto;
   margin-bottom: 5px;
   margin-left: auto;
   margin-right: auto;
-  background: rgb(169, 162, 155, 0.3);
-  border: 1.2px dashed rgba(42, 42, 42, 0.3);
+  background: transparent;
+  border: 2px solid rgba(42, 42, 42, 0.2);
   border-radius: 50%;
-  color: #3a3a3a;
-  font-size: 20px;
-  font-weight: 500;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s;
+  transition: all 0.2s;
   flex-shrink: 0;
+  overflow: hidden;
 }
 
-.circular-add-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+.profile-btn:hover {
   border-color: rgba(42, 42, 42, 0.5);
+  transform: scale(1.05);
 }
 
-.circular-add-btn .add-icon {
-  font-size: 20px;
-  line-height: 1;
+.profile-btn .profile-avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #a9a29b 0%, #8b8178 100%);
+  background-size: cover;
+  background-position: center;
 }
 
 /* ========================================
@@ -3346,7 +3401,7 @@ body {
 .tool-name {
   font-weight: 500;
   color: rgba(251, 191, 36, 0.95);
-  margin-bottom: 2px;
+  margin-bottom: 0;
 }
 
 .tool-input {

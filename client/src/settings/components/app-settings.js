@@ -17,21 +17,16 @@ export class AppSettings {
     container.innerHTML = `
       <div class="app-settings">
         <h2>⚙️ 앱설정</h2>
-        
-        <!-- 서브 탭 -->
-        <div class="app-settings-tabs">
-          <button class="app-tab active" data-tab="theme">🎨 테마</button>
-        </div>
-        
-        <!-- 탭 컨텐츠 -->
+
+        <!-- 컨텐츠 -->
         <div class="app-settings-content" id="appSettingsContent">
           <!-- 동적 로드 -->
         </div>
       </div>
     `;
 
-    this.attachEvents();
-    await this.loadSubPage('theme');
+    // 바로 테마 설정 로드
+    this.renderThemeSettings(document.getElementById('appSettingsContent'));
   }
 
   attachEvents() {
@@ -74,6 +69,15 @@ export class AppSettings {
           </label>
         </div>
         <p class="theme-note">* 테마 기능은 준비 중입니다</p>
+      </div>
+
+      <!-- TODO 메모 -->
+      <div class="todo-memo-section" style="margin-top: 20px; padding: 15px; background: rgba(255, 200, 100, 0.2); border: 1px dashed rgba(200, 150, 50, 0.5); border-radius: 8px;">
+        <h4 style="margin: 0 0 10px 0; font-size: 13px; color: #8b7355;">📝 TODO</h4>
+        <ul style="margin: 0; padding-left: 20px; font-size: 12px; color: #6b5a47; line-height: 1.8;">
+          <li>기본 호스트명 home.soul 로 하기</li>
+          <li>도메인 설정 폼 만들기</li>
+        </ul>
       </div>
     `;
   }

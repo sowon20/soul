@@ -589,4 +589,37 @@ router.get('/server-status', async (req, res) => {
   res.json(status);
 });
 
+/**
+ * GET /api/config/preferences
+ * 사용자 환경 설정 조회
+ */
+router.get('/preferences', async (req, res) => {
+  try {
+    const defaultPrefs = {
+      currency: 'USD'
+    };
+    const preferences = await configManager.getConfigValue('preferences', defaultPrefs);
+    res.json(preferences);
+  } catch (error) {
+    console.error('Error reading preferences:', error);
+    res.status(500).json({ error: 'Internal Server Error', message: error.message });
+  }
+});
+
+/**
+ * PUT /api/config/preferences
+ * 사용자 환경 설정 저장
+ */
+router.put('/preferences', async (req, res) => {
+  try {
+    const currentPrefs = await configManager.getConfigValue('preferences', {});
+    const updatedPrefs = { ...currentPrefs, ...req.body };
+    await configManager.setConfigValue('preferences', updatedPrefs, 'User preferences');
+    res.json(updatedPrefs);
+  } catch (error) {
+    console.error('Error saving preferences:', error);
+    res.status(500).json({ error: 'Internal Server Error', message: error.message });
+  }
+});
+
 module.exports = router;
