@@ -361,7 +361,8 @@ textarea.profile-field-input {
 /* 프로필 사진 섹션 */
 .profile-image-section {
   text-align: center;
-  padding: 2rem 1.5rem !important;
+  padding: 0 !important;
+  padding-top: 0.5rem !important;
   background: transparent !important;
   border: none !important;
 }
@@ -375,11 +376,10 @@ textarea.profile-field-input {
 
 .profile-image-wrapper {
   position: relative;
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
+  width: 100%;
+  border-radius: 16px;
   overflow: hidden;
-  background: transparent;
+  background: rgba(0, 0, 0, 0.03);
   border: none;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -396,8 +396,14 @@ textarea.profile-field-input {
 
 .profile-image-preview {
   width: 100%;
-  height: 100%;
-  object-fit: cover;
+  height: auto;
+  display: block;
+  opacity: 0.7;
+  transition: opacity 0.3s ease;
+}
+
+.profile-image-wrapper:hover .profile-image-preview {
+  opacity: 1;
 }
 
 .profile-image-placeholder {
@@ -417,78 +423,74 @@ textarea.profile-field-input {
 
 .profile-image-overlay {
   position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%) translateY(10px);
+  width: 90%;
+  right: auto;
+  top: auto;
+  background: rgba(30, 30, 35, 0.7);
+  backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
+  padding: 6px 16px;
+  border-radius: 20px;
   opacity: 0;
-  transition: opacity 0.2s ease;
+  transition: all 0.25s ease;
+}
+
+.profile-image-wrapper:hover .profile-image-overlay {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 
 .profile-image-upload-btn,
 .profile-image-delete-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
+  width: auto;
+  height: auto;
+  padding: 4px 8px;
+  border-radius: 12px;
   border: none;
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 4px;
   cursor: pointer;
   transition: all 0.2s ease;
+  font-size: 11px;
+  font-weight: 500;
 }
 
 .profile-image-upload-btn {
-  background: var(--primary, #3b82f6);
-  color: white;
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .profile-image-upload-btn:hover {
-  background: #2563eb;
-  transform: scale(1.1);
+  background: rgba(255, 255, 255, 0.25);
 }
 
 .profile-image-delete-btn {
-  background: rgba(239, 68, 68, 0.9);
-  color: white;
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 150, 150, 0.9);
 }
 
 .profile-image-delete-btn:hover {
-  background: #dc2626;
-  transform: scale(1.1);
+  background: rgba(255, 100, 100, 0.3);
 }
 
 .profile-image-upload-btn svg,
 .profile-image-delete-btn svg {
-  width: 20px;
-  height: 20px;
-}
-
-.profile-image-info {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.profile-image-name {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--foreground);
-}
-
-.profile-image-hint {
-  font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.4);
+  width: 12px;
+  height: 12px;
 }
 
 /* 반응형 - 프로필 사진 */
 @media (max-width: 768px) {
   .profile-image-wrapper {
-    width: 100px;
-    height: 100px;
+    width: 100%;
   }
 
   .profile-image-placeholder svg {

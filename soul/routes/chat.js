@@ -22,6 +22,7 @@ const ConversationStore = require('../utils/conversation-store');
 const { loadMCPTools, executeMCPTool } = require('../utils/mcp-tools');
 const { builtinTools, executeBuiltinTool, isBuiltinTool } = require('../utils/builtin-tools');
 const configManager = require('../utils/config');
+const { getAlbaWorker } = require('../utils/alba-worker');
 
 // JSONL 대화 저장소 (lazy init)
 let _conversationStore = null;
@@ -245,8 +246,23 @@ ${rulesText}</self_notes>\n\n`;
       }
 
       // MCP 도구 로드 (캐시 사용으로 토큰 절약)
-      const allTools = await getCachedTools();
-      console.log('[Chat] Available tools:', allTools.map(t => t.name).join(', '));
+      let allTools = await getCachedTools();
+      console.log('[Chat] Total tools available:', allTools.length);
+
+      // 로컬 임베딩으로 도구 선택 (토큰 절약)
+      if (allTools.length > 5) {
+        try {
+          const alba = await getAlbaWorker();
+          const selectedTools = await alba.selectTools(message, allTools, 12);
+          if (selectedTools && selectedTools.length > 0 && selectedTools.length < allTools.length) {
+            allTools = selectedTools;
+            console.log('[Chat] Tools filtered by embedding:', allTools.map(t => t.name).join(', '));
+          }
+        } catch (toolSelectError) {
+          console.warn('[Chat] Tool selection failed, using all tools:', toolSelectError.message);
+        }
+      }
+      console.log('[Chat] Using tools:', allTools.map(t => t.name).join(', '));
       
       // MCP 서버 이름 매핑
       const mcpServerNames = {
@@ -350,7 +366,6 @@ ${rulesText}</self_notes>\n\n`;
         type: 'regex',
         alwaysLoad: []
       });
-
       const aiResult = await aiService.chat(chatMessages, {
         systemPrompt: combinedSystemPrompt,
         maxTokens: aiSettings.maxTokens,

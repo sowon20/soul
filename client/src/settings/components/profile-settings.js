@@ -55,17 +55,13 @@ export class ProfileSettings {
                 </div>
               </div>
               <input type="file" id="profileImageInput" accept="image/*" style="display: none;">
-              <div class="profile-image-info">
-                <span class="profile-image-name">${this.profile.basicInfo.name?.value || 'User'}</span>
-              </div>
             </div>
           </section>
 
           <!-- 기본 정보 -->
           <section class="settings-section">
-            <h3 class="settings-section-title">기본 정보</h3>
-            <div class="settings-fields">
-              ${this.renderBasicInfoFields()}
+            <div class="neu-field-group">
+              ${this.renderNeuBasicInfoFields()}
             </div>
           </section>
 
@@ -186,6 +182,79 @@ export class ProfileSettings {
   }
 
   /**
+   * 뉴모피즘 스타일 기본 정보 필드 렌더링
+   * - 비어있을 때: placeholder만 (타이틀 없음)
+   * - 수정 중: 위에 타이틀
+   * - 값 있을 때: "타이틀 : 값" 플랫하게
+   */
+  renderNeuBasicInfoFields() {
+    const fields = [
+      { key: 'name', label: '이름', type: 'text' },
+      { key: 'nickname', label: '별명', type: 'text' },
+      { key: 'email', label: '이메일', type: 'email' },
+      { key: 'phone', label: '전화번호', type: 'tel' },
+      { key: 'birthday', label: '생일', type: 'date' },
+      { key: 'location', label: '주소', type: 'text' },
+      { key: 'occupation', label: '직업', type: 'text' },
+      { key: 'bio', label: '자기소개', type: 'textarea' }
+    ];
+
+    return fields.map(field => {
+      const value = this.profile.basicInfo[field.key]?.value || '';
+      const hasValue = value.length > 0;
+
+      if (field.type === 'date') {
+        const date = value ? new Date(value) : null;
+        const dateValue = (date && !isNaN(date.getTime())) ? date.toISOString().split('T')[0] : '';
+        const displayValue = (date && !isNaN(date.getTime())) ? `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일` : '';
+
+        return `
+          <div class="neu-field ${hasValue ? 'has-value' : ''}">
+            <div class="neu-field-display">
+              <span class="neu-field-title">${field.label} : </span>
+              <span class="neu-field-value">${displayValue}</span>
+            </div>
+            <input type="date"
+                   class="neu-field-input"
+                   value="${dateValue}"
+                   data-basic-field="${field.key}"
+                   data-label="${field.label}"
+                   placeholder="${field.label}">
+          </div>
+        `;
+      } else if (field.type === 'textarea') {
+        return `
+          <div class="neu-field ${hasValue ? 'has-value' : ''}">
+            <div class="neu-field-display">
+              <span class="neu-field-title">${field.label} : </span>
+              <span class="neu-field-value">${value}</span>
+            </div>
+            <textarea class="neu-field-input neu-field-textarea"
+                      data-basic-field="${field.key}"
+                      data-label="${field.label}"
+                      placeholder="${field.label}">${value}</textarea>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="neu-field ${hasValue ? 'has-value' : ''}">
+          <div class="neu-field-display">
+            <span class="neu-field-title">${field.label} : </span>
+            <span class="neu-field-value">${value}</span>
+          </div>
+          <input type="${field.type}"
+                 class="neu-field-input"
+                 value="${value}"
+                 data-basic-field="${field.key}"
+                 data-label="${field.label}"
+                 placeholder="${field.label}">
+        </div>
+      `;
+    }).join('');
+  }
+
+  /**
    * 커스텀 필드 렌더링
    */
   renderCustomFields() {
@@ -260,8 +329,55 @@ export class ProfileSettings {
       deleteImageBtn.addEventListener('click', () => this.deleteProfileImage());
     }
 
-    // 기본 정보 값 변경 자동 저장
-    container.querySelectorAll('.settings-input[data-basic-field]').forEach(input => {
+    // 뉴모피즘 필드 이벤트 처리
+    container.querySelectorAll('.neu-field').forEach(field => {
+      const input = field.querySelector('.neu-field-input');
+      const display = field.querySelector('.neu-field-display');
+      const valueSpan = field.querySelector('.neu-field-value');
+      const label = input?.dataset.label || '';
+
+      if (!input) return;
+
+      // 디스플레이 클릭하면 편집 모드
+      if (display) {
+        display.addEventListener('click', () => {
+          field.classList.add('editing');
+          input.focus();
+        });
+      }
+
+      // 포커스 시 편집 모드
+      input.addEventListener('focus', () => {
+        field.classList.add('editing');
+      });
+
+      // 포커스 아웃하면 편집 모드 해제
+      input.addEventListener('blur', () => {
+        field.classList.remove('editing');
+        const hasValue = input.value.length > 0;
+        field.classList.toggle('has-value', hasValue);
+
+        // 값 업데이트
+        if (valueSpan) {
+          if (input.type === 'date' && input.value) {
+            const date = new Date(input.value);
+            valueSpan.textContent = `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`;
+          } else {
+            valueSpan.textContent = input.value;
+          }
+        }
+      });
+
+      // 엔터 누르면 포커스 해제 (textarea 제외)
+      if (input.tagName !== 'TEXTAREA') {
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            input.blur();
+          }
+        });
+      }
+
+      // 저장
       input.addEventListener('change', (e) => this.saveBasicInfoValue(e.target, apiClient));
     });
 

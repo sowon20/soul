@@ -191,10 +191,10 @@ class FTPStorage {
 
   async listFiles(subdir = '') {
     await this.connect();
-    const remotePath = subdir 
+    const remotePath = subdir
       ? `${this.config.basePath}/${subdir}`
       : this.config.basePath;
-    
+
     try {
       const list = await this.client.list(remotePath);
       return list.map(f => ({
@@ -206,6 +206,16 @@ class FTPStorage {
     } catch {
       return [];
     }
+  }
+
+  /**
+   * FTP 연결 테스트
+   */
+  async testConnection() {
+    await this.connect();
+    // 연결 성공하면 basePath 존재 확인
+    const list = await this.client.list(this.config.basePath);
+    return true;
   }
 }
 

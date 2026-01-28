@@ -1,70 +1,74 @@
 /**
- * 벡터 스토어 - ChromaDB + 로컬 임베딩
+ * 벡터 스토어 - ChromaDB + Ollama 임베딩
  * recall_memory의 의미적 검색을 위한 모듈
+ *
+ * Phase 1.7: qwen3-embedding:8b 사용 (한국어 지원 우수)
  */
 
 const path = require('path');
 
-// 임베딩 모델 (lazy load)
-let embeddingPipeline = null;
 let chromaClient = null;
 let collection = null;
 
-const COLLECTION_NAME = 'soul_memories';
+const COLLECTION_NAME = 'soul_memories_v2';  // qwen3-embedding:8b 용 (4096차원)
 const CHROMA_HOST = process.env.CHROMA_HOST || 'localhost';
 const CHROMA_PORT = process.env.CHROMA_PORT || 8000;
-
-/**
- * 임베딩 모델 초기화 (최초 1회)
- */
-async function getEmbeddingPipeline() {
-  if (embeddingPipeline) return embeddingPipeline;
-  
-  console.log('[VectorStore] Loading embedding model...');
-  const { pipeline } = await import('@xenova/transformers');
-  
-  // all-MiniLM-L6-v2: 384차원, 빠름, 다국어 지원
-  embeddingPipeline = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
-  console.log('[VectorStore] Embedding model loaded');
-  
-  return embeddingPipeline;
-}
+const OLLAMA_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+const EMBED_MODEL = 'qwen3-embedding:8b';  // 4096차원, 한국어 우수
 
 /**
  * ChromaDB 컬렉션 가져오기
  */
 async function getCollection() {
   if (collection) return collection;
-  
+
   console.log('[VectorStore] Connecting to ChromaDB...');
-  
+
   const { ChromaClient } = require('chromadb');
-  
+
   // HTTP 클라이언트 모드 (서버 필요)
   chromaClient = new ChromaClient({
     host: CHROMA_HOST,
     port: CHROMA_PORT
   });
-  
+
   // 컬렉션 생성 또는 가져오기
   collection = await chromaClient.getOrCreateCollection({
     name: COLLECTION_NAME,
     metadata: { description: 'Soul conversation memories' }
   });
-  
+
   const count = await collection.count();
   console.log(`[VectorStore] Collection ready, ${count} documents`);
-  
+
   return collection;
 }
 
 /**
- * 텍스트를 벡터로 변환
+ * Ollama로 텍스트를 벡터로 변환 (qwen3-embedding:8b)
  */
 async function embed(text) {
-  const pipe = await getEmbeddingPipeline();
-  const output = await pipe(text, { pooling: 'mean', normalize: true });
-  return Array.from(output.data);
+  try {
+    const response = await fetch(`${OLLAMA_URL}/api/embeddings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: EMBED_MODEL,
+        prompt: text
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Ollama error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.embedding || null;
+
+  } catch (error) {
+    console.error('[VectorStore] Embedding error:', error.message);
+    return null;
+  }
 }
 
 /**
@@ -74,11 +78,15 @@ async function addMessage(message) {
   try {
     const col = await getCollection();
     const text = message.text || message.content || '';
-    
-    if (!text || text.length < 10) return; // 너무 짧은 건 스킵
-    
+
+    if (!text || text.length < 5) return; // 너무 짧은 건 스킵
+
     const embedding = await embed(text);
-    
+    if (!embedding) {
+      console.warn('[VectorStore] Embedding failed, skipping message');
+      return;
+    }
+
     await col.add({
       ids: [message.id],
       embeddings: [embedding],
@@ -89,7 +97,7 @@ async function addMessage(message) {
         tags: JSON.stringify(message.tags || [])
       }]
     });
-    
+
     console.log(`[VectorStore] Added message: ${message.id}`);
   } catch (error) {
     console.error('[VectorStore] Failed to add message:', error.message);

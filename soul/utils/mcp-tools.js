@@ -10,14 +10,12 @@ const fs = require('fs');
 const path = require('path');
 const { getProactiveMessenger } = require('./proactive-messenger');
 const scheduledMessages = require('./scheduled-messages');
+const SystemConfig = require('../models/SystemConfig');
 
 // MCP 도구 캐시
 let toolsCache = null;
 let executorsCache = {};
 let externalServersCache = {};
-
-// 설정 파일 경로
-const CONFIG_PATH = path.join(__dirname, '../../mcp/server-config.json');
 
 /**
  * input_schema 압축 (토큰 절약)
@@ -95,13 +93,14 @@ const BUILTIN_TOOLS = [
 ];
 
 /**
- * 서버 설정 로드
+ * 서버 설정 로드 (DB에서)
  */
 async function loadServerConfig() {
   try {
-    const data = await fs.promises.readFile(CONFIG_PATH, 'utf-8');
-    return JSON.parse(data);
-  } catch {
+    const config = await SystemConfig.findOne({ configKey: 'mcp_servers' });
+    return config?.value || { servers: {}, externalServers: {} };
+  } catch (e) {
+    console.error('[MCP] Failed to load config from DB:', e.message);
     return { servers: {}, externalServers: {} };
   }
 }

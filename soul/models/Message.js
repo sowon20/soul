@@ -72,7 +72,15 @@ const messageSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-  
+
+  // === Phase 1.7 임베딩 ===
+  // 시맨틱 검색용 벡터 (qwen3-embedding:8b = 4096차원)
+  embedding: {
+    type: [Number],
+    default: null,
+    select: false  // 기본 조회시 제외 (용량 큼)
+  },
+
   // 기존 metadata
   metadata: {
     modelId: String,
@@ -176,6 +184,81 @@ messageSchema.statics.getMessagesAround = async function(sessionId, messageId, l
  */
 messageSchema.statics.clearSession = async function(sessionId) {
   return this.deleteMany({ sessionId });
+};
+
+/**
+ * 임베딩으로 유사 메시지 검색
+ * @param {Array} queryEmbedding - 검색할 임베딩 벡터
+ * @param {Object} options - { sessionId, limit, minSimilarity, excludeIds }
+ */
+messageSchema.statics.findSimilar = async function(queryEmbedding, options = {}) {
+  const {
+    sessionId = 'main-conversation',
+    limit = 10,
+    minSimilarity = 0.5,
+    excludeIds = []
+  } = options;
+
+  // 임베딩 있는 메시지만 조회
+  const query = {
+    sessionId,
+    embedding: { $exists: true, $ne: null }
+  };
+
+  if (excludeIds.length > 0) {
+    query._id = { $nin: excludeIds };
+  }
+
+  const messages = await this.find(query)
+    .select('+embedding')  // 명시적으로 embedding 포함
+    .lean();
+
+  // 코사인 유사도 계산
+  const cosineSimilarity = (a, b) => {
+    if (!a || !b || a.length !== b.length) return 0;
+    let dot = 0, normA = 0, normB = 0;
+    for (let i = 0; i < a.length; i++) {
+      dot += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+    return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+  };
+
+  // 유사도 계산 및 정렬
+  const scored = messages
+    .map(msg => ({
+      ...msg,
+      similarity: cosineSimilarity(queryEmbedding, msg.embedding)
+    }))
+    .filter(msg => msg.similarity >= minSimilarity)
+    .sort((a, b) => b.similarity - a.similarity)
+    .slice(0, limit);
+
+  // embedding 필드 제거 (응답 용량 절약)
+  return scored.map(({ embedding, ...rest }) => rest);
+};
+
+/**
+ * 임베딩 업데이트
+ */
+messageSchema.statics.updateEmbedding = async function(messageId, embedding) {
+  return this.findByIdAndUpdate(messageId, { embedding }, { new: true });
+};
+
+/**
+ * 임베딩 없는 메시지 조회 (배치 처리용)
+ */
+messageSchema.statics.getWithoutEmbedding = async function(sessionId, limit = 100) {
+  return this.find({
+    sessionId,
+    role: 'user',  // 사용자 메시지만
+    embedding: { $exists: false },
+    content: { $exists: true, $ne: '' }
+  })
+    .sort({ timestamp: -1 })
+    .limit(limit)
+    .lean();
 };
 
 module.exports = mongoose.model('Message', messageSchema);

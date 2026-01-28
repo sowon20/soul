@@ -152,7 +152,7 @@ class AnthropicService extends AIService {
       thinkingBudget = null, // thinking 토큰 예산 (기본: maxTokens의 60%)
       enableCache = true, // 프롬프트 캐싱 (기본 활성화)
       prefill = null, // JSON 응답 강제용 prefill (예: '{', '[')
-      enableContextEditing = true, // Context Editing (기본 활성화) - 토큰 절약
+      enableContextEditing = false, // Context Editing (비활성화 - API 오류 발생)
       effort = null, // 노력 수준: 'high' | 'medium' | 'low' (Opus 4.5 전용, 베타)
       documents = null, // Citations용 문서 배열 [{ title, content, type? }]
       searchResults = null, // RAG용 검색 결과 [{ source, title, content: [{type:'text',text}] }]
@@ -353,6 +353,10 @@ class AnthropicService extends AIService {
       }
     }
 
+    // 베타 기능 배열 (도구 블록 전에 정의해야 함)
+    const requestOptions = {};
+    const betas = [];
+
     // 도구 정의 (캐싱 적용: 매 요청마다 동일하므로 캐싱 효과 큼)
     if (tools && tools.length > 0) {
       let processedTools = tools.map(tool => ({ ...tool }));
@@ -413,7 +417,7 @@ class AnthropicService extends AIService {
       }
 
       params.tools = processedTools;
-      console.log(`[Anthropic] Tools passed: ${tools.length} tools (${tools.map(t => t.name).join(', ')})`);
+      console.log(`[Anthropic] Tools passed: ${tools.length} tools`);
 
       // 병렬 도구 사용 비활성화 (한 번에 하나의 도구만 호출)
       if (disableParallelToolUse) {
@@ -427,9 +431,7 @@ class AnthropicService extends AIService {
     // Context Editing: 서버에서 tool_result와 thinking 블록 자동 정리 (토큰 절약)
     // - clear_tool_uses: 이전 tool_result 내용을 빈 문자열로 교체
     // - clear_thinking: 마지막 N개 턴 제외하고 thinking 블록 제거
-    // 베타 기능이므로 betas 헤더 필요
-    const requestOptions = {};
-    const betas = [];
+    // 베타 기능이므로 betas 헤더 필요 (배열은 도구 블록 전에 정의됨)
 
     if (enableContextEditing) {
       betas.push('context-management-2025-06-27');

@@ -1273,35 +1273,30 @@ class MemoryManager {
       }
       
       const tasks = bgWorker.backgroundTasks || {};
-      if (!tasks.tagGeneration && !tasks.memoGeneration) {
-        // 태그/메모 둘 다 비활성화면 스킵
+      if (!tasks.tagGeneration) {
+        // 태그 생성 비활성화면 스킵
         return;
       }
-      
+
       const { getAlbaWorker } = require('./alba-worker');
       const alba = await getAlbaWorker();
-      
+
       const content = message.text || message.content || '';
       if (!content || content.length < 5) return;
-      
-      const recentMessages = this.shortTerm.getRecent(5);
+
       const hour = new Date().getHours();
       const timeContext = hour < 6 ? '새벽' : hour < 12 ? '아침' : hour < 18 ? '오후' : '저녁';
-      
-      // 활성화된 태스크만 실행
-      const [tags, aiMemo] = await Promise.all([
-        tasks.tagGeneration ? alba.generateTags(content, { timeContext }) : null,
-        tasks.memoGeneration && message.role === 'user' ? alba.generateAiMemo(recentMessages, { timeContext }) : null
-      ]);
-      
-      if (tags?.length > 0 || aiMemo) {
+
+      // 태그 생성
+      const tags = await alba.generateTags(content, { timeContext });
+
+      if (tags?.length > 0) {
         const ConversationStore = require('./conversation-store');
         const store = new ConversationStore();
         await store.updateMessage(message.id, {
-          tags: tags || [],
-          thought: aiMemo || null
+          tags: tags || []
         });
-        console.log(`[MemoryManager] Enriched message: ${tags?.length || 0} tags, memo: ${!!aiMemo}`);
+        console.log(`[MemoryManager] Enriched message: ${tags?.length || 0} tags`);
       }
     } catch (error) {
       console.warn('[MemoryManager] Enrich failed (non-blocking):', error.message);

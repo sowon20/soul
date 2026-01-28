@@ -2,9 +2,7 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs').promises;
 const path = require('path');
-
-// 서버 상태 설정 파일 경로
-const CONFIG_PATH = path.join(__dirname, '../../mcp/server-config.json');
+const SystemConfig = require('../models/SystemConfig');
 
 // MCP 서버 URL 설정 (환경변수로 외부 서버 지정 가능)
 const MCP_SERVERS = {
@@ -25,34 +23,42 @@ async function getMcpServerUrl(serverId, config = null) {
       config = await loadServerConfig();
     } catch { config = {}; }
   }
-  
+
   // 외부 서버 확인
   if (config.externalServers?.[serverId]) {
     return config.externalServers[serverId].url;
   }
-  
+
   // 기본 서버
   return MCP_SERVERS[serverId] || `http://localhost:${8124 + Object.keys(MCP_SERVERS).indexOf(serverId)}`;
 }
 
 /**
- * 서버 설정 로드
+ * 서버 설정 로드 (DB에서)
  */
 async function loadServerConfig() {
   try {
-    const data = await fs.readFile(CONFIG_PATH, 'utf-8');
-    return JSON.parse(data);
-  } catch {
-    // 파일이 없으면 기본값 반환
-    return { servers: {} };
+    const config = await SystemConfig.findOne({ configKey: 'mcp_servers' });
+    return config?.value || { servers: {}, externalServers: {} };
+  } catch (e) {
+    console.error('[MCP] Failed to load config from DB:', e.message);
+    return { servers: {}, externalServers: {} };
   }
 }
 
 /**
- * 서버 설정 저장
+ * 서버 설정 저장 (DB에)
  */
 async function saveServerConfig(config) {
-  await fs.writeFile(CONFIG_PATH, JSON.stringify(config, null, 2));
+  await SystemConfig.findOneAndUpdate(
+    { configKey: 'mcp_servers' },
+    {
+      configKey: 'mcp_servers',
+      value: config,
+      description: 'MCP 서버 설정'
+    },
+    { upsert: true, new: true }
+  );
 }
 
 /**
@@ -63,6 +69,7 @@ router.get('/servers', async (req, res) => {
   try {
     const mcpPath = path.join(__dirname, '../../mcp');
     const config = await loadServerConfig();
+    console.log('[MCP] Loaded config:', JSON.stringify(config, null, 2));
 
     // tools 디렉토리에서 도구 목록 가져오기
     const toolsPath = path.join(mcpPath, 'tools');
