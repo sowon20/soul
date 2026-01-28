@@ -123,12 +123,6 @@ export class AISettings {
             ${this.renderPromptSettings()}
           </section>
 
-          <!-- 내면 메모 -->
-          <section class="settings-section">
-            <h3 class="settings-section-title">💭 내면 메모</h3>
-            <p class="settings-section-desc">내가 대화하면서 스스로 깨달은 것들. 다음 대화에서 자연스럽게 떠올라.</p>
-            ${await this.renderSelfRules()}
-          </section>
         </div>
 
         <!-- 저장 상태 표시 -->
@@ -757,15 +751,6 @@ export class AISettings {
             <span class="task-icon">🏷️</span>
             <span class="task-name">태그 생성</span>
             <span class="task-desc">메시지마다 검색용 태그 자동 생성</span>
-          </label>
-          <label class="background-task-item">
-            <input type="checkbox" 
-                   data-role-id="${role.roleId}" 
-                   data-task="memoGeneration"
-                   ${tasks.memoGeneration ? 'checked' : ''}>
-            <span class="task-icon">📝</span>
-            <span class="task-name">내면 메모</span>
-            <span class="task-desc">AI 관점의 짧은 메모 기록</span>
           </label>
           <label class="background-task-item">
             <input type="checkbox" 
@@ -3534,37 +3519,4 @@ export class AISettings {
     }, 3000);
   }
 
-  /**
-   * 내면 메모 렌더링
-   */
-  async renderSelfRules() {
-    try {
-      const response = await this.apiClient.get('/self-rules');
-      const rules = response.rules || [];
-      
-      if (rules.length === 0) {
-        return `
-          <div class="inner-notes-empty">
-            <p>아직 아무것도 떠오르지 않아...</p>
-          </div>
-        `;
-      }
-      
-      return `
-        <div class="inner-notes-list">
-          ${rules.map(rule => `
-            <div class="inner-note-item">
-              <p class="inner-note-text">${rule.rule}</p>
-            </div>
-          `).join('')}
-        </div>
-        <p class="inner-notes-footer">
-          ${rules.length}개의 메모
-        </p>
-      `;
-    } catch (error) {
-      console.error('Failed to load inner notes:', error);
-      return `<p style="color: #f87171; font-size: 0.875rem;">메모를 불러오지 못했어...</p>`;
-    }
-  }
 }

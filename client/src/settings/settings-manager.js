@@ -17,56 +17,15 @@ export class SettingsManager {
    */
   async render(container, pageName = 'profile') {
 
-    // 컨테이너 초기화
+    // 컨테이너 초기화 (탭 없이 컨텐츠만)
     container.innerHTML = `
       <div class="settings-container">
-        <!-- 설정 네비게이션 -->
-        <nav class="settings-nav">
-          <button class="settings-nav-item" data-page="profile">
-            <span class="nav-icon">👤</span>
-            <span class="nav-label">프로필</span>
-          </button>
-          <button class="settings-nav-item" data-page="ai">
-            <span class="nav-icon">🤖</span>
-            <span class="nav-label">AI 설정</span>
-          </button>
-          <button class="settings-nav-item" data-page="app">
-            <span class="nav-icon">⚙️</span>
-            <span class="nav-label">앱설정</span>
-          </button>
-        </nav>
-
-        <!-- 설정 컨텐츠 영역 -->
         <div class="settings-content" id="settingsContent"></div>
       </div>
     `;
 
-    // 네비게이션 이벤트 등록
-    this.attachNavigation(container);
-
-    // 초기 페이지 로드
+    // 해당 페이지 바로 로드
     await this.loadPage(pageName);
-  }
-
-  /**
-   * 네비게이션 이벤트 등록
-   */
-  attachNavigation(container) {
-    const navItems = container.querySelectorAll('.settings-nav-item');
-    navItems.forEach(item => {
-      item.addEventListener('click', async () => {
-        const pageName = item.dataset.page;
-        await this.loadPage(pageName);
-
-        // 활성 상태 업데이트
-        navItems.forEach(nav => nav.classList.remove('active'));
-        item.classList.add('active');
-      });
-    });
-
-    // 초기 활성 상태
-    const initialNav = container.querySelector(`[data-page="${this.currentPage || 'profile'}"]`);
-    if (initialNav) initialNav.classList.add('active');
   }
 
   /**
