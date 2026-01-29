@@ -25,6 +25,8 @@ router.get('/', async (req, res) => {
       isActive: service.isActive,
       isBuiltIn: service.isBuiltIn,
       hasApiKey: !!service.apiKey,
+      // API 키 앞부분 마스킹 프리뷰 (앞 6자 + ******)
+      apiKeyPreview: service.apiKey ? `${service.apiKey.substring(0, 6)}******` : null,
       modelCount: service.models?.length || 0,
       models: service.models || [],  // 모델 목록 포함
       lastRefresh: service.lastRefresh,

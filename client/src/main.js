@@ -302,21 +302,13 @@ class SoulApp {
           contentDiv.classList.add('settings-content-wrapper');
           settingsContainer.appendChild(contentDiv);
 
-          // 뒤로가기 버튼 하단에 추가
-          const backBtn = document.createElement('button');
-          backBtn.innerHTML = '← 대시보드로';
-          backBtn.style.cssText = 'margin: 0; padding: 0.4rem 0.75rem; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 0.375rem; color: white; cursor: pointer; font-size: 0.75rem; width: 100%;';
-          backBtn.onclick = () => {
-            dashboard.style.display = 'block';
-            settingsContainer.style.display = 'none';
-            if (addPageBtn) addPageBtn.style.display = 'block';
-          };
-          settingsContainer.appendChild(backBtn);
-
           // SettingsManager로 렌더링
           const { SettingsManager } = await import('./settings/settings-manager.js');
           const settingsManager = new SettingsManager(this.apiClient);
           await settingsManager.render(contentDiv, 'profile');
+
+          // 프로필 버튼 활성화
+          this.setActiveNavButton(0);
         }
       });
     } else {
@@ -325,6 +317,9 @@ class SoulApp {
 
     // Center menu buttons (neo buttons with sound)
     this.initCenterMenuButtons();
+
+    // 초기 상태: 대시보드 버튼 활성화
+    this.setActiveNavButton(1);
 
     // Mobile menu toggle (.soul button)
     const mobileMenuBtn = document.getElementById('mobileMenuBtn');
@@ -687,15 +682,14 @@ class SoulApp {
         // 다른 active 버튼들 찾기
         const otherActiveButtons = [...buttons].filter(b => b !== btn && b.classList.contains('active'));
 
-        if (btn.classList.contains('active')) {
-          // 이미 active인 버튼을 다시 클릭 - 비활성화
-          btn.classList.remove('active');
+        if (btn.classList.contains('active') && !btn.classList.contains('neo-btn-1')) {
+          // 대시보드가 아닌 버튼을 다시 클릭 - 대시보드로 돌아가기
           outSound.currentTime = 0;
           outSound.play().catch(() => {});
 
-          // Canvas 닫기
-          this.closeCanvasPanel();
-        } else {
+          this.showDashboard();
+          this.setActiveNavButton(1);
+        } else if (!btn.classList.contains('active')) {
           // 다른 버튼들 먼저 즉시 비활성화
           otherActiveButtons.forEach(b => b.classList.remove('active'));
 
@@ -710,13 +704,17 @@ class SoulApp {
           if (btnText === '대시보드' || btn.classList.contains('neo-btn-1')) {
             // 대시보드 표시 (설정 닫고 대시보드 보이기)
             this.showDashboard();
+            this.setActiveNavButton(1);
           } else if (btnText === 'AI' || btn.classList.contains('neo-btn-2')) {
             // AI 설정 페이지 표시
             await this.showAISettings();
+            this.setActiveNavButton(2);
           } else if (btnText === 'APP' || btn.classList.contains('neo-btn-3')) {
             await this.showAppSettings();
+            this.setActiveNavButton(3);
           } else if (btnText === '서버' || btn.classList.contains('neo-btn-4')) {
             await this.showServerStatus();
+            this.setActiveNavButton(4);
           }
         }
       });
@@ -743,6 +741,32 @@ class SoulApp {
     }
 
     console.log('📊 대시보드 표시');
+  }
+
+  /**
+   * 네비게이션 버튼 활성화 상태 설정
+   * @param {number} buttonNum - 버튼 번호 (1: 대시보드, 2: AI, 3: APP, 4: 서버, 0: 프로필)
+   */
+  setActiveNavButton(buttonNum) {
+    // 모든 neo-btn에서 active 제거
+    document.querySelectorAll('.neo-btn').forEach(btn => {
+      btn.classList.remove('active');
+    });
+    // 프로필 버튼 active 제거
+    const profileBtn = document.getElementById('profileBtn');
+    if (profileBtn) {
+      profileBtn.classList.remove('active');
+    }
+
+    // 해당 버튼에 active 추가
+    if (buttonNum > 0) {
+      const activeBtn = document.querySelector(`.neo-btn-${buttonNum}`);
+      if (activeBtn) {
+        activeBtn.classList.add('active');
+      }
+    } else if (buttonNum === 0 && profileBtn) {
+      profileBtn.classList.add('active');
+    }
   }
 
   /**

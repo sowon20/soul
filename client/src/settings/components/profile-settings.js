@@ -67,16 +67,12 @@ export class ProfileSettings {
 
           <!-- 추가 정보 -->
           <section class="settings-section">
-            <div class="settings-section-header">
-              <h3 class="settings-section-title">추가 정보</h3>
-              <button class="settings-btn settings-btn-add" id="addFieldBtn">
-                <span>+</span>
-                <span>필드 추가</span>
-              </button>
-            </div>
             <div class="settings-fields" id="customFieldsContainer">
               ${this.renderCustomFields()}
             </div>
+            <button class="neu-add-field-btn" id="addFieldBtn">
+              + 정보 추가하기
+            </button>
           </section>
         </div>
 
@@ -193,9 +189,9 @@ export class ProfileSettings {
       { key: 'nickname', label: '별명', type: 'text' },
       { key: 'email', label: '이메일', type: 'email' },
       { key: 'phone', label: '전화번호', type: 'tel' },
-      { key: 'birthday', label: '생일', type: 'date' },
-      { key: 'location', label: '주소', type: 'text' },
-      { key: 'occupation', label: '직업', type: 'text' },
+      { key: 'birthDate', label: '생년월일', type: 'date' },
+      { key: 'location', label: '사는 곳', type: 'text' },
+      { key: 'occupation', label: '하는 일', type: 'text' },
       { key: 'bio', label: '자기소개', type: 'textarea' }
     ];
 
@@ -205,8 +201,9 @@ export class ProfileSettings {
 
       if (field.type === 'date') {
         const date = value ? new Date(value) : null;
-        const dateValue = (date && !isNaN(date.getTime())) ? date.toISOString().split('T')[0] : '';
-        const displayValue = (date && !isNaN(date.getTime())) ? `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일` : '';
+        const displayValue = (date && !isNaN(date.getTime()))
+          ? `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`
+          : '';
 
         return `
           <div class="neu-field ${hasValue ? 'has-value' : ''}">
@@ -214,12 +211,40 @@ export class ProfileSettings {
               <span class="neu-field-title">${field.label} : </span>
               <span class="neu-field-value">${displayValue}</span>
             </div>
-            <input type="date"
-                   class="neu-field-input"
-                   value="${dateValue}"
+            <input type="text"
+                   class="neu-field-input neu-date-input"
+                   value="${displayValue}"
                    data-basic-field="${field.key}"
                    data-label="${field.label}"
-                   placeholder="${field.label}">
+                   placeholder="생년.월.일"
+                   maxlength="10"
+                   inputmode="numeric">
+          </div>
+        `;
+      } else if (field.type === 'tel') {
+        // 전화번호 포맷팅 (010-1234-5678)
+        const formatPhone = (v) => {
+          const nums = v.replace(/[^0-9]/g, '');
+          if (nums.length <= 3) return nums;
+          if (nums.length <= 7) return nums.slice(0, 3) + '-' + nums.slice(3);
+          return nums.slice(0, 3) + '-' + nums.slice(3, 7) + '-' + nums.slice(7, 11);
+        };
+        const displayValue = value ? formatPhone(value) : '';
+
+        return `
+          <div class="neu-field ${hasValue ? 'has-value' : ''}">
+            <div class="neu-field-display">
+              <span class="neu-field-title">${field.label} : </span>
+              <span class="neu-field-value">${displayValue}</span>
+            </div>
+            <input type="text"
+                   class="neu-field-input neu-phone-input"
+                   value="${displayValue}"
+                   data-basic-field="${field.key}"
+                   data-label="${field.label}"
+                   placeholder="휴대전화"
+                   maxlength="13"
+                   inputmode="numeric">
           </div>
         `;
       } else if (field.type === 'textarea') {
@@ -259,38 +284,38 @@ export class ProfileSettings {
    */
   renderCustomFields() {
     if (!this.profile.customFields || this.profile.customFields.length === 0) {
-      return '<p class="settings-empty">추가 필드가 없습니다. "필드 추가" 버튼을 눌러 정보를 추가하세요.</p>';
+      return '';
     }
 
     const sortedFields = [...this.profile.customFields].sort((a, b) => a.order - b.order);
 
-    return sortedFields.map(field => `
-      <div class="settings-custom-field" draggable="true" data-field-id="${field.id}">
-        <span class="settings-field-drag-handle">⋮⋮</span>
-        <div class="settings-field-content">
-          <div class="settings-field-header">
-            <input type="text"
-                   class="settings-field-label"
-                   value="${field.label}"
-                   data-field-id="${field.id}"
-                   data-prop="label"
-                   placeholder="필드 이름">
-            <button class="settings-field-delete" data-field-id="${field.id}">×</button>
-          </div>
-          <div class="settings-field-value">
-            ${this.renderCustomFieldInput(field)}
-          </div>
-          <div class="settings-field-meta">
-            <select class="settings-field-type" data-field-id="${field.id}" data-prop="type">
-              <option value="text" ${field.type === 'text' ? 'selected' : ''}>텍스트</option>
-              <option value="number" ${field.type === 'number' ? 'selected' : ''}>숫자</option>
-              <option value="date" ${field.type === 'date' ? 'selected' : ''}>날짜</option>
-              <option value="textarea" ${field.type === 'textarea' ? 'selected' : ''}>긴 텍스트</option>
-            </select>
-          </div>
+    return sortedFields.map(field => {
+      const hasContent = field.label || field.value;
+      const isSaved = field.label !== '제목' || field.value;
+
+      return `
+        <div class="neu-custom-field ${hasContent ? 'has-content' : ''} ${isSaved ? 'saved' : 'editing'}" draggable="${isSaved}" data-field-id="${field.id}">
+          ${isSaved ? `<button class="neu-custom-field-delete" data-field-id="${field.id}" title="삭제">×</button>` : ''}
+          <input type="text"
+                 class="neu-custom-field-title"
+                 value="${field.label === '제목' ? '' : field.label}"
+                 data-field-id="${field.id}"
+                 data-prop="label"
+                 placeholder="제목">
+          <textarea class="neu-custom-field-content"
+                    data-field-id="${field.id}"
+                    data-prop="value"
+                    placeholder="내용"
+                    rows="1">${field.value || ''}</textarea>
+          ${!isSaved ? `
+            <div class="neu-custom-field-buttons">
+              <button class="neu-custom-field-save" data-field-id="${field.id}">저장</button>
+              <button class="neu-custom-field-cancel" data-field-id="${field.id}">취소</button>
+            </div>
+          ` : ''}
         </div>
-      </div>
-    `).join('');
+      `;
+    }).join('');
   }
 
   /**
@@ -338,6 +363,46 @@ export class ProfileSettings {
 
       if (!input) return;
 
+      // 날짜 입력 필드 - 숫자만 입력, 자동 점 삽입
+      if (input.classList.contains('neu-date-input')) {
+        input.addEventListener('input', (e) => {
+          let value = e.target.value.replace(/[^0-9]/g, ''); // 숫자만
+
+          // 자동으로 점 삽입 (YYYY.MM.DD)
+          if (value.length > 4) {
+            value = value.slice(0, 4) + '.' + value.slice(4);
+          }
+          if (value.length > 7) {
+            value = value.slice(0, 7) + '.' + value.slice(7);
+          }
+          if (value.length > 10) {
+            value = value.slice(0, 10);
+          }
+
+          e.target.value = value;
+        });
+      }
+
+      // 전화번호 입력 필드 - 숫자만 입력, 자동 하이픈 삽입
+      if (input.classList.contains('neu-phone-input')) {
+        input.addEventListener('input', (e) => {
+          let value = e.target.value.replace(/[^0-9]/g, ''); // 숫자만
+
+          // 자동으로 하이픈 삽입 (010-1234-5678)
+          if (value.length > 3) {
+            value = value.slice(0, 3) + '-' + value.slice(3);
+          }
+          if (value.length > 8) {
+            value = value.slice(0, 8) + '-' + value.slice(8);
+          }
+          if (value.length > 13) {
+            value = value.slice(0, 13);
+          }
+
+          e.target.value = value;
+        });
+      }
+
       // 디스플레이 클릭하면 편집 모드
       if (display) {
         display.addEventListener('click', () => {
@@ -346,12 +411,14 @@ export class ProfileSettings {
         });
       }
 
-      // 포커스 시 편집 모드
+      // 포커스 시 편집 모드 및 원래 값 저장
+      let originalValue = input.value;
       input.addEventListener('focus', () => {
         field.classList.add('editing');
+        originalValue = input.value;
       });
 
-      // 포커스 아웃하면 편집 모드 해제
+      // 포커스 아웃하면 편집 모드 해제 및 저장
       input.addEventListener('blur', () => {
         field.classList.remove('editing');
         const hasValue = input.value.length > 0;
@@ -359,12 +426,12 @@ export class ProfileSettings {
 
         // 값 업데이트
         if (valueSpan) {
-          if (input.type === 'date' && input.value) {
-            const date = new Date(input.value);
-            valueSpan.textContent = `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`;
-          } else {
-            valueSpan.textContent = input.value;
-          }
+          valueSpan.textContent = input.value;
+        }
+
+        // 날짜/전화번호 필드는 blur 시 저장 (값이 변경된 경우에만)
+        if ((input.classList.contains('neu-date-input') || input.classList.contains('neu-phone-input')) && input.value !== originalValue) {
+          this.saveBasicInfoValue(input, apiClient);
         }
       });
 
@@ -377,7 +444,7 @@ export class ProfileSettings {
         });
       }
 
-      // 저장
+      // 저장 (일반 필드용)
       input.addEventListener('change', (e) => this.saveBasicInfoValue(e.target, apiClient));
     });
 
@@ -537,6 +604,7 @@ export class ProfileSettings {
    * 메인 화면 아바타 업데이트
    */
   updateMainAvatar(imageData) {
+    // 대시보드 프로필 섹션 아바타
     const avatar = document.querySelector('.profile-section .avatar');
     if (avatar) {
       if (imageData) {
@@ -545,6 +613,18 @@ export class ProfileSettings {
         avatar.style.backgroundPosition = 'center';
       } else {
         avatar.style.backgroundImage = '';
+      }
+    }
+
+    // 흰색 바 하단 프로필 버튼 아바타
+    const profileBtnAvatar = document.querySelector('.profile-btn .profile-avatar');
+    if (profileBtnAvatar) {
+      if (imageData) {
+        profileBtnAvatar.style.backgroundImage = `url(${imageData})`;
+        profileBtnAvatar.style.backgroundSize = 'cover';
+        profileBtnAvatar.style.backgroundPosition = 'center';
+      } else {
+        profileBtnAvatar.style.backgroundImage = '';
       }
     }
   }
@@ -567,7 +647,16 @@ export class ProfileSettings {
    */
   async saveBasicInfoValue(input, apiClient) {
     const fieldKey = input.dataset.basicField;
-    const value = input.value;
+    let value = input.value;
+
+    // 날짜 필드인 경우 ISO 형식으로 변환
+    if (input.classList.contains('neu-date-input') && value) {
+      const parts = value.split('.');
+      if (parts.length === 3) {
+        const [year, month, day] = parts;
+        value = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      }
+    }
 
     try {
       this.showSaveStatus('저장 중...', 'info');
@@ -582,7 +671,7 @@ export class ProfileSettings {
       const response = await fetch(`/api/profile/p/basic/${fieldKey}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value })
+        body: JSON.stringify({ userId: this.userId, value })
       });
 
       if (!response.ok) throw new Error('저장 실패');
@@ -650,15 +739,23 @@ export class ProfileSettings {
    * 필드 추가
    */
   async addField(container, apiClient) {
+    // 이미 편집 중인 필드가 있는지 체크
+    const editingFields = container.querySelectorAll('.neu-custom-field.editing');
+    if (editingFields.length > 0) {
+      this.showSaveStatus('현재 편집 중인 필드를 먼저 저장하거나 취소해주세요', 'error');
+      setTimeout(() => this.hideSaveStatus(), 2000);
+      return;
+    }
+
     try {
       this.showSaveStatus('필드 추가 중...', 'info');
 
       // 새 필드 데이터
       const newField = {
         userId: this.userId,
-        label: '새 필드',
+        label: '제목',
         value: '',
-        type: 'text',
+        type: 'textarea',
         order: (this.profile.customFields?.length || 0) + 1
       };
 
@@ -683,8 +780,7 @@ export class ProfileSettings {
 
       // UI 업데이트
       this.refreshCustomFields(container);
-      this.showSaveStatus('✓ 필드 추가됨', 'success');
-      setTimeout(() => this.hideSaveStatus(), 2000);
+      this.hideSaveStatus();
 
     } catch (error) {
       console.error('필드 추가 실패:', error);
@@ -701,6 +797,48 @@ export class ProfileSettings {
     if (customFieldsContainer) {
       customFieldsContainer.innerHTML = this.renderCustomFields();
       this.attachCustomFieldEventListeners(container);
+    }
+  }
+
+  /**
+   * 커스텀 필드 저장
+   */
+  async saveCustomField(fieldId, container) {
+    try {
+      this.showSaveStatus('저장 중...', 'info');
+
+      const field = this.profile.customFields.find(f => f.id === fieldId);
+
+      if (!field) {
+        throw new Error('필드를 찾을 수 없습니다');
+      }
+
+      // API 호출
+      const response = await fetch(`/api/profile/p/fields/${fieldId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: this.userId,
+          label: field.label,
+          value: field.value
+        })
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || '저장 실패');
+      }
+
+      // UI 새로고침
+      this.refreshCustomFields(container);
+      this.showSaveStatus('✓ 저장됨', 'success');
+      setTimeout(() => this.hideSaveStatus(), 2000);
+
+    } catch (error) {
+      console.error('필드 저장 실패:', error);
+      this.showSaveStatus('❌ 저장 실패', 'error');
+      setTimeout(() => this.hideSaveStatus(), 3000);
     }
   }
 
@@ -778,6 +916,35 @@ export class ProfileSettings {
   }
 
   /**
+   * 커스텀 필드 조용히 삭제 (취소 버튼용, 확인 없이)
+   */
+  async deleteCustomFieldSilently(fieldId, container) {
+    try {
+      // API 호출
+      const response = await fetch(`/api/profile/p/fields/${fieldId}?userId=${this.userId}`, {
+        method: 'DELETE'
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || '삭제 실패');
+      }
+
+      // 로컬 상태 업데이트
+      this.profile.customFields = this.profile.customFields.filter(f => f.id !== fieldId);
+
+      // UI 업데이트
+      this.refreshCustomFields(container);
+
+    } catch (error) {
+      console.error('필드 삭제 실패:', error);
+      this.showSaveStatus('❌ 취소 실패', 'error');
+      setTimeout(() => this.hideSaveStatus(), 2000);
+    }
+  }
+
+  /**
    * 커스텀 필드 순서 변경
    */
   async reorderFields(fieldOrders) {
@@ -812,48 +979,92 @@ export class ProfileSettings {
    * 커스텀 필드 이벤트 리스너 등록
    */
   attachCustomFieldEventListeners(container) {
-    // 필드 값 변경
-    container.querySelectorAll('.settings-field-input[data-field-id]').forEach(input => {
-      input.addEventListener('change', (e) => {
+    // 필드 제목 입력 (저장 안됨)
+    container.querySelectorAll('.neu-custom-field-title[data-field-id]').forEach(input => {
+      input.addEventListener('input', (e) => {
         const fieldId = e.target.dataset.fieldId;
-        const prop = e.target.dataset.prop;
-        this.saveCustomFieldValue(fieldId, prop, e.target.value);
-      });
-    });
-
-    // 필드 라벨 변경
-    container.querySelectorAll('.settings-field-label[data-field-id]').forEach(input => {
-      input.addEventListener('change', (e) => {
-        const fieldId = e.target.dataset.fieldId;
-        this.saveCustomFieldValue(fieldId, 'label', e.target.value);
-      });
-    });
-
-    // 필드 타입 변경
-    container.querySelectorAll('.settings-field-type[data-field-id]').forEach(select => {
-      select.addEventListener('change', (e) => {
-        const fieldId = e.target.dataset.fieldId;
-        this.saveCustomFieldValue(fieldId, 'type', e.target.value);
-
-        // 입력 필드 타입도 업데이트
         const field = this.profile.customFields.find(f => f.id === fieldId);
         if (field) {
-          field.type = e.target.value;
-          this.refreshCustomFields(container);
+          field.label = e.target.value;
         }
       });
     });
 
+    // 필드 내용 입력 (저장 안됨)
+    container.querySelectorAll('.neu-custom-field-content[data-field-id]').forEach(textarea => {
+      // 자동 높이 조절 함수
+      const autoResize = () => {
+        textarea.style.height = 'auto';
+        textarea.style.height = textarea.scrollHeight + 'px';
+      };
+
+      // 초기 높이 설정
+      autoResize();
+
+      textarea.addEventListener('input', (e) => {
+        const fieldId = e.target.dataset.fieldId;
+        const field = this.profile.customFields.find(f => f.id === fieldId);
+        if (field) {
+          field.value = e.target.value;
+        }
+        // 높이 자동 조절
+        autoResize();
+      });
+    });
+
+    // 저장 버튼
+    container.querySelectorAll('.neu-custom-field-save[data-field-id]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const fieldId = e.target.dataset.fieldId;
+        const field = this.profile.customFields.find(f => f.id === fieldId);
+
+        // 제목이 '제목'이고 값이 비어있거나, 둘 다 비어있으면 저장 불가
+        if (!field || (field.label === '제목' && !field.value) || (!field.label && !field.value)) {
+          this.showSaveStatus('제목 또는 내용을 입력하세요', 'error');
+          setTimeout(() => this.hideSaveStatus(), 2000);
+          return;
+        }
+
+        await this.saveCustomField(fieldId, container);
+      });
+    });
+
+    // 취소 버튼
+    container.querySelectorAll('.neu-custom-field-cancel[data-field-id]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const fieldId = e.target.dataset.fieldId;
+        await this.deleteCustomFieldSilently(fieldId, container);
+      });
+    });
+
     // 필드 삭제
-    container.querySelectorAll('.settings-field-delete[data-field-id]').forEach(btn => {
+    container.querySelectorAll('.neu-custom-field-delete[data-field-id]').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        const fieldId = e.target.closest('.settings-field-delete').dataset.fieldId;
+        const fieldId = e.target.dataset.fieldId;
         this.deleteCustomField(fieldId);
       });
     });
 
     // 드래그 앤 드롭
     this.setupDragAndDrop(container);
+  }
+
+  /**
+   * 필드의 드래그 가능 여부 업데이트
+   */
+  updateFieldDraggable(fieldId, container) {
+    const field = this.profile.customFields.find(f => f.id === fieldId);
+    const fieldElement = container.querySelector(`.neu-custom-field[data-field-id="${fieldId}"]`);
+
+    if (field && fieldElement) {
+      const hasContent = field.label || field.value;
+      fieldElement.draggable = hasContent;
+      if (hasContent) {
+        fieldElement.classList.add('has-content');
+      } else {
+        fieldElement.classList.remove('has-content');
+      }
+    }
   }
 
   /**
@@ -866,7 +1077,7 @@ export class ProfileSettings {
     let draggedItem = null;
 
     const handleDragStart = (e) => {
-      draggedItem = e.target.closest('.settings-custom-field');
+      draggedItem = e.target.closest('.neu-custom-field');
       if (draggedItem) {
         draggedItem.classList.add('dragging');
         e.dataTransfer.effectAllowed = 'move';
@@ -892,7 +1103,7 @@ export class ProfileSettings {
         draggedItem.classList.remove('dragging');
 
         // 새 순서 저장
-        const fieldElements = customFieldsContainer.querySelectorAll('.settings-custom-field');
+        const fieldElements = customFieldsContainer.querySelectorAll('.neu-custom-field');
         const fieldOrders = Array.from(fieldElements).map((el, index) => ({
           id: el.dataset.fieldId,
           order: index + 1
@@ -904,7 +1115,7 @@ export class ProfileSettings {
     };
 
     const getDragAfterElement = (container, y) => {
-      const draggableElements = [...container.querySelectorAll('.settings-custom-field:not(.dragging)')];
+      const draggableElements = [...container.querySelectorAll('.neu-custom-field:not(.dragging)')];
 
       return draggableElements.reduce((closest, child) => {
         const box = child.getBoundingClientRect();

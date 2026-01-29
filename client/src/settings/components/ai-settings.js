@@ -79,18 +79,192 @@ export class AISettings {
       // UI 렌더링
       container.innerHTML = `
         <div class="ai-settings-panel">
-          <!-- AI 서비스 관리 -->
-          <section class="settings-section">
-            <h3 class="settings-section-title">AI 서비스 관리</h3>
-            <p class="settings-section-desc">API 키를 설정하고 AI 서비스를 관리하세요.</p>
-            <div class="ai-services-grid">
-              ${this.renderServiceCards()}
+          <!-- API 키 캡슐 버튼 (Gooey 효과) -->
+          <div class="api-capsules-wrapper">
+            <div class="api-capsules-container">
+              ${this.renderApiCapsules()}
+              ${this.renderEmptyGuide()}
+              <div class="api-dropdown">
+                <input type="checkbox" id="api-dropdown-toggle" class="api-dropdown-checkbox">
+                <label class="api-capsule-add" for="api-dropdown-toggle" title="서비스 추가">
+                  <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
+                    <path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  </svg>
+                </label>
+              </div>
             </div>
-          </section>
+            <div class="api-dropdown-content">
+              <div class="api-service-list">
+                ${this.renderServiceList()}
+              </div>
+            </div>
+            <svg class="goo-filter">
+              <filter id="goo">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur" />
+                <feColorMatrix in="blur" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7" result="goo" />
+                <feBlend in="SourceGraphic" in2="goo" />
+              </filter>
+            </svg>
+          </div>
 
-          <!-- 스마트 라우팅 설정 -->
+          <!-- 온보딩 카드 섹션 -->
+          <div class="onboarding-cards">
+            <!-- 정체성 카드 -->
+            <div class="onboarding-item">
+              <div class="onboarding-card" data-target="onboard-identity">
+                <div class="onboarding-card-label">정체성</div>
+              </div>
+              <div class="onboarding-content" id="onboard-identity">
+                <div class="soul-form">
+                  <div class="neu-field ${this.agentProfile.name ? 'has-value' : ''}">
+                    <div class="neu-field-display">
+                      <span class="neu-field-title">이름 : </span>
+                      <span class="neu-field-value">${this.agentProfile.name || ''}</span>
+                    </div>
+                    <input type="text" class="neu-field-input" id="soulName" data-label="이름" placeholder="이름" value="${this.agentProfile.name || ''}">
+                  </div>
+                  <div class="neu-field ${this.agentProfile.role ? 'has-value' : ''}">
+                    <div class="neu-field-display">
+                      <span class="neu-field-title">역할 : </span>
+                      <span class="neu-field-value">${this.agentProfile.role || ''}</span>
+                    </div>
+                    <input type="text" class="neu-field-input" id="soulRole" data-label="역할" placeholder="역할 (예: 개발 도우미, 글쓰기 파트너)" value="${this.agentProfile.role || ''}">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 성격 카드 -->
+            <div class="onboarding-item">
+              <div class="onboarding-card" data-target="onboard-personality">
+                <div class="onboarding-card-label">성격</div>
+              </div>
+              <div class="onboarding-content" id="onboard-personality">
+                <div class="soul-form">
+                  <div class="neu-field ${this.agentProfile.description ? 'has-value' : ''}">
+                    <div class="neu-field-display">
+                      <span class="neu-field-title">설명 : </span>
+                      <span class="neu-field-value">${this.agentProfile.description || ''}</span>
+                    </div>
+                    <textarea class="neu-field-input neu-field-textarea-sm" id="soulDescription" data-label="설명" placeholder="설명" rows="2">${this.agentProfile.description || ''}</textarea>
+                  </div>
+                  <div class="neu-field ${this.agentProfile.systemPrompt ? 'has-value' : ''}">
+                    <div class="neu-field-display">
+                      <span class="neu-field-title">시스템 프롬프트 : </span>
+                      <span class="neu-field-value">${this.agentProfile.systemPrompt || ''}</span>
+                    </div>
+                    <textarea class="neu-field-input neu-field-textarea-lg" id="soulSystemPrompt" data-label="시스템 프롬프트" placeholder="시스템 프롬프트" rows="7">${this.agentProfile.systemPrompt || ''}</textarea>
+                  </div>
+                  <!-- 대화 스타일 -->
+                  <div class="soul-style-section">
+                    <div class="soul-style-label">대화 스타일</div>
+                    <div class="personality-sliders">
+                      <div class="personality-slider-item">
+                        <div class="slider-header">
+                          <span class="slider-label-left">🎉 캐주얼</span>
+                          <span class="slider-label-right">🎩 격식</span>
+                        </div>
+                        <input type="range" class="personality-range" id="soulFormality" min="0" max="1" step="0.1" value="${this.agentProfile.personality?.communication?.formality ?? 0.5}">
+                      </div>
+                      <div class="personality-slider-item">
+                        <div class="slider-header">
+                          <span class="slider-label-left">⚡ 간결</span>
+                          <span class="slider-label-right">�� 상세</span>
+                        </div>
+                        <input type="range" class="personality-range" id="soulVerbosity" min="0" max="1" step="0.1" value="${this.agentProfile.personality?.communication?.verbosity ?? 0.5}">
+                      </div>
+                      <div class="personality-slider-item">
+                        <div class="slider-header">
+                          <span class="slider-label-left">🌸 완곡</span>
+                          <span class="slider-label-right">🎯 직접적</span>
+                        </div>
+                        <input type="range" class="personality-range" id="soulDirectness" min="0" max="1" step="0.1" value="${this.agentProfile.personality?.communication?.directness ?? 0.7}">
+                      </div>
+                      <div class="personality-slider-item">
+                        <div class="slider-header">
+                          <span class="slider-label-left">📝 일반 용어</span>
+                          <span class="slider-label-right">🔧 기술 용어</span>
+                        </div>
+                        <input type="range" class="personality-range" id="soulTechnicality" min="0" max="1" step="0.1" value="${this.agentProfile.personality?.communication?.technicality ?? 0.5}">
+                      </div>
+                      <div class="personality-slider-item">
+                        <div class="slider-header">
+                          <span class="slider-label-left">😐 이모지 없음</span>
+                          <span class="slider-label-right">😊 이모지 많이</span>
+                        </div>
+                        <input type="range" class="personality-range" id="soulEmoji" min="0" max="1" step="0.1" value="${this.agentProfile.personality?.communication?.emoji ?? 0.3}">
+                      </div>
+                      <div class="personality-slider-item">
+                        <div class="slider-header">
+                          <span class="slider-label-left">🧐 진지</span>
+                          <span class="slider-label-right">😄 유머러스</span>
+                        </div>
+                        <input type="range" class="personality-range" id="soulHumor" min="0" max="1" step="0.1" value="${this.agentProfile.personality?.communication?.humor ?? 0.3}">
+                      </div>
+                      <div class="personality-slider-item">
+                        <div class="slider-header">
+                          <span class="slider-label-left">🤖 기계적</span>
+                          <span class="slider-label-right">💕 공감적</span>
+                        </div>
+                        <input type="range" class="personality-range" id="soulEmpathy" min="0" max="1" step="0.1" value="${this.agentProfile.personality?.traits?.empathetic ?? 0.6}">
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 두뇌 카드 -->
+            <div class="onboarding-item">
+              <div class="onboarding-card" data-target="onboard-brain">
+                <div class="onboarding-card-label">두뇌</div>
+              </div>
+              <div class="onboarding-content" id="onboard-brain">
+                <div class="soul-form">
+                  <div class="soul-radio-group">
+                    <label class="soul-radio">
+                      <input type="radio" name="modelMode" value="single" ${this.agentProfile.modelMode !== 'smart' ? 'checked' : ''}>
+                      <span>단일 모델</span>
+                    </label>
+                    <label class="soul-radio">
+                      <input type="radio" name="modelMode" value="smart" ${this.agentProfile.modelMode === 'smart' ? 'checked' : ''}>
+                      <span>스마트 라우팅</span>
+                    </label>
+                  </div>
+                  <div class="soul-model-options">
+                  </div>
+                  <div class="soul-slider-row">
+                    <label>창의성</label>
+                    <input type="range" class="soul-range" id="soulCreativity" min="0" max="1" step="0.1" value="${this.agentProfile.temperature || 0.7}">
+                    <input type="text" class="soul-input-mini" id="soulCreativityValue" value="${this.agentProfile.temperature || 0.7}">
+                  </div>
+                  <div class="soul-slider-row">
+                    <label>응답 길이</label>
+                    <input type="range" class="soul-range" id="soulLength" min="256" max="32000" step="256" value="${this.agentProfile.maxTokens || 4096}">
+                    <input type="text" class="soul-input-mini" id="soulLengthValue" value="${this.agentProfile.maxTokens || 4096}">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 알바 카드 -->
+            <div class="onboarding-item">
+              <div class="onboarding-card" data-target="onboard-alba">
+                <div class="onboarding-card-label">알바</div>
+                <label class="toggle-switch toggle-switch-sm" onclick="event.stopPropagation()">
+                  <input type="checkbox">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="onboarding-content" id="onboard-alba">
+                <p>여기에 알바 설정 내용이 들어갑니다.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- 기본모델 설정 -->
           <section class="settings-section">
-            <h3 class="settings-section-title">스마트 라우팅 설정</h3>
+            <h3 class="settings-section-title">기본모델 설정</h3>
             <p class="settings-section-desc">작업 복잡도에 따라 자동으로 최적 모델을 선택합니다.</p>
             ${this.renderSmartRoutingSettings()}
           </section>
@@ -193,17 +367,17 @@ export class AISettings {
       const profiles = response.profiles || [];
       this.agentProfile = profiles.find(p => p.id === 'default') || profiles[0] || {
         id: 'default',
-        name: 'Soul',
-        role: 'AI Assistant',
-        description: '당신의 AI 동반자'
+        name: '',
+        role: '',
+        description: ''
       };
     } catch (error) {
       console.error('Failed to load agent profile:', error);
       this.agentProfile = {
         id: 'default',
-        name: 'Soul',
-        role: 'AI Assistant',
-        description: '당신의 AI 동반자'
+        name: '',
+        role: '',
+        description: ''
       };
     }
   }
@@ -1890,6 +2064,308 @@ export class AISettings {
   }
 
   /**
+   * 비활성 서비스 레이어 토글
+   */
+  toggleInactiveLayer(button) {
+    const wrapper = button.closest('.api-capsules-wrapper');
+    const dropdown = wrapper?.querySelector('.api-capsules-dropdown');
+    const dropdownContent = dropdown?.querySelector('.dropdown-content');
+    if (!dropdown) return;
+
+    const isOpen = dropdown.classList.contains('open');
+
+    if (isOpen) {
+      // 닫기
+      dropdown.classList.remove('open');
+      button.textContent = '+';
+      button.classList.remove('open');
+    } else {
+      // 열기
+      dropdown.classList.add('open');
+      button.textContent = '×';
+      button.classList.add('open');
+
+      // 버튼 위치 계산해서 가림막 위치 설정
+      requestAnimationFrame(() => {
+        if (dropdownContent) {
+          const contentRect = dropdownContent.getBoundingClientRect();
+          const buttonRect = button.getBoundingClientRect();
+          const buttonCenter = buttonRect.left + buttonRect.width / 2;
+          const offsetRight = contentRect.right - buttonCenter - 12;
+          dropdownContent.style.setProperty('--button-offset', `${offsetRight}px`);
+        }
+      });
+    }
+  }
+
+  /**
+   * 활성 서비스 없을 때 안내 캡슐
+   */
+  renderEmptyGuide() {
+    const hasActiveService = this.services.some(s => s.isActive);
+    if (hasActiveService) {
+      return '';
+    }
+    return `<span class="api-empty-guide">사용할 서비스를 추가해주세요</span>`;
+  }
+
+  /**
+   * 서비스 리스트 렌더링 (드롭다운 내부)
+   */
+  renderServiceList() {
+    // API 키 필요/불필요 서비스 분리
+    const keyRequired = this.services.filter(s => s.type !== 'vertex' && s.type !== 'ollama');
+    const noKeyRequired = this.services.filter(s => s.type === 'vertex' || s.type === 'ollama');
+
+    const renderKeyService = (service) => {
+      const hasKey = service.hasApiKey;
+      const maskedKey = service.apiKeyPreview || (hasKey ? '••••••••' : '');
+
+      return `
+        <div class="api-service-row" data-service-id="${service.id}">
+          <div class="service-row-top">
+            <span class="service-name">${service.name}</span>
+            <label class="service-toggle">
+              <input type="checkbox"
+                     ${service.isActive ? 'checked' : ''}
+                     data-service-id="${service.id}"
+                     data-action="toggle-service">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="service-row-bottom">
+            <input type="text"
+                   class="service-api-input ${hasKey ? 'has-key' : ''}"
+                   value="${hasKey ? maskedKey : ''}"
+                   placeholder="${hasKey ? '' : 'API 키 입력'}"
+                   ${hasKey ? 'disabled' : ''}
+                   data-service-id="${service.id}"
+                   data-action="api-key-input">
+            <button class="service-key-btn ${hasKey ? 'has-key' : ''}"
+                    data-service-id="${service.id}"
+                    data-action="${hasKey ? 'edit-api-key-mode' : 'save-api-key'}">
+              ${hasKey ? '수정' : '추가'}
+            </button>
+            ${hasKey ? `<button class="service-delete-btn"
+                                data-service-id="${service.id}"
+                                data-action="delete-api-key">삭제</button>` : ''}
+          </div>
+        </div>
+      `;
+    };
+
+    const renderNoKeyService = (service) => {
+      // Vertex AI는 Project ID, Region 설정
+      if (service.type === 'vertex') {
+        return `
+          <div class="api-service-row no-key-service" data-service-id="${service.id}">
+            <div class="service-row-top">
+              <span class="service-name">${service.name}</span>
+              <label class="service-toggle">
+                <input type="checkbox"
+                       ${service.isActive ? 'checked' : ''}
+                       data-service-id="${service.id}"
+                       data-action="toggle-service">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="service-row-bottom vertex-row">
+              <input type="text"
+                     class="service-api-input vertex-project-input"
+                     data-service-id="${service.id}"
+                     value="${service.projectId || ''}"
+                     placeholder="Project ID">
+              <select class="vertex-region-select"
+                      data-service-id="${service.id}">
+                <option value="us-east5" ${service.region === 'us-east5' ? 'selected' : ''}>us-east5</option>
+                <option value="europe-west1" ${service.region === 'europe-west1' ? 'selected' : ''}>europe-west1</option>
+                <option value="asia-southeast1" ${service.region === 'asia-southeast1' ? 'selected' : ''}>asia-southeast1</option>
+              </select>
+              <button class="service-key-btn vertex-save-btn"
+                      data-service-id="${service.id}">
+                저장
+              </button>
+            </div>
+            <span class="vertex-auth-hint">ADC(gcloud auth) 또는 서비스 계정 인증 필요</span>
+          </div>
+        `;
+      }
+
+      // Ollama 등 다른 no-key 서비스
+      return `
+        <div class="api-service-row no-key-service" data-service-id="${service.id}">
+          <div class="service-row-top">
+            <span class="service-name">${service.name}</span>
+            <label class="service-toggle">
+              <input type="checkbox"
+                     ${service.isActive ? 'checked' : ''}
+                     data-service-id="${service.id}"
+                     data-action="toggle-service">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="service-row-bottom">
+            <span class="no-key-hint">로컬 서버 (API 키 불필요)</span>
+          </div>
+        </div>
+      `;
+    };
+
+    // API 키 필요 서비스 먼저, 그 다음 불필요 서비스
+    return keyRequired.map(renderKeyService).join('') + noKeyRequired.map(renderNoKeyService).join('');
+  }
+
+  /**
+   * API 캡슐 버튼 렌더링 (외부 컨테이너용)
+   */
+  renderApiCapsules() {
+    // 서비스별 배경 그라데이션 및 표시 이름 (채도 낮춤)
+    const serviceConfig = {
+      'anthropic': {
+        bg: 'linear-gradient(135deg, #c4836f 0%, #d4a088 100%)',
+        displayName: 'Anthropic'
+      },
+      'openai': {
+        bg: 'linear-gradient(135deg, #5a9a8a 0%, #7ab8a8 100%)',
+        displayName: 'OpenAI'
+      },
+      'google': {
+        bg: 'linear-gradient(135deg, #7a9ec7 0%, #8ab89a 50%, #c9b896 100%)',
+        displayName: 'Google'
+      },
+      'vertex': {
+        bg: 'linear-gradient(135deg, #7a9ec7 0%, #9a8ac7 100%)',
+        displayName: 'Vertex'
+      },
+      'ollama': {
+        bg: 'linear-gradient(135deg, #3a3a4e 0%, #4a5568 100%)',
+        displayName: 'Ollama'
+      },
+      'xai': {
+        bg: 'linear-gradient(135deg, #6b7280 0%, #8b95a5 100%)',
+        displayName: 'xAI'
+      },
+      'custom': {
+        bg: 'linear-gradient(135deg, #8a9098 0%, #a0a8b0 100%)',
+        displayName: null // 원래 이름 사용
+      }
+    };
+
+    return this.services.map(service => {
+      const isActive = service.isActive;
+      // Vertex AI는 projectId로, Ollama는 항상 true, 나머지는 apiKey로 판단
+      let hasKey;
+      if (service.type === 'vertex') {
+        hasKey = !!service.projectId;
+      } else if (service.type === 'ollama') {
+        hasKey = true; // 로컬 서버는 항상 준비됨
+      } else {
+        hasKey = service.hasApiKey;
+      }
+
+      let stateClass = 'inactive';
+      if (isActive && hasKey) {
+        stateClass = 'active has-key';
+      } else if (isActive && !hasKey) {
+        stateClass = 'active no-key';
+      }
+
+      // 비활성이면 숨김
+      const hiddenClass = !isActive ? 'capsule-hidden' : '';
+
+      const config = serviceConfig[service.type.toLowerCase()] || serviceConfig['custom'];
+      const displayName = config.displayName || service.name;
+
+      return `
+        <button class="api-capsule ${stateClass} ${hiddenClass}"
+                data-service-id="${service.id}"
+                data-action="capsule-click"
+                title="${service.name}${hasKey ? '' : ' (API 키 미설정)'}">
+          <div class="capsule-bg" style="background: ${config.bg};"></div>
+          <span class="capsule-led"></span>
+          <span class="capsule-name">${displayName}</span>
+        </button>
+      `;
+    }).join('');
+  }
+
+  /**
+   * 캡슐 UI 실시간 업데이트 (숨김 토글 방식)
+   */
+  updateCapsuleUI() {
+    // 각 서비스의 활성 상태에 따라 외부 캡슐 숨김 토글
+    this.services.forEach(service => {
+      const isActive = service.isActive;
+      // Vertex AI는 projectId로, Ollama는 항상 true, 나머지는 apiKey로 판단
+      let hasKey;
+      if (service.type === 'vertex') {
+        hasKey = !!service.projectId;
+      } else if (service.type === 'ollama') {
+        hasKey = true;
+      } else {
+        hasKey = service.hasApiKey;
+      }
+
+      // 외부 캡슐: 활성이면 보이고, 비활성이면 숨김
+      const capsule = document.querySelector(`.api-capsule[data-service-id="${service.id}"]`);
+      if (capsule) {
+        capsule.classList.toggle('capsule-hidden', !isActive);
+        // 상태 클래스 업데이트
+        capsule.classList.remove('active', 'inactive', 'has-key', 'no-key');
+        if (isActive && hasKey) {
+          capsule.classList.add('active', 'has-key');
+        } else if (isActive && !hasKey) {
+          capsule.classList.add('active', 'no-key');
+        } else {
+          capsule.classList.add('inactive');
+        }
+      }
+    });
+
+    // 서비스 리스트 UI 업데이트
+    this.updateServiceListUI();
+
+    // 안내 캡슐 업데이트
+    this.updateEmptyGuide();
+
+    // 꼬리 위치 재계산
+    this.updateTailPosition();
+  }
+
+  /**
+   * 빈 상태 안내 캡슐 업데이트
+   */
+  updateEmptyGuide() {
+    const guide = document.querySelector('.api-empty-guide');
+    const hasActiveService = this.services.some(s => s.isActive);
+
+    if (hasActiveService && guide) {
+      guide.remove();
+    } else if (!hasActiveService && !guide) {
+      const dropdown = document.querySelector('.api-dropdown');
+      if (dropdown) {
+        dropdown.insertAdjacentHTML('beforebegin', `<span class="api-empty-guide">사용할 서비스를 추가해주세요</span>`);
+      }
+    }
+  }
+
+  /**
+   * 말풍선 꼬리 위치 업데이트
+   */
+  updateTailPosition() {
+    const wrapper = document.querySelector('.api-capsules-wrapper');
+    const addButton = document.querySelector('.api-capsule-add');
+    const dropdownContent = document.querySelector('.api-dropdown-content');
+
+    if (wrapper && addButton && dropdownContent) {
+      const wrapperRect = wrapper.getBoundingClientRect();
+      const buttonRect = addButton.getBoundingClientRect();
+      const rightOffset = wrapperRect.right - buttonRect.right;
+      dropdownContent.style.setProperty('--button-right', `${rightOffset}px`);
+    }
+  }
+
+  /**
    * 날짜 포맷팅
    */
   formatDate(dateString) {
@@ -1922,12 +2398,98 @@ export class AISettings {
 
     // 토글 스위치는 change 이벤트 사용 (AI 서비스 토글)
     container.addEventListener('change', async (e) => {
+      // API 드롭다운 토글
+      if (e.target.id === 'api-dropdown-toggle') {
+        const dropdownContent = container.querySelector('.api-dropdown-content');
+        const addButton = container.querySelector('.api-capsule-add');
+        if (dropdownContent) {
+          dropdownContent.classList.toggle('open', e.target.checked);
+          // 버튼 위치 계산해서 연결선 위치 설정
+          if (e.target.checked && addButton) {
+            const wrapperRect = container.querySelector('.api-capsules-wrapper').getBoundingClientRect();
+            const buttonRect = addButton.getBoundingClientRect();
+            const rightOffset = wrapperRect.right - buttonRect.right;
+            dropdownContent.style.setProperty('--button-right', `${rightOffset}px`);
+          }
+        }
+        return;
+      }
+
       if (e.target.dataset.action === 'toggle-active') {
         e.stopPropagation();
         const serviceId = e.target.dataset.serviceId;
         // serviceId가 있을 때만 서비스 토글 (알바 토글은 role-id만 있음)
         if (serviceId) {
           await this.toggleServiceActive(serviceId, e.target.checked);
+        }
+      }
+
+      // 서비스 리스트 토글
+      if (e.target.dataset.action === 'toggle-service') {
+        const serviceId = e.target.dataset.serviceId;
+        if (serviceId) {
+          await this.toggleServiceActive(serviceId, e.target.checked);
+          // 서비스 카드의 체크박스도 동기화
+          const cardCheckbox = document.querySelector(`.ai-service-card[data-service-id="${serviceId}"] input[data-action="toggle-active"]`);
+          if (cardCheckbox) {
+            cardCheckbox.checked = e.target.checked;
+          }
+        }
+      }
+    }, { signal });
+
+    // 온보딩 카드 클릭 (아코디언)
+    container.addEventListener('click', (e) => {
+      const card = e.target.closest('.onboarding-card');
+      if (card && !e.target.closest('.toggle-switch')) {
+        const targetId = card.dataset.target;
+        const content = document.getElementById(targetId);
+        const item = card.closest('.onboarding-item');
+        if (content) {
+          content.classList.toggle('open');
+          card.classList.toggle('active');
+          item?.classList.toggle('open');
+        }
+      }
+    }, { signal });
+
+    // neu-field 인풋 값 변경 시 has-value 클래스 토글 + 값 표시 업데이트
+    container.addEventListener('input', (e) => {
+      const input = e.target.closest('.neu-field-input');
+      if (input) {
+        const field = input.closest('.neu-field');
+        const valueDisplay = field?.querySelector('.neu-field-value');
+        if (field) {
+          if (input.value.trim()) {
+            field.classList.add('has-value');
+            if (valueDisplay) valueDisplay.textContent = input.value;
+          } else {
+            field.classList.remove('has-value');
+            if (valueDisplay) valueDisplay.textContent = '';
+          }
+        }
+      }
+    }, { signal });
+
+    // neu-field 클릭 시 편집 모드
+    container.addEventListener('click', (e) => {
+      const field = e.target.closest('.neu-field');
+      if (field && !field.classList.contains('editing')) {
+        field.classList.add('editing');
+        const input = field.querySelector('.neu-field-input');
+        if (input) {
+          input.focus();
+        }
+      }
+    }, { signal });
+
+    // neu-field 포커스 아웃 시 편집 모드 종료
+    container.addEventListener('focusout', (e) => {
+      const input = e.target.closest('.neu-field-input');
+      if (input) {
+        const field = input.closest('.neu-field');
+        if (field) {
+          field.classList.remove('editing');
         }
       }
     }, { signal });
@@ -1942,6 +2504,9 @@ export class AISettings {
       const serviceId = button.dataset.serviceId;
 
       switch (action) {
+        case 'toggle-inactive':
+          this.toggleInactiveLayer(button);
+          break;
         case 'edit-api-key':
           await this.editApiKey(serviceId);
           break;
@@ -1950,6 +2515,15 @@ export class AISettings {
           break;
         case 'refresh-models':
           await this.refreshModels(serviceId, button);
+          break;
+        case 'save-api-key':
+          await this.saveApiKeyFromList(serviceId);
+          break;
+        case 'edit-api-key-mode':
+          this.enableApiKeyEditMode(serviceId, button);
+          break;
+        case 'delete-api-key':
+          await this.deleteApiKey(serviceId);
           break;
       }
     }, { signal });
@@ -2379,12 +2953,41 @@ export class AISettings {
       // 성공 메시지 표시
       this.showSaveStatus(`서비스가 ${isActive ? '활성화' : '비활성화'}되었습니다.`, 'success');
 
+      // 로컬 서비스 데이터 업데이트
+      const service = this.services.find(s => s.id === serviceId);
+      if (service) {
+        service.isActive = isActive;
+      }
+
       // 카드 상태 업데이트
-      const card = document.querySelector(`[data-service-id="${serviceId}"]`);
+      const card = document.querySelector(`.ai-service-card[data-service-id="${serviceId}"]`);
       if (card) {
         card.classList.toggle('active', isActive);
         card.classList.toggle('inactive', !isActive);
       }
+
+      // 캡슐 UI 실시간 업데이트
+      this.updateCapsuleUI();
+
+      // 활성화 시 API 키가 있는 서비스면 모델 새로고침
+      if (isActive && service) {
+        const hasKey = service.type === 'vertex' ? !!service.projectId :
+                       service.type === 'ollama' ? true :
+                       service.hasApiKey;
+
+        if (hasKey) {
+          try {
+            await this.apiClient.post(`/ai-services/${serviceId}/refresh-models`);
+          } catch (e) {
+            console.warn('Model refresh on toggle:', e);
+          }
+        }
+      }
+
+      // 서비스 목록 다시 로드 후 드롭다운 갱신
+      await this.loadServices();
+      this.collectAvailableModels();
+      this.updateRoutingDropdowns();
     } catch (error) {
       console.error('Failed to toggle service:', error);
       this.showSaveStatus('상태 변경에 실패했습니다.', 'error');
@@ -2421,12 +3024,201 @@ export class AISettings {
 
       // 서비스 목록 새로고침
       await this.loadServices();
-      const container = document.querySelector('.ai-settings-panel').parentElement;
-      await this.render(container, this.apiClient);
+
+      // 캡슐 UI 실시간 업데이트
+      this.updateCapsuleUI();
+
+      // 서비스 카드 UI 업데이트
+      this.updateServiceCardUI(serviceId);
     } catch (error) {
       console.error('Failed to update API key:', error);
       this.showSaveStatus('API 키 저장에 실패했습니다.', 'error');
     }
+  }
+
+  /**
+   * 서비스 카드 UI 업데이트
+   */
+  updateServiceCardUI(serviceId) {
+    const service = this.services.find(s => s.id === serviceId);
+    if (!service) return;
+
+    const card = document.querySelector(`.ai-service-card[data-service-id="${serviceId}"]`);
+    if (!card) return;
+
+    // API 키 상태 업데이트
+    const statusEl = card.querySelector('.api-key-status');
+    if (statusEl) {
+      if (service.hasApiKey) {
+        statusEl.classList.remove('no-key');
+        statusEl.classList.add('has-key');
+        statusEl.innerHTML = '<span class="status-dot"></span>API 키 설정됨';
+      } else {
+        statusEl.classList.remove('has-key');
+        statusEl.classList.add('no-key');
+        statusEl.innerHTML = '<span class="status-dot"></span>API 키 미설정';
+      }
+    }
+  }
+
+  /**
+   * API 키 수정 모드 활성화
+   */
+  enableApiKeyEditMode(serviceId, button) {
+    const input = document.querySelector(`.service-api-input[data-service-id="${serviceId}"]`);
+    if (input) {
+      input.disabled = false;
+      input.value = '';
+      input.placeholder = '새 API 키 입력';
+      input.focus();
+    }
+    if (button) {
+      button.textContent = '저장';
+      button.dataset.action = 'save-api-key';
+    }
+  }
+
+  /**
+   * 서비스 리스트에서 API 키 저장
+   */
+  async saveApiKeyFromList(serviceId) {
+    const input = document.querySelector(`.service-api-input[data-service-id="${serviceId}"]`);
+    const btn = document.querySelector(`.service-key-btn[data-service-id="${serviceId}"]`);
+    if (!input || !input.value.trim()) {
+      this.showSaveStatus('API 키를 입력하세요.', 'error');
+      return;
+    }
+
+    const apiKey = input.value.trim();
+    const originalBtnText = btn ? btn.textContent : '';
+
+    try {
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = '검증중...';
+      }
+
+      // 키 저장
+      await this.apiClient.patch(`/ai-services/${serviceId}`, {
+        apiKey: apiKey
+      });
+
+      // 연결 테스트
+      let isValid = false;
+      try {
+        const testResponse = await this.apiClient.post(`/ai-services/${serviceId}/test`);
+        isValid = testResponse.success;
+      } catch (testError) {
+        console.warn('API key test failed:', testError);
+        isValid = false;
+      }
+
+      if (isValid) {
+        // 모델 리스트 갱신
+        if (btn) {
+          btn.textContent = '모델갱신...';
+        }
+        try {
+          await this.apiClient.post(`/ai-services/${serviceId}/refresh-models`);
+        } catch (e) {
+          console.warn('Model refresh failed:', e);
+        }
+
+        this.showSaveStatus('API 키가 확인되었습니다.', 'success');
+        input.value = '';
+        input.placeholder = '••••••••';
+
+        // 서비스 목록 새로고침
+        await this.loadServices();
+        this.collectAvailableModels();
+
+        // UI 업데이트
+        this.updateCapsuleUI();
+        this.updateServiceCardUI(serviceId);
+        this.updateServiceListUI();
+      } else {
+        // 유효하지 않으면 키 삭제
+        await this.apiClient.patch(`/ai-services/${serviceId}`, { apiKey: '' });
+        this.showSaveStatus('유효하지 않은 API 키입니다.', 'error');
+      }
+    } catch (error) {
+      console.error('Failed to save API key:', error);
+      this.showSaveStatus('API 키 저장에 실패했습니다.', 'error');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = originalBtnText;
+      }
+    }
+  }
+
+  /**
+   * API 키 삭제
+   */
+  async deleteApiKey(serviceId) {
+    if (!confirm('API 키를 삭제하시겠습니까?')) return;
+
+    try {
+      await this.apiClient.patch(`/ai-services/${serviceId}`, {
+        apiKey: ''
+      });
+
+      this.showSaveStatus('API 키가 삭제되었습니다.', 'success');
+
+      // 서비스 목록 새로고침
+      await this.loadServices();
+
+      // UI 업데이트
+      this.updateCapsuleUI();
+      this.updateServiceCardUI(serviceId);
+      this.updateServiceListUI();
+    } catch (error) {
+      console.error('Failed to delete API key:', error);
+      this.showSaveStatus('API 키 삭제에 실패했습니다.', 'error');
+    }
+  }
+
+  /**
+   * 서비스 리스트 UI 업데이트
+   */
+  updateServiceListUI() {
+    const listContainer = document.querySelector('.api-service-list');
+    if (listContainer) {
+      listContainer.innerHTML = this.renderServiceList();
+    }
+  }
+
+  /**
+   * 라우팅 드롭다운 모델 목록 갱신
+   */
+  updateRoutingDropdowns() {
+    const lightSelect = document.getElementById('routingLight');
+    const mediumSelect = document.getElementById('routingMedium');
+    const heavySelect = document.getElementById('routingHeavy');
+
+    const hasModels = this.availableModels.length > 0 && !this.availableModels[0].disabled;
+
+    [lightSelect, mediumSelect, heavySelect].forEach((select, idx) => {
+      if (!select) return;
+
+      const currentValue = select.value;
+      const configKey = ['light', 'medium', 'heavy'][idx];
+      const savedValue = this.routingConfig[configKey];
+
+      select.innerHTML = this.renderModelOptions(savedValue || currentValue);
+      select.disabled = !hasModels;
+
+      // 저장된 값이 있으면 선택 유지
+      if (savedValue && select.querySelector(`option[value="${savedValue}"]`)) {
+        select.value = savedValue;
+      }
+    });
+
+    // 저장/초기화 버튼 상태도 업데이트
+    const saveBtn = document.getElementById('saveRoutingBtn');
+    const resetBtn = document.getElementById('resetRoutingBtn');
+    if (saveBtn) saveBtn.disabled = !hasModels;
+    if (resetBtn) resetBtn.disabled = !hasModels;
   }
 
   /**

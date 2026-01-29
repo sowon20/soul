@@ -852,6 +852,9 @@ router.put('/p/basic/:fieldKey', async (req, res) => {
     profile.basicInfo[fieldKey].value = value;
     profile.metadata.updatedAt = Date.now();
 
+    // Mixed 타입의 중첩 객체 변경을 mongoose에 알림
+    profile.markModified(`basicInfo.${fieldKey}`);
+
     await profile.save();
 
     res.json({
