@@ -263,6 +263,8 @@ export class ChatManager {
    * @param {Object} message - { role, content, timestamp }
    */
   addMessage(message) {
+    console.log('[Chat] addMessage called:', message.role, message.content?.substring(0, 50));
+    console.trace('[Chat] addMessage stack trace');
     this.messages.push(message);
 
     const messageElement = this.createMessageElement(message);
@@ -410,6 +412,40 @@ export class ChatManager {
 
       // Process external links - add popup handler
       this.processExternalLinks(content);
+
+      // 라우팅 정보 표시 (있는 경우만)
+      if (message.routing && message.routing.modelId) {
+        const routingInfo = messageDiv.querySelector('.routing-info');
+        if (routingInfo) {
+          const tierSpan = routingInfo.querySelector('.routing-tier');
+          const modelSpan = routingInfo.querySelector('.routing-model');
+
+          // tier 레이블
+          const tierLabels = {
+            light: '경량',
+            medium: '중간',
+            heavy: '고성능'
+          };
+
+          // modelId에서 tier 추정
+          const modelId = message.routing.modelId.toLowerCase();
+          let tier = 'medium';
+          if (modelId.includes('haiku') || modelId.includes('mini') || modelId.includes('fast') || modelId.includes('nano') || modelId.includes('flash-lite')) {
+            tier = 'light';
+          } else if (modelId.includes('opus') || modelId.includes('pro') || modelId.includes('gpt-5') || modelId.includes('o3') || modelId.includes('o1')) {
+            tier = 'heavy';
+          }
+
+          const tierLabel = tierLabels[tier] || tierLabels.medium;
+          tierSpan.textContent = tierLabel;
+          modelSpan.textContent = message.routing.modelId;
+
+          // title에 상세 정보
+          routingInfo.title = `${tierLabel} | ${message.routing.modelId}`;
+          // data 속성으로 활성화 (CSS에서 호버 시 표시)
+          routingInfo.dataset.active = 'true';
+        }
+      }
 
       // Add event listeners for action buttons
       this.attachAssistantMessageActions(messageDiv, message);
@@ -926,6 +962,7 @@ export class ChatManager {
         role: 'assistant',
         content: content,
         timestamp: new Date(response.timestamp || Date.now()),
+        routing: response.routing || null,
       });
 
       // 대시보드 통계 갱신

@@ -75,12 +75,21 @@ class ConversationPipeline {
         ? recentMsgs[recentMsgs.length - 1].timestamp
         : null;
 
+      console.log(`[Pipeline] lastMsgTime: ${lastMsgTime}, messages count: ${recentMsgs.length}`);
+      if (recentMsgs.length > 0) {
+        const last = recentMsgs[recentMsgs.length - 1];
+        console.log(`[Pipeline] Last message: role=${last.role}, timestamp=${last.timestamp}, content=${(last.content || '').substring(0, 50)}...`);
+      }
+
       const timePrompt = await timePromptBuilder.build({
         timezone: options.timezone || 'Asia/Seoul',
         lastMessageTime: lastMsgTime,
         sessionDuration: 0,
         messageIndex: recentMsgs.length
       });
+
+      // 시간 프롬프트 내용 로깅
+      console.log(`[Pipeline] Time prompt:\n${timePrompt?.substring(0, 800)}`);
 
       // 컨텍스트를 XML로 구조화하여 단일 시스템 메시지로 병합
       let contextContent = '<context>\n';
@@ -193,10 +202,26 @@ class ConversationPipeline {
       // 1. 원문 (80%) - 단기 메모리에서 최신 대화
       const rawResult = this.memoryManager.shortTerm.getWithinTokenLimit(rawTokenBudget);
       console.log(`[Pipeline] Context: ${rawResult.messages.length} raw messages, ${rawResult.totalTokens} tokens (budget: ${rawTokenBudget})`);
-      const rawMessages = rawResult.messages.map(m => ({
-        role: m.role,
-        content: m.content
-      }));
+
+      // 메시지에 timestamp 포함 (AI가 시간 구분할 수 있도록)
+      const rawMessages = rawResult.messages.map(m => {
+        // timestamp를 한국시간으로 변환
+        let timePrefix = '';
+        if (m.timestamp) {
+          const date = new Date(m.timestamp);
+          const kstDate = new Date(date.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
+          const month = kstDate.getUTCMonth() + 1;
+          const day = kstDate.getUTCDate();
+          const hour = kstDate.getUTCHours();
+          const minute = String(kstDate.getUTCMinutes()).padStart(2, '0');
+          timePrefix = `[${month}/${day} ${hour}:${minute}] `;
+        }
+
+        return {
+          role: m.role,
+          content: timePrefix + m.content
+        };
+      });
 
       // 2. 주간 요약 - 자동 로드 제거
       // 설계 의도: AI가 필요할 때 recall_memory 도구로 직접 조회
@@ -460,7 +485,15 @@ class ConversationPipeline {
    * - 지침은 하단에 배치
    */
   async _buildSystemPromptWithProfile(options = {}) {
+    // 시스템 설정에서 기본 timezone 가져오기
     let userTimezone = 'Asia/Seoul';
+    try {
+      const configManager = require('./config');
+      const localeConfig = await configManager.getConfigValue('locale', { timezone: 'Asia/Seoul' });
+      userTimezone = localeConfig.timezone || 'Asia/Seoul';
+    } catch (e) {
+      // 설정 로드 실패 시 기본값 사용
+    }
 
     // === 1. 인격/역할 정의 (기본 프롬프트) ===
     let basePrompt = options.systemPrompt || this.config.systemPrompt;

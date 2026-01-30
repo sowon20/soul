@@ -590,6 +590,48 @@ router.get('/server-status', async (req, res) => {
 });
 
 /**
+ * GET /api/config/locale
+ * 언어/시간대 설정 조회
+ */
+router.get('/locale', async (req, res) => {
+  try {
+    const defaultLocale = {
+      language: 'ko',
+      timezone: 'Asia/Seoul'
+    };
+    const locale = await configManager.getConfigValue('locale', defaultLocale);
+    res.json({ success: true, settings: locale });
+  } catch (error) {
+    console.error('Error reading locale config:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * PUT /api/config/locale
+ * 언어/시간대 설정 저장
+ */
+router.put('/locale', async (req, res) => {
+  try {
+    const { language, timezone } = req.body;
+    const locale = {
+      language: language || 'ko',
+      timezone: timezone || 'Asia/Seoul'
+    };
+    await configManager.setConfigValue('locale', locale, 'Locale settings');
+
+    // ConversationPipeline 리셋 (시간대 설정 즉시 적용)
+    const { resetConversationPipeline } = require('../utils/conversation-pipeline');
+    resetConversationPipeline();
+
+    res.json({ success: true, settings: locale });
+  } catch (error) {
+    console.error('Error saving locale config:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * GET /api/config/preferences
  * 사용자 환경 설정 조회
  */

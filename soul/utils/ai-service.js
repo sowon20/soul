@@ -1406,6 +1406,71 @@ class XAIService extends AIService {
 }
 
 /**
+ * Lightning AI 서비스 (OpenAI 호환)
+ */
+class LightningAIService extends AIService {
+  constructor(apiKey, modelName = 'lightning-ai/gpt-oss-20b') {
+    super(apiKey);
+    this.modelName = modelName;
+    this.baseUrl = 'https://lightning.ai/api/v1';
+  }
+
+  async chat(messages, options = {}) {
+    const {
+      systemPrompt = null,
+      maxTokens = 4096,
+      temperature = 0.7,
+    } = options;
+
+    const apiMessages = [...messages];
+    if (systemPrompt) {
+      apiMessages.unshift({
+        role: 'system',
+        content: systemPrompt
+      });
+    }
+
+    const requestBody = {
+      model: this.modelName,
+      messages: apiMessages,
+      max_tokens: maxTokens,
+      temperature: temperature,
+    };
+
+    console.log('[LightningAI] Request URL:', `${this.baseUrl}/chat/completions`);
+
+    const response = await fetch(`${this.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.apiKey}`
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[LightningAI] Error response:', errorText);
+      throw new Error(`Lightning AI API error (${response.status}): ${errorText || 'Unknown error'}`);
+    }
+
+    const data = await response.json();
+
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      console.error('[LightningAI] Invalid data structure:', data);
+      throw new Error('Invalid response from Lightning AI API');
+    }
+
+    const usage = {
+      input_tokens: data.usage?.prompt_tokens || 0,
+      output_tokens: data.usage?.completion_tokens || 0
+    };
+
+    return { text: data.choices[0].message.content, usage };
+  }
+}
+
+/**
  * Ollama 로컬 모델 서비스
  */
 class OllamaService extends AIService {
@@ -1919,6 +1984,15 @@ class AIServiceFactory {
         break;
       }
 
+      case 'lightning': {
+        const apiKey = await this.getApiKey('lightning');
+        if (!apiKey) {
+          throw new Error('LIGHTNING_API_KEY not configured. Please save it in Settings.');
+        }
+        serviceInstance = new LightningAIService(apiKey, model);
+        break;
+      }
+
       case 'ollama':
         serviceInstance = new OllamaService(
           process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
@@ -2010,6 +2084,19 @@ class AIServiceFactory {
           if (!xaiResponse.ok) {
             const errorData = await xaiResponse.json();
             throw new Error(errorData.error?.message || 'xAI API 인증 실패');
+          }
+
+          return { valid: true, message: 'API 키가 유효합니다' };
+
+        case 'lightning':
+          // Lightning AI Models API 호출
+          const lightningResponse = await fetch('https://lightning.ai/api/v1/models', {
+            headers: { 'Authorization': `Bearer ${apiKey}` }
+          });
+
+          if (!lightningResponse.ok) {
+            const errorData = await lightningResponse.json().catch(() => ({}));
+            throw new Error(errorData.error?.message || 'Lightning AI API 인증 실패');
           }
 
           return { valid: true, message: 'API 키가 유효합니다' };
@@ -2196,6 +2283,28 @@ class AIServiceFactory {
             }));
           return { success: true, models: xaiModels };
 
+        case 'lightning':
+          // Lightning AI 모델 목록
+          const lightningResponse = await fetch('https://lightning.ai/api/v1/models', {
+            headers: { 'Authorization': `Bearer ${apiKey}` }
+          });
+
+          if (!lightningResponse.ok) {
+            return {
+              success: false,
+              error: 'Lightning AI API 호출 실패',
+              models: []
+            };
+          }
+
+          const lightningData = await lightningResponse.json();
+          const lightningModels = (lightningData.data || []).map(m => ({
+            id: m.id,
+            name: m.id,
+            description: m.description || ''
+          }));
+          return { success: true, models: lightningModels };
+
         case 'ollama':
           const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
           const ollamaResponse = await fetch(`${ollamaBaseUrl}/api/tags`);
@@ -2346,6 +2455,7 @@ module.exports = {
   OpenAIService,
   GoogleService,
   XAIService,
+  LightningAIService,
   OllamaService,
   VertexAIService,
   AIServiceFactory

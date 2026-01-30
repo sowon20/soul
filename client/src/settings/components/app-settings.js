@@ -54,7 +54,22 @@ export class AppSettings {
   /**
    * 테마 설정 렌더링
    */
-  renderThemeSettings(container) {
+  async renderThemeSettings(container) {
+    // 현재 설정 로드
+    let currentSettings = {
+      language: 'ko',
+      timezone: 'Asia/Seoul'
+    };
+
+    try {
+      const response = await this.apiClient.get('/config/locale');
+      if (response.success) {
+        currentSettings = { ...currentSettings, ...response.settings };
+      }
+    } catch (e) {
+      console.log('로케일 설정 로드 실패, 기본값 사용');
+    }
+
     container.innerHTML = `
       <div class="theme-settings-section">
         <h3>테마 선택</h3>
@@ -71,6 +86,35 @@ export class AppSettings {
         <p class="theme-note">* 테마 기능은 준비 중입니다</p>
       </div>
 
+      <!-- 언어/시간대 설정 -->
+      <div class="locale-settings-section" style="margin-top: 24px;">
+        <h3>🌐 언어 및 시간대</h3>
+
+        <div class="setting-row" style="margin-top: 16px;">
+          <label for="languageSelect">언어</label>
+          <select id="languageSelect" class="setting-select">
+            <option value="ko" ${currentSettings.language === 'ko' ? 'selected' : ''}>한국어</option>
+            <option value="en" ${currentSettings.language === 'en' ? 'selected' : ''}>English</option>
+            <option value="ja" ${currentSettings.language === 'ja' ? 'selected' : ''}>日本語</option>
+          </select>
+        </div>
+
+        <div class="setting-row" style="margin-top: 12px;">
+          <label for="timezoneSelect">시간대</label>
+          <select id="timezoneSelect" class="setting-select">
+            <option value="Asia/Seoul" ${currentSettings.timezone === 'Asia/Seoul' ? 'selected' : ''}>한국 표준시 (KST, UTC+9)</option>
+            <option value="Asia/Tokyo" ${currentSettings.timezone === 'Asia/Tokyo' ? 'selected' : ''}>일본 표준시 (JST, UTC+9)</option>
+            <option value="America/Los_Angeles" ${currentSettings.timezone === 'America/Los_Angeles' ? 'selected' : ''}>태평양 시간 (PST, UTC-8)</option>
+            <option value="America/New_York" ${currentSettings.timezone === 'America/New_York' ? 'selected' : ''}>동부 시간 (EST, UTC-5)</option>
+            <option value="Europe/London" ${currentSettings.timezone === 'Europe/London' ? 'selected' : ''}>영국 시간 (GMT, UTC+0)</option>
+            <option value="UTC" ${currentSettings.timezone === 'UTC' ? 'selected' : ''}>협정 세계시 (UTC)</option>
+          </select>
+        </div>
+
+        <button id="saveLocaleBtn" class="save-btn" style="margin-top: 16px;">저장</button>
+        <span id="localeSaveStatus" style="margin-left: 12px; color: #4caf50; font-size: 13px;"></span>
+      </div>
+
       <!-- TODO 메모 -->
       <div class="todo-memo-section" style="margin-top: 20px; padding: 15px; background: rgba(255, 200, 100, 0.2); border: 1px dashed rgba(200, 150, 50, 0.5); border-radius: 8px;">
         <h4 style="margin: 0 0 10px 0; font-size: 13px; color: #8b7355;">📝 TODO</h4>
@@ -80,6 +124,24 @@ export class AppSettings {
         </ul>
       </div>
     `;
+
+    // 저장 버튼 이벤트
+    document.getElementById('saveLocaleBtn')?.addEventListener('click', async () => {
+      const language = document.getElementById('languageSelect').value;
+      const timezone = document.getElementById('timezoneSelect').value;
+
+      try {
+        await this.apiClient.put('/config/locale', { language, timezone });
+        document.getElementById('localeSaveStatus').textContent = '✓ 저장됨';
+        setTimeout(() => {
+          document.getElementById('localeSaveStatus').textContent = '';
+        }, 2000);
+      } catch (e) {
+        console.error('로케일 저장 실패:', e);
+        document.getElementById('localeSaveStatus').textContent = '❌ 저장 실패';
+        document.getElementById('localeSaveStatus').style.color = '#f44336';
+      }
+    });
   }
 
   /**

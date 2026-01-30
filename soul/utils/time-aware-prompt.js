@@ -90,11 +90,19 @@ class TimeAwarePromptBuilder {
     const parts = [];
 
     // 1. 현재 시간 정보
+    const today = new Date();
+    const dateStr = `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일`;
+
     parts.push(`## 현재 시간 정보 (실시간)
 ⚠️ 아래 시간은 이 메시지가 전송되는 "지금 이 순간"입니다. 과거 기록이 아닙니다.
+- 오늘 날짜: ${dateStr}
 - 시각: ${localTime.formatted} (${timeOfDay})
 - 요일: ${localTime.dayOfWeek}
-- 주말: ${localTime.isWeekend ? '예' : '아니오'}`);
+- 주말: ${localTime.isWeekend ? '예' : '아니오'}
+
+⚠️ 중요: 대화 히스토리에 여러 날의 대화가 포함되어 있을 수 있습니다.
+각 메시지의 실제 시점은 메시지 내용과 맥락으로 판단하세요.
+"마지막 대화"는 가장 최근 메시지 기준이며, 과거 대화의 시점과 혼동하지 마세요.`);
 
     // 2. 톤 가이드
     parts.push(`## 대화 톤 가이드

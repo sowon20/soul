@@ -506,6 +506,26 @@ export class AISettings {
   async loadServices() {
     const response = await this.apiClient.get('/ai-services');
     this.services = response.services || [];
+
+    // 활성화되어 있고 키가 있는데 모델이 없는 서비스는 자동으로 모델 새로고침
+    for (const service of this.services) {
+      const hasKey = service.type === 'vertex' ? !!service.projectId :
+                     service.type === 'ollama' ? true :
+                     service.hasApiKey;
+
+      if (service.isActive && hasKey && (!service.models || service.models.length === 0)) {
+        try {
+          console.log(`[AI Settings] Auto-refreshing models for ${service.name}`);
+          await this.apiClient.post(`/ai-services/${service.id}/refresh-models`);
+        } catch (e) {
+          console.warn(`Failed to auto-refresh models for ${service.name}:`, e);
+        }
+      }
+    }
+
+    // 모델 새로고침 후 서비스 목록 다시 가져오기
+    const refreshedResponse = await this.apiClient.get('/ai-services');
+    this.services = refreshedResponse.services || [];
   }
 
   /**
@@ -514,6 +534,7 @@ export class AISettings {
    */
   collectAvailableModels() {
     this.availableModels = [];
+    this.modelsByService = {}; // 서비스별 그룹화
 
     this.services.forEach(service => {
       // Vertex AI는 projectId로, Ollama는 API 키 선택적(있으면 사용, 없어도 OK), 나머지는 apiKey 필수
@@ -528,14 +549,24 @@ export class AISettings {
 
       // 활성화된 서비스만 모델 수집 (Ollama는 키 없어도 OK)
       if (hasKey && service.isActive && service.models && service.models.length > 0) {
+        const serviceName = service.name;
+        if (!this.modelsByService[serviceName]) {
+          this.modelsByService[serviceName] = [];
+        }
+
         service.models.forEach(model => {
-          this.availableModels.push({
+          const modelData = {
             id: model.id,
             name: model.name || model.id,
-            service: service.name,
+            service: serviceName,
             type: service.type
-          });
+          };
+          this.availableModels.push(modelData);
+          this.modelsByService[serviceName].push(modelData);
         });
+
+        // 모델명 알파벳순 정렬
+        this.modelsByService[serviceName].sort((a, b) => a.name.localeCompare(b.name));
       }
     });
 
@@ -1962,16 +1993,35 @@ export class AISettings {
   }
 
   /**
-   * 모델 옵션 렌더링 헬퍼
+   * 모델 옵션 렌더링 헬퍼 (서비스별 그룹화)
    */
   renderModelOptions(selectedValue) {
-    return this.availableModels.map(model => `
-      <option value="${model.id}"
-              ${model.id === selectedValue ? 'selected' : ''}
-              ${model.disabled ? 'disabled' : ''}>
-        ${model.name}${model.service && model.service !== '-' ? ` (${model.service})` : ''}
-      </option>
-    `).join('');
+    // 모델이 없거나 플레이스홀더만 있는 경우
+    if (!this.modelsByService || Object.keys(this.modelsByService).length === 0) {
+      return this.availableModels.map(model => `
+        <option value="${model.id}"
+                ${model.id === selectedValue ? 'selected' : ''}
+                ${model.disabled ? 'disabled' : ''}>
+          ${model.name}
+        </option>
+      `).join('');
+    }
+
+    // 서비스명 알파벳순 정렬
+    const sortedServices = Object.keys(this.modelsByService).sort((a, b) => a.localeCompare(b));
+
+    return sortedServices.map(serviceName => {
+      const models = this.modelsByService[serviceName];
+      return `
+        <optgroup label="${serviceName}">
+          ${models.map(model => `
+            <option value="${model.id}" ${model.id === selectedValue ? 'selected' : ''}>
+              ${model.name}
+            </option>
+          `).join('')}
+        </optgroup>
+      `;
+    }).join('');
   }
 
   /**

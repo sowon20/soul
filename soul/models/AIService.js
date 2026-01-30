@@ -152,6 +152,15 @@ aiServiceSchema.statics.initializeBuiltInServices = async function() {
       isActive: false
     },
     {
+      serviceId: 'lightning',
+      name: 'Lightning AI',
+      type: 'openai-compatible',
+      baseUrl: 'https://lightning.ai/api/v1',
+      apiKey: null,  // UI에서 설정
+      isBuiltIn: true,
+      isActive: false
+    },
+    {
       serviceId: 'ollama',
       name: 'Ollama (Local)',
       type: 'ollama',

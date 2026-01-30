@@ -98,6 +98,38 @@
   height: 16px;
 }
 
+/* 라우팅 정보 (호버 시 표시) - 생각과정 스타일 */
+.routing-info {
+  display: none !important;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.7rem;
+  color: #6b6560;
+  cursor: default;
+  background: rgba(74, 69, 64, 0.08);
+  padding: 3px 8px;
+  border-radius: 10px;
+  margin-left: 4px;
+}
+
+/* assistant 메시지 호버 시 라우팅 정보 표시 */
+.chat-message.assistant:hover .routing-info[data-active="true"] {
+  display: inline-flex !important;
+}
+
+.routing-info .routing-tier {
+  font-size: 0.65rem;
+  opacity: 0.8;
+}
+
+.routing-info .routing-model {
+  font-size: 0.65rem;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* 사용자 메시지 하단 영역 */
 .user-message-footer {
   display: flex;

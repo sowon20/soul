@@ -304,12 +304,16 @@ router.post('/:id/refresh-models', async (req, res) => {
     }
 
     // 모델 목록 가져오기
-    // xAI는 serviceId로 판단
+    // openai-compatible 타입은 serviceId로 판단
     let serviceType = service.type;
-    if (service.type === 'openai-compatible' && service.serviceId === 'xai') {
-      serviceType = 'xai';
-    } else if (service.type === 'openai-compatible') {
-      serviceType = 'openai';
+    if (service.type === 'openai-compatible') {
+      if (service.serviceId === 'xai') {
+        serviceType = 'xai';
+      } else if (service.serviceId === 'lightning') {
+        serviceType = 'lightning';
+      } else {
+        serviceType = 'openai';
+      }
     }
 
     const result = await AIServiceFactory.getAvailableModels(serviceType, service.apiKey);
@@ -362,12 +366,16 @@ router.post('/:id/test', async (req, res) => {
     }
 
     // 연결 테스트 (API 키 검증)
-    // xAI는 serviceId로 판단
+    // openai-compatible 타입은 serviceId로 판단
     let serviceType = service.type;
-    if (service.type === 'openai-compatible' && service.serviceId === 'xai') {
-      serviceType = 'xai';
-    } else if (service.type === 'openai-compatible') {
-      serviceType = 'openai';
+    if (service.type === 'openai-compatible') {
+      if (service.serviceId === 'xai') {
+        serviceType = 'xai';
+      } else if (service.serviceId === 'lightning') {
+        serviceType = 'lightning';
+      } else {
+        serviceType = 'openai';
+      }
     }
 
     const result = await AIServiceFactory.validateApiKey(serviceType, service.apiKey);
