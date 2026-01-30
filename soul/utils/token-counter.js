@@ -24,12 +24,15 @@ class TokenCounter {
       'claude-3-opus-20240229': 200000,
       'claude-3-sonnet-20240229': 200000,
       'claude-3-haiku-20240307': 200000,
+      'claude-sonnet-4-20250514': 200000,
+      'claude-opus-4-20250514': 200000,
 
       // OpenAI GPT
       'gpt-4': 8192,
       'gpt-4-32k': 32768,
       'gpt-4-turbo': 128000,
       'gpt-4o': 128000,
+      'gpt-4o-mini': 128000,
       'gpt-3.5-turbo': 16385,
       'gpt-3.5-turbo-16k': 16385,
 
@@ -37,9 +40,16 @@ class TokenCounter {
       'gemini-pro': 32768,
       'gemini-1.5-pro': 1000000,
       'gemini-1.5-flash': 1000000,
+      'gemini-2.0-flash': 1000000,
+      'gemini-2.5-flash': 1000000,
+      'gemini-2.5-pro': 1000000,
 
-      // 기본값
-      'default': 8192
+      // xAI Grok
+      'grok-3': 131072,
+      'grok-3-mini': 131072,
+
+      // 기본값 - 안전하게 높게 설정 (파이프라인 maxTokens가 실제 제한)
+      'default': 100000
     };
 
     // 경고 임계값
@@ -138,19 +148,34 @@ class TokenCounter {
    * @returns {number} 최대 토큰 수
    */
   getModelLimit(modelName) {
+    if (!modelName) {
+      return this.MODEL_LIMITS.default;
+    }
+
     // 정확한 매칭 시도
     if (this.MODEL_LIMITS[modelName]) {
       return this.MODEL_LIMITS[modelName];
     }
 
-    // 부분 매칭 시도
+    // 부분 매칭 시도 (정확한 키부터)
     for (const [key, limit] of Object.entries(this.MODEL_LIMITS)) {
-      if (modelName.includes(key) || key.includes(modelName)) {
+      if (key !== 'default' && (modelName.includes(key) || key.includes(modelName))) {
         return limit;
       }
     }
 
-    // 기본값 반환
+    // 패턴 기반 매칭 (모델 패밀리)
+    const lowerName = modelName.toLowerCase();
+    if (lowerName.includes('claude')) return 200000;
+    if (lowerName.includes('gemini')) return 1000000;
+    if (lowerName.includes('gpt-4o') || lowerName.includes('gpt-4-turbo')) return 128000;
+    if (lowerName.includes('gpt-4')) return 8192;
+    if (lowerName.includes('gpt-3')) return 16385;
+    if (lowerName.includes('grok')) return 131072;
+    if (lowerName.includes('llama') || lowerName.includes('mistral')) return 32768;
+
+    // 기본값 반환 (안전하게 높게)
+    console.warn(`[TokenCounter] Unknown model "${modelName}", using default limit`);
     return this.MODEL_LIMITS.default;
   }
 

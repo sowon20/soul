@@ -170,7 +170,38 @@ export class AISettings {
                 <div class="timeline-body">
                   <div class="neu-field-group">
                     <div class="neu-field">
-                      <textarea class="neu-field-input neu-field-textarea timeline-field" data-section="personality" placeholder="성격 (말투와 스타일을 설명해주세요)">${this.agentProfile?.description || ''}</textarea>
+                      <textarea class="neu-field-input neu-field-textarea timeline-field" data-section="personality" data-field="description" placeholder="성격 (시스템 프롬프트)">${this.agentProfile?.description || ''}</textarea>
+                    </div>
+                  </div>
+                  <!-- 대화 스타일 슬라이더 -->
+                  <div class="timeline-sliders">
+                    <div class="timeline-slider-item">
+                      <div class="slider-labels">
+                        <span>🎉 캐주얼</span>
+                        <span>🎩 격식</span>
+                      </div>
+                      <input type="range" class="timeline-range" data-field="formality" min="0" max="1" step="0.1" value="${this.agentProfile?.personality?.communication?.formality ?? 0.5}">
+                    </div>
+                    <div class="timeline-slider-item">
+                      <div class="slider-labels">
+                        <span>⚡ 간결</span>
+                        <span>📚 상세</span>
+                      </div>
+                      <input type="range" class="timeline-range" data-field="verbosity" min="0" max="1" step="0.1" value="${this.agentProfile?.personality?.communication?.verbosity ?? 0.5}">
+                    </div>
+                    <div class="timeline-slider-item">
+                      <div class="slider-labels">
+                        <span>😐 진지</span>
+                        <span>😊 유머</span>
+                      </div>
+                      <input type="range" class="timeline-range" data-field="humor" min="0" max="1" step="0.1" value="${this.agentProfile?.personality?.communication?.humor ?? 0.3}">
+                    </div>
+                    <div class="timeline-slider-item">
+                      <div class="slider-labels">
+                        <span>🤖 기계적</span>
+                        <span>💕 공감적</span>
+                      </div>
+                      <input type="range" class="timeline-range" data-field="empathy" min="0" max="1" step="0.1" value="${this.agentProfile?.personality?.traits?.empathetic ?? 0.6}">
                     </div>
                   </div>
                 </div>
@@ -204,8 +235,25 @@ export class AISettings {
                 </div>
                 <div class="timeline-body">
                   <div class="neu-field-group">
-                    <div class="neu-field">
-                      <input type="text" class="neu-field-input timeline-field" data-section="brain" placeholder="AI 모델" value="${this.agentProfile?.defaultModel || ''}" />
+                    <div class="neu-field timeline-select-wrapper">
+                      <select class="neu-field-input timeline-field timeline-select" data-section="brain" data-field="defaultModel">
+                        <option value="">모델 선택...</option>
+                        ${this.availableModels.map(m => `
+                          <option value="${m.id}" ${this.agentProfile?.defaultModel === m.id ? 'selected' : ''} ${m.disabled ? 'disabled' : ''}>
+                            ${m.name} ${m.service ? `(${m.service})` : ''}
+                          </option>
+                        `).join('')}
+                      </select>
+                    </div>
+                  </div>
+                  <!-- 창의성 슬라이더 -->
+                  <div class="timeline-sliders">
+                    <div class="timeline-slider-item">
+                      <div class="slider-labels">
+                        <span>🎯 정확</span>
+                        <span>🎨 창의</span>
+                      </div>
+                      <input type="range" class="timeline-range" data-field="temperature" min="0" max="1" step="0.1" value="${this.agentProfile?.temperature ?? 0.7}">
                     </div>
                   </div>
                 </div>
@@ -438,8 +486,18 @@ export class AISettings {
     this.availableModels = [];
 
     this.services.forEach(service => {
-      // API 키가 있고 활성화된 서비스만 모델 수집
-      if (service.hasApiKey && service.isActive && service.models && service.models.length > 0) {
+      // Vertex AI는 projectId로, Ollama는 API 키 선택적(있으면 사용, 없어도 OK), 나머지는 apiKey 필수
+      let hasKey;
+      if (service.type === 'vertex') {
+        hasKey = !!service.projectId;
+      } else if (service.type === 'ollama') {
+        hasKey = true; // 로컬 서버는 API 키 선택적 (없어도 연결 시도)
+      } else {
+        hasKey = service.hasApiKey;
+      }
+
+      // 활성화된 서비스만 모델 수집 (Ollama는 키 없어도 OK)
+      if (hasKey && service.isActive && service.models && service.models.length > 0) {
         service.models.forEach(model => {
           this.availableModels.push({
             id: model.id,
@@ -699,7 +757,36 @@ export class AISettings {
             </div>
           </div>
         ` : ''}
-        
+
+        <div class="routing-field routing-manager-field">
+          <label class="routing-label">
+            <span class="label-text">라우팅 담당</span>
+            <span class="label-hint">작업 복잡도를 판단하는 주체</span>
+          </label>
+          <div class="routing-manager-options">
+            <label class="routing-radio-label">
+              <input type="radio" name="routingManager" value="server"
+                ${!this.routingConfig.manager || this.routingConfig.manager === 'server' ? 'checked' : ''}>
+              <span class="radio-text">서버 (SmartRouter)</span>
+              <span class="radio-hint">서버가 키워드/복잡도 분석으로 자동 선택</span>
+            </label>
+            <label class="routing-radio-label">
+              <input type="radio" name="routingManager" value="ai"
+                ${this.routingConfig.manager === 'ai' ? 'checked' : ''}>
+              <span class="radio-text">AI 자체 판단</span>
+              <span class="radio-hint">경량 AI가 먼저 분석 후 적절한 모델 선택 (추가 비용 발생)</span>
+            </label>
+            <label class="routing-radio-label">
+              <input type="radio" name="routingManager" value="fixed"
+                ${this.routingConfig.manager === 'fixed' ? 'checked' : ''}>
+              <span class="radio-text">고정 모델</span>
+              <span class="radio-hint">항상 중간 작업 모델 사용 (라우팅 비활성화)</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="routing-divider"></div>
+
         <div class="routing-field">
           <label class="routing-label">
             <span class="label-text">경량 작업 (1-2)</span>
@@ -2544,6 +2631,40 @@ export class AISettings {
       }
     }, { signal });
 
+    // 타임라인 슬라이더(range) 변경 이벤트
+    container.addEventListener('input', (e) => {
+      if (e.target.classList.contains('timeline-range')) {
+        const field = e.target.dataset.field;
+        const value = parseFloat(e.target.value);
+        const section = e.target.closest('.timeline-item')?.dataset.section;
+
+        // 실시간 UI 피드백 (필요시)
+        // 저장은 change 이벤트에서 처리
+      }
+    }, { signal });
+
+    container.addEventListener('change', async (e) => {
+      // 타임라인 슬라이더 변경 저장
+      if (e.target.classList.contains('timeline-range')) {
+        const field = e.target.dataset.field;
+        const value = parseFloat(e.target.value);
+        const section = e.target.closest('.timeline-item')?.dataset.section;
+        await this.saveTimelineSliderValue(section, field, value);
+        this.updateTimelineProgress(section);
+        return;
+      }
+
+      // 타임라인 셀렉트(모델 선택) 변경 저장
+      if (e.target.classList.contains('timeline-select')) {
+        const field = e.target.dataset.field;
+        const value = e.target.value;
+        const section = e.target.dataset.section;
+        await this.saveTimelineSelectValue(section, field, value);
+        this.updateTimelineProgress(section);
+        return;
+      }
+    }, { signal });
+
     // 온보딩 카드 클릭 (아코디언)
     container.addEventListener('click', (e) => {
       const card = e.target.closest('.onboarding-card');
@@ -3577,6 +3698,10 @@ export class AISettings {
       const medium = document.getElementById('routingMedium')?.value;
       const heavy = document.getElementById('routingHeavy')?.value;
 
+      // 라우팅 담당 가져오기
+      const managerRadio = document.querySelector('input[name="routingManager"]:checked');
+      const manager = managerRadio?.value || 'server';
+
       // 생각 토글 상태 가져오기
       const lightThinking = document.getElementById('thinkingLight')?.checked || false;
       const mediumThinking = document.getElementById('thinkingMedium')?.checked || false;
@@ -3590,6 +3715,7 @@ export class AISettings {
       // 서버에 저장할 데이터 (modelId + serviceId + thinking 형식)
       const routingData = {
         enabled: true,
+        manager,  // 라우팅 담당: server, ai, fixed
         light: { modelId: light, serviceId: lightService?.serviceId || null, thinking: lightThinking },
         medium: { modelId: medium, serviceId: mediumService?.serviceId || null, thinking: mediumThinking },
         heavy: { modelId: heavy, serviceId: heavyService?.serviceId || null, thinking: heavyThinking }
@@ -3600,6 +3726,7 @@ export class AISettings {
 
       // 로컬 상태 업데이트
       this.routingConfig = {
+        manager,
         light, medium, heavy,
         lightThinking, mediumThinking, heavyThinking,
         lightService: lightService?.serviceId,
@@ -3625,12 +3752,18 @@ export class AISettings {
     if (!item) return;
 
     const fields = item.querySelectorAll('.timeline-field');
-    const totalFields = fields.length;
+    const sliders = item.querySelectorAll('.timeline-range');
+
+    // 텍스트 필드 + 슬라이더 모두 카운트
+    const totalFields = fields.length + (sliders.length > 0 ? 1 : 0); // 슬라이더는 그룹으로 1개 취급
     let filledFields = 0;
 
     fields.forEach(field => {
       if (field.value.trim()) filledFields++;
     });
+
+    // 슬라이더가 하나라도 있으면 완료 처리 (기본값도 유효)
+    if (sliders.length > 0) filledFields++;
 
     const progress = totalFields > 0 ? filledFields / totalFields : 0;
     const circumference = 62.83; // 2 * PI * r (r=10)
@@ -3765,6 +3898,85 @@ export class AISettings {
       }
     } catch (error) {
       console.error('Failed to save timeline section:', error);
+    }
+  }
+
+  /**
+   * 타임라인 슬라이더 값 저장
+   */
+  async saveTimelineSliderValue(section, field, value) {
+    console.log('saveTimelineSliderValue:', { section, field, value });
+    try {
+      const profileId = this.agentProfile?.id || 'default';
+      const updateData = {};
+
+      if (section === 'personality') {
+        // personality.communication 필드
+        if (!this.agentProfile.personality) {
+          this.agentProfile.personality = { communication: {}, traits: {} };
+        }
+        if (!this.agentProfile.personality.communication) {
+          this.agentProfile.personality.communication = {};
+        }
+        if (!this.agentProfile.personality.traits) {
+          this.agentProfile.personality.traits = {};
+        }
+
+        if (field === 'empathy') {
+          this.agentProfile.personality.traits.empathetic = value;
+          updateData.personality = this.agentProfile.personality;
+        } else {
+          this.agentProfile.personality.communication[field] = value;
+          updateData.personality = this.agentProfile.personality;
+        }
+
+        // 기존 폼 슬라이더 동기화
+        const sliderMap = {
+          formality: 'soulFormality',
+          verbosity: 'soulVerbosity',
+          humor: 'soulHumor',
+          empathy: 'soulEmpathy'
+        };
+        const oldSlider = document.getElementById(sliderMap[field]);
+        if (oldSlider) oldSlider.value = value;
+      } else if (section === 'brain') {
+        if (field === 'temperature') {
+          updateData.temperature = value;
+          this.agentProfile.temperature = value;
+          // 기존 폼 슬라이더 동기화
+          const oldSlider = document.getElementById('soulCreativity');
+          const oldValue = document.getElementById('soulCreativityValue');
+          if (oldSlider) oldSlider.value = value;
+          if (oldValue) oldValue.value = value;
+        }
+      }
+
+      if (Object.keys(updateData).length > 0) {
+        await this.apiClient.put(`/profile/agent/${profileId}`, updateData);
+      }
+    } catch (error) {
+      console.error('Failed to save timeline slider value:', error);
+    }
+  }
+
+  /**
+   * 타임라인 셀렉트 값 저장
+   */
+  async saveTimelineSelectValue(section, field, value) {
+    try {
+      const profileId = this.agentProfile?.id || 'default';
+      const updateData = {};
+
+      if (section === 'brain' && field === 'defaultModel') {
+        updateData.defaultModel = value;
+        this.agentProfile.defaultModel = value;
+      }
+
+      if (Object.keys(updateData).length > 0) {
+        await this.apiClient.put(`/profile/agent/${profileId}`, updateData);
+      }
+    } catch (error) {
+      console.error('Failed to save timeline select value:', error);
     }
   }
 

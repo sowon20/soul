@@ -116,15 +116,45 @@ class ConversationPipeline {
       // 토큰 사용량 분석
       const usage = tokenCounter.analyzeUsage(messages, this.config.model);
 
-      // 자동 압축 필요 여부 체크
-      if (usage.percentage >= this.config.compressionThreshold) {
-        console.log(`Token usage at ${(usage.percentage * 100).toFixed(1)}%, triggering auto-compression`);
+      // 자동 압축 필요 여부 체크 (usagePercent는 0-100 범위, compressionThreshold는 0-1 범위)
+      const usageRatio = usage.usagePercent / 100; // 80.5% → 0.805
+
+      // 🚨 긴급 보호: 토큰이 100%를 초과하면 무조건 압축 (토큰 폭발 방지)
+      const isOverLimit = usage.usedTokens > this.config.maxTokens;
+      const needsCompression = usageRatio >= this.config.compressionThreshold || isOverLimit;
+
+      if (needsCompression) {
+        const reason = isOverLimit
+          ? `EMERGENCY: Token overflow (${usage.usedTokens}/${this.config.maxTokens})`
+          : `Token usage at ${usage.usagePercent.toFixed(1)}%`;
+        console.log(`[Pipeline] ${reason}, triggering auto-compression`);
+
         const compressed = await this._autoCompress(messages, sessionId);
+
+        // 압축 후에도 초과하면 더 강력한 압축 시도
+        const postUsage = tokenCounter.analyzeUsage(compressed.messages, this.config.model);
+        if (postUsage.usedTokens > this.config.maxTokens) {
+          console.warn(`[Pipeline] Still over limit after compression: ${postUsage.usedTokens}/${this.config.maxTokens}`);
+          // 시스템 메시지 + 최근 5개만 유지하는 극단적 압축
+          const systemMsgs = compressed.messages.filter(m => m.role === 'system');
+          const recentMsgs = compressed.messages.filter(m => m.role !== 'system').slice(-5);
+          const emergencyMessages = [...systemMsgs, ...recentMsgs];
+          console.log(`[Pipeline] Emergency truncation: ${compressed.messages.length} → ${emergencyMessages.length} messages`);
+          return {
+            messages: emergencyMessages,
+            totalTokens: emergencyMessages.reduce((sum, m) => sum + this._estimateTokens(m.content), 0),
+            compressed: true,
+            emergency: true,
+            usage: tokenCounter.analyzeUsage(emergencyMessages, this.config.model),
+            contextData
+          };
+        }
+
         return {
           messages: compressed.messages,
           totalTokens: compressed.totalTokens,
           compressed: true,
-          usage: tokenCounter.analyzeUsage(compressed.messages, this.config.model),
+          usage: postUsage,
           contextData
         };
       }

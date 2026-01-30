@@ -1308,13 +1308,114 @@ textarea.settings-field-input {
 }
 
 .timeline-item.expanded .timeline-body {
-  max-height: 300px;
+  max-height: 500px;
   opacity: 1;
   padding-top: 8px;
 }
 
 .timeline-body .neu-field-group {
   gap: 0.2rem;
+}
+
+/* 타임라인 슬라이더 */
+.timeline-sliders {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding: 0.5rem 0;
+}
+
+.timeline-slider-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.timeline-slider-item .slider-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: var(--text-muted, #888);
+  padding: 0 0.25rem;
+}
+
+.timeline-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(90deg,
+    rgba(120,110,100,0.15) 0%,
+    rgba(120,110,100,0.25) 100%
+  );
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.timeline-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #c8b8a8, #a89888);
+  box-shadow:
+    0 1px 3px rgba(0,0,0,0.15),
+    inset 0 1px 1px rgba(255,255,255,0.3);
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.timeline-range::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  box-shadow:
+    0 2px 6px rgba(0,0,0,0.2),
+    inset 0 1px 1px rgba(255,255,255,0.3);
+}
+
+.timeline-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #c8b8a8, #a89888);
+  box-shadow:
+    0 1px 3px rgba(0,0,0,0.15),
+    inset 0 1px 1px rgba(255,255,255,0.3);
+  cursor: pointer;
+}
+
+/* 타임라인 셀렉트 */
+.timeline-select-wrapper {
+  position: relative;
+}
+
+.timeline-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 2rem;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  cursor: pointer;
+}
+
+.timeline-select:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(120,110,100,0.2);
+}
+
+.timeline-select option {
+  background: var(--bg-secondary, #f5f0eb);
+  color: var(--text-primary, #333);
+  padding: 0.5rem;
+}
+
+.timeline-select option:disabled {
+  color: var(--text-muted, #999);
+  font-style: italic;
 }
 
 /* ============================================
@@ -2100,6 +2201,67 @@ textarea.settings-field-input {
   display: flex;
   gap: 0.75rem;
   margin-top: 0.5rem;
+}
+
+/* 라우팅 담당 설정 */
+.routing-manager-field {
+  padding-bottom: 1rem;
+}
+
+.routing-manager-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.routing-radio-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.routing-radio-label:hover {
+  background: rgba(255, 255, 255, 0.5);
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+.routing-radio-label:has(input:checked) {
+  background: rgba(96, 165, 250, 0.1);
+  border-color: var(--primary);
+}
+
+.routing-radio-label input[type="radio"] {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--primary);
+}
+
+.routing-radio-label .radio-text {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.8);
+}
+
+.routing-radio-label .radio-hint {
+  width: 100%;
+  font-size: 0.75rem;
+  color: rgba(0, 0, 0, 0.5);
+  margin-left: 1.5rem;
+}
+
+.routing-divider {
+  height: 1px;
+  background: rgba(0, 0, 0, 0.1);
+  margin: 0.5rem 0;
 }
 
 /* 메모리 설정 */

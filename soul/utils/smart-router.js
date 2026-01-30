@@ -84,7 +84,8 @@ class SmartRouter {
       enableAutoRouting: config.enableAutoRouting !== false,
       costPriority: config.costPriority || 0.3, // 0 = performance, 1 = cost
       enableMonitoring: config.enableMonitoring !== false,
-      forceModel: config.forceModel || null // 강제 모델 지정
+      forceModel: config.forceModel || null, // 강제 모델 지정
+      manager: config.manager || 'server' // 라우팅 담당: server, ai, fixed
     };
 
     this.stats = {
@@ -118,7 +119,21 @@ class SmartRouter {
       };
     }
 
-    // 2. 자동 라우팅 비활성화 시
+    // 2. 라우팅 담당에 따른 처리
+    if (this.config.manager === 'fixed') {
+      // 고정 모델: 항상 중간 모델 사용
+      this.stats.routingDecisions.medium++;
+      return {
+        modelId: MODELS.SONNET.id,
+        serviceId: MODELS.SONNET.serviceId || null,
+        thinking: MODELS.SONNET.thinking || false,
+        modelName: MODELS.SONNET.name,
+        reason: 'Fixed routing (always medium)',
+        confidence: 1.0
+      };
+    }
+
+    // 3. 자동 라우팅 비활성화 시
     if (!this.config.enableAutoRouting) {
       // 기본 모델도 통계에 포함
       this._updateStatsByModelId(this.config.defaultModel);
@@ -130,13 +145,13 @@ class SmartRouter {
       };
     }
 
-    // 3. 태스크 분석
+    // 4. 태스크 분석 (server 또는 ai 담당)
     const analysis = this.analyzeTask(message, context);
 
-    // 4. 모델 선택
+    // 5. 모델 선택
     const selectedModel = this.selectModel(analysis);
 
-    // 5. 통계 업데이트
+    // 6. 통계 업데이트
     this._updateStats(selectedModel);
 
     return {
@@ -147,7 +162,8 @@ class SmartRouter {
       reason: this._buildReason(analysis, selectedModel),
       confidence: analysis.confidence,
       analysis,
-      estimatedCost: this._estimateCost(analysis, selectedModel)
+      estimatedCost: this._estimateCost(analysis, selectedModel),
+      manager: this.config.manager  // 어떤 담당이 결정했는지 표시
     };
   }
 
@@ -521,6 +537,38 @@ class SmartRouter {
 let globalRouter = null;
 
 /**
+ * 모델 ID에서 표시 이름 생성
+ */
+function getModelDisplayName(modelId) {
+  if (!modelId) return '미설정';
+
+  // 알려진 모델 패턴
+  const patterns = [
+    { match: /claude.*opus/i, name: 'Claude Opus' },
+    { match: /claude.*sonnet/i, name: 'Claude Sonnet' },
+    { match: /claude.*haiku/i, name: 'Claude Haiku' },
+    { match: /gpt-4o/i, name: 'GPT-4o' },
+    { match: /gpt-4/i, name: 'GPT-4' },
+    { match: /gpt-3/i, name: 'GPT-3.5' },
+    { match: /gemini.*pro/i, name: 'Gemini Pro' },
+    { match: /gemini.*flash/i, name: 'Gemini Flash' },
+    { match: /gemini/i, name: 'Gemini' },
+    { match: /grok/i, name: 'Grok' },
+    { match: /llama/i, name: 'Llama' },
+    { match: /mistral/i, name: 'Mistral' },
+  ];
+
+  for (const { match, name } of patterns) {
+    if (match.test(modelId)) {
+      return name;
+    }
+  }
+
+  // 패턴 매칭 실패 시 모델 ID 정리해서 반환
+  return modelId.split('-').slice(0, 2).join(' ');
+}
+
+/**
  * 사용자 설정에서 모델 정보 업데이트
  * 새 형식: { modelId: '...', serviceId: '...' } 또는 이전 형식: 'modelId'
  * 'auto'일 경우 기본 모델 사용
@@ -533,36 +581,43 @@ function updateModelsFromConfig(routingConfig) {
       MODELS.HAIKU.id = routingConfig.light.modelId;
       MODELS.HAIKU.serviceId = routingConfig.light.serviceId;
       MODELS.HAIKU.thinking = routingConfig.light.thinking || false;
+      // 모델 ID에서 표시 이름 생성
+      MODELS.HAIKU.name = getModelDisplayName(routingConfig.light.modelId);
     } else {
       MODELS.HAIKU.id = routingConfig.light;
+      MODELS.HAIKU.name = getModelDisplayName(routingConfig.light);
     }
   }
   // lightThinking 별도 키 지원
   if (routingConfig.lightThinking !== undefined) {
     MODELS.HAIKU.thinking = routingConfig.lightThinking;
   }
-  
+
   if (routingConfig.medium && routingConfig.medium !== 'auto') {
     if (typeof routingConfig.medium === 'object') {
       MODELS.SONNET.id = routingConfig.medium.modelId;
       MODELS.SONNET.serviceId = routingConfig.medium.serviceId;
       MODELS.SONNET.thinking = routingConfig.medium.thinking || false;
+      MODELS.SONNET.name = getModelDisplayName(routingConfig.medium.modelId);
     } else {
       MODELS.SONNET.id = routingConfig.medium;
+      MODELS.SONNET.name = getModelDisplayName(routingConfig.medium);
     }
   }
   // mediumThinking 별도 키 지원
   if (routingConfig.mediumThinking !== undefined) {
     MODELS.SONNET.thinking = routingConfig.mediumThinking;
   }
-  
+
   if (routingConfig.heavy && routingConfig.heavy !== 'auto') {
     if (typeof routingConfig.heavy === 'object') {
       MODELS.OPUS.id = routingConfig.heavy.modelId;
       MODELS.OPUS.serviceId = routingConfig.heavy.serviceId;
       MODELS.OPUS.thinking = routingConfig.heavy.thinking || false;
+      MODELS.OPUS.name = getModelDisplayName(routingConfig.heavy.modelId);
     } else {
       MODELS.OPUS.id = routingConfig.heavy;
+      MODELS.OPUS.name = getModelDisplayName(routingConfig.heavy);
     }
   }
   // heavyThinking 별도 키 지원
@@ -571,10 +626,14 @@ function updateModelsFromConfig(routingConfig) {
   }
   
   console.log('[SmartRouter] Models updated from config:', {
+    manager: routingConfig.manager || 'server',
     light: { modelId: MODELS.HAIKU.id, serviceId: MODELS.HAIKU.serviceId, thinking: MODELS.HAIKU.thinking },
     medium: { modelId: MODELS.SONNET.id, serviceId: MODELS.SONNET.serviceId, thinking: MODELS.SONNET.thinking },
     heavy: { modelId: MODELS.OPUS.id, serviceId: MODELS.OPUS.serviceId, thinking: MODELS.OPUS.thinking }
   });
+
+  // manager 설정 반환 (getSmartRouter에서 사용)
+  return routingConfig.manager || 'server';
 }
 
 /**
@@ -583,14 +642,18 @@ function updateModelsFromConfig(routingConfig) {
 async function getSmartRouter(config = {}) {
   if (!globalRouter) {
     // 설정에서 라우팅 정보 로드
+    let manager = 'server';
     try {
       const configManager = require('./config');
       const routingConfig = await configManager.getRoutingConfig();
-      updateModelsFromConfig(routingConfig);
+      console.log('[SmartRouter] Loading routing config from DB:', JSON.stringify(routingConfig, null, 2));
+      manager = updateModelsFromConfig(routingConfig);
     } catch (err) {
       console.warn('[SmartRouter] Could not load routing config:', err.message);
+      console.warn('[SmartRouter] Using default hardcoded models - this should be fixed!');
     }
-    globalRouter = new SmartRouter(config);
+    globalRouter = new SmartRouter({ ...config, manager });
+    console.log('[SmartRouter] Router initialized with manager:', manager);
   }
   return globalRouter;
 }
@@ -599,11 +662,12 @@ async function getSmartRouter(config = {}) {
  * SmartRouter 인스턴스 리셋 (설정 변경 시)
  */
 function resetSmartRouter(routingConfig = null) {
+  let manager = 'server';
   if (routingConfig) {
-    updateModelsFromConfig(routingConfig);
+    manager = updateModelsFromConfig(routingConfig);
   }
-  globalRouter = new SmartRouter();
-  console.log('[SmartRouter] Router reset with new config');
+  globalRouter = new SmartRouter({ manager });
+  console.log('[SmartRouter] Router reset with manager:', manager);
   return globalRouter;
 }
 

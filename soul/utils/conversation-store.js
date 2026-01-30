@@ -189,10 +189,14 @@ class ConversationStore {
     }
     const id = message.id || `${timestamp.replace(/[:.]/g, '-')}_${message.role}`;
 
+    // thinking 태그 제거 (AI가 패턴 학습하는 것 방지)
+    let text = message.content || message.text || '';
+    text = text.replace(/<thinking>[\s\S]*?<\/thinking>\s*/g, '');
+
     const line = JSON.stringify({
       id,
       role: message.role,
-      text: message.content || message.text,
+      text,
       timestamp,
       tags: message.tags || [],
       thought: message.thought || null,
