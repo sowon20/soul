@@ -21,7 +21,7 @@ async function initializeBuiltinServices() {
         { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', contextWindow: 200000 },
         { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', contextWindow: 200000 }
       ],
-      isActive: 1,
+      isActive: 0,  // API 키 설정 전까지 비활성
       config: { supportsThinking: true }
     },
     {
@@ -64,7 +64,7 @@ async function initializeBuiltinServices() {
       name: 'Ollama (Local)',
       baseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
       models: [],
-      isActive: 1,
+      isActive: 0,  // 서버 연결 확인 전까지 비활성
       config: { isLocal: true }
     }
   ];
