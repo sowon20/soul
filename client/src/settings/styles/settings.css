@@ -5062,3 +5062,182 @@ textarea.settings-field-input {
   background: #f8f9fa;
   border-top: 1px solid rgba(0, 0, 0, 0.08);
 }
+
+/* ==================== Unified Storage Settings ==================== */
+
+.storage-info-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(168, 85, 247, 0.08));
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  border-radius: 10px;
+  margin-bottom: 1.25rem;
+  color: #4f46e5;
+  font-size: 0.875rem;
+}
+
+.storage-info-banner .info-icon {
+  font-size: 1.1rem;
+}
+
+/* Storage Type Tabs */
+.storage-type-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.storage-type-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.875rem 0.5rem;
+  background: rgba(0, 0, 0, 0.03);
+  border: 2px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #555;
+}
+
+.storage-type-tab:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.storage-type-tab.active {
+  border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.1);
+  color: #4f46e5;
+}
+
+.storage-type-tab .tab-hint {
+  font-size: 0.7rem;
+  font-weight: 400;
+  opacity: 0.7;
+}
+
+/* Storage Panels */
+.storage-panel {
+  padding: 1.25rem;
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  margin-bottom: 1rem;
+}
+
+.storage-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.storage-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #333;
+}
+
+.storage-hint {
+  font-size: 0.75rem;
+  color: rgba(0, 0, 0, 0.5);
+  margin-top: 0.25rem;
+}
+
+/* Oracle Config Grid */
+.oracle-config-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.oracle-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.oracle-field label {
+  font-size: 0.75rem;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.oracle-field:first-child {
+  grid-column: 1 / -1;
+}
+
+.oracle-info {
+  margin-bottom: 1rem;
+  padding: 0.625rem 0.875rem;
+  background: rgba(99, 102, 241, 0.08);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  color: #555;
+}
+
+/* Notion Config */
+.notion-config {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.notion-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.notion-field label {
+  font-size: 0.75rem;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.notion-info {
+  margin-bottom: 1rem;
+  font-size: 0.8rem;
+  color: #555;
+}
+
+.notion-info a {
+  color: #6366f1;
+  text-decoration: none;
+}
+
+.notion-info a:hover {
+  text-decoration: underline;
+}
+
+/* Storage Test Row */
+.storage-test-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.test-result {
+  font-size: 0.875rem;
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.test-result.success {
+  color: #22c55e;
+}
+
+.test-result.error {
+  color: #ef4444;
+}
+
+/* Storage Actions */
+.storage-actions {
+  display: flex;
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+}

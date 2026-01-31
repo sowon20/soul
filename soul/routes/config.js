@@ -376,6 +376,51 @@ router.put('/files', async (req, res) => {
 });
 
 /**
+ * GET /api/config/storage
+ * 통합 저장소 설정 조회
+ */
+router.get('/storage', async (req, res) => {
+  try {
+    const storageConfig = await configManager.getStorageConfig();
+    res.json(storageConfig);
+  } catch (error) {
+    console.error('Error reading storage config:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * PUT /api/config/storage
+ * 통합 저장소 설정 업데이트
+ */
+router.put('/storage', async (req, res) => {
+  try {
+    const storageConfig = await configManager.updateStorageConfig(req.body);
+
+    // 모든 관련 인스턴스 리셋 (설정 즉시 적용)
+    const { resetMemoryManager } = require('../utils/memory-layers');
+    const { resetConversationPipeline } = require('../utils/conversation-pipeline');
+    const { clearStorageConfigCache } = require('../utils/conversation-store');
+    const { resetArchiver } = require('../utils/conversation-archiver');
+    clearStorageConfigCache();
+    resetArchiver();
+    resetMemoryManager();
+    resetConversationPipeline();
+
+    res.json(storageConfig);
+  } catch (error) {
+    console.error('Error updating storage config:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: error.message
+    });
+  }
+});
+
+/**
  * GET /api/config/routing
  * 스마트 라우팅 설정 조회
  */

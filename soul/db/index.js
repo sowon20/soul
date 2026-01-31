@@ -56,10 +56,18 @@ function createTables() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       config_key TEXT UNIQUE NOT NULL,
       value TEXT,
+      description TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     )
   `);
+
+  // 마이그레이션: description 컬럼이 없으면 추가
+  try {
+    db.exec(`ALTER TABLE system_configs ADD COLUMN description TEXT`);
+  } catch (e) {
+    // 이미 컬럼이 있으면 무시
+  }
 
   // AIService - AI 서비스 설정
   db.exec(`

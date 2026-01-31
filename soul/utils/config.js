@@ -50,6 +50,13 @@ class ConfigManager {
         enabled: false, // Tool Search Tool 활성화 (도구 10개+ 시 유용)
         type: 'regex', // 'regex' | 'bm25'
         alwaysLoad: [] // 항상 로드할 도구 이름 배열
+      },
+      storage: {
+        type: 'local', // 'local' | 'ftp' | 'oracle' | 'notion'
+        path: process.env.SOUL_STORAGE_PATH || '~/.soul',
+        ftp: null,
+        oracle: null,
+        notion: null
       }
     };
   }
@@ -94,8 +101,9 @@ class ConfigManager {
       const files = await this.getConfigValue('files', this.defaultConfig.files);
       const routing = await this.getConfigValue('routing', this.defaultConfig.routing);
       const toolSearch = await this.getConfigValue('toolSearch', this.defaultConfig.toolSearch);
+      const storage = await this.getConfigValue('storage', this.defaultConfig.storage);
 
-      return { ai, memory, files, routing, toolSearch };
+      return { ai, memory, files, routing, toolSearch, storage };
     } catch (error) {
       console.error('Failed to read config:', error);
       return this.defaultConfig;
@@ -112,6 +120,7 @@ class ConfigManager {
       if (config.files) await this.setConfigValue('files', config.files, 'File storage configuration');
       if (config.routing) await this.setConfigValue('routing', config.routing, 'Smart routing configuration');
       if (config.toolSearch) await this.setConfigValue('toolSearch', config.toolSearch, 'Tool Search configuration');
+      if (config.storage) await this.setConfigValue('storage', config.storage, 'Unified storage configuration');
 
       return config;
     } catch (error) {
@@ -217,6 +226,53 @@ class ConfigManager {
     };
     await this.writeConfig(config);
     return config.files;
+  }
+
+  /**
+   * 통합 저장소 설정 가져오기
+   */
+  async getStorageConfig() {
+    const config = await this.readConfig();
+    // 통합 저장소 설정이 없으면 기존 memory 설정에서 마이그레이션
+    if (!config.storage) {
+      return {
+        type: config.memory?.storageType || 'local',
+        path: config.memory?.storagePath || '~/.soul',
+        ftp: config.memory?.ftp || null,
+        oracle: config.memory?.oracle || null,
+        notion: null
+      };
+    }
+    return config.storage;
+  }
+
+  /**
+   * 통합 저장소 설정 업데이트
+   */
+  async updateStorageConfig(storageConfig) {
+    const config = await this.readConfig();
+    config.storage = {
+      type: storageConfig.type || 'local',
+      path: storageConfig.path || '~/.soul',
+      ftp: storageConfig.ftp || null,
+      oracle: storageConfig.oracle || null,
+      notion: storageConfig.notion || null
+    };
+
+    // 하위 호환성: memory/files에도 반영
+    const storagePath = config.storage.type === 'local' ? config.storage.path : null;
+    if (!config.memory) config.memory = { ...this.defaultConfig.memory };
+    if (!config.files) config.files = { ...this.defaultConfig.files };
+
+    config.memory.storageType = config.storage.type;
+    config.memory.storagePath = storagePath || config.memory.storagePath;
+    config.memory.ftp = config.storage.ftp;
+    config.files.storageType = config.storage.type;
+    config.files.storagePath = storagePath || config.files.storagePath;
+    config.files.ftp = config.storage.ftp;
+
+    await this.writeConfig(config);
+    return config.storage;
   }
 
   /**
