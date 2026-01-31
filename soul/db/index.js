@@ -101,6 +101,7 @@ function createTables() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS agent_profiles (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      profile_id TEXT UNIQUE,
       name TEXT NOT NULL,
       personality TEXT,
       system_prompt TEXT,
@@ -110,6 +111,13 @@ function createTables() {
       updated_at TEXT DEFAULT (datetime('now'))
     )
   `);
+
+  // 마이그레이션: profile_id 컬럼이 없으면 추가
+  try {
+    db.exec(`ALTER TABLE agent_profiles ADD COLUMN profile_id TEXT UNIQUE`);
+  } catch (e) {
+    // 이미 컬럼이 있으면 무시
+  }
 
   // Role - 알바 설정
   db.exec(`

@@ -14,16 +14,16 @@ const { AIServiceFactory } = require('../utils/ai-service');
  */
 router.get('/', async (req, res) => {
   try {
-    const services = await AIService.find().select('+apiKey').sort({ isBuiltIn: -1, name: 1 });
+    const services = await AIService.find();
 
     const servicesData = services.map(service => ({
-      id: service._id,
+      id: service.id || service._id,
       serviceId: service.serviceId,
       name: service.name,
-      type: service.type,
+      type: service.type || 'openai-compatible',
       baseUrl: service.baseUrl,
-      isActive: service.isActive,
-      isBuiltIn: service.isBuiltIn,
+      isActive: service.isActive === 1 || service.isActive === true,
+      isBuiltIn: service.isBuiltIn === 1 || service.isBuiltIn === true,
       hasApiKey: !!service.apiKey,
       // API 키 앞부분 마스킹 프리뷰 (앞 6자 + ******)
       apiKeyPreview: service.apiKey ? `${service.apiKey.substring(0, 6)}******` : null,
@@ -32,7 +32,8 @@ router.get('/', async (req, res) => {
       lastRefresh: service.lastRefresh,
       // Vertex AI 전용 필드
       projectId: service.projectId || null,
-      region: service.region || 'us-east5'
+      region: service.region || 'us-east5',
+      config: service.config || {}
     }));
 
     res.json({
@@ -54,7 +55,7 @@ router.get('/', async (req, res) => {
  */
 router.get('/:id', async (req, res) => {
   try {
-    const service = await AIService.findById(req.params.id).select('+apiKey');
+    const service = await AIService.findById(req.params.id);
 
     if (!service) {
       return res.status(404).json({
@@ -66,17 +67,17 @@ router.get('/:id', async (req, res) => {
     res.json({
       success: true,
       service: {
-        id: service._id,
+        id: service.id || service._id,
         serviceId: service.serviceId,
         name: service.name,
-        type: service.type,
+        type: service.type || 'openai-compatible',
         baseUrl: service.baseUrl,
         hasApiKey: !!service.apiKey,
-        isActive: service.isActive,
-        isBuiltIn: service.isBuiltIn,
-        models: service.models,
+        isActive: service.isActive === 1 || service.isActive === true,
+        isBuiltIn: service.isBuiltIn === 1 || service.isBuiltIn === true,
+        models: service.models || [],
         lastRefresh: service.lastRefresh,
-        config: service.config
+        config: service.config || {}
       }
     });
   } catch (error) {
@@ -113,24 +114,22 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // 서비스 생성
-    const service = new AIService({
+    // 서비스 생성 (SQLite 스타일)
+    const service = await AIService.create({
       serviceId,
       name,
       type,
       baseUrl,
       apiKey: apiKey && apiKey.trim() ? apiKey : null,
-      isBuiltIn: false,
-      isActive: true
+      isBuiltIn: 0,
+      isActive: 1
     });
-
-    await service.save();
 
     res.json({
       success: true,
       message: 'AI 서비스가 추가되었습니다',
       service: {
-        id: service._id,
+        id: service.id,
         serviceId: service.serviceId,
         name: service.name
       }
@@ -150,7 +149,7 @@ router.post('/', async (req, res) => {
  */
 router.patch('/:id', async (req, res) => {
   try {
-    const service = await AIService.findById(req.params.id).select('+apiKey');
+    const service = await AIService.findById(req.params.id);
 
     if (!service) {
       return res.status(404).json({
@@ -161,37 +160,39 @@ router.patch('/:id', async (req, res) => {
 
     const { name, baseUrl, apiKey, isActive, projectId, region, credentials } = req.body;
 
-    // 업데이트 가능한 필드만 수정
-    if (name) service.name = name;
-    if (baseUrl) service.baseUrl = baseUrl;
-    if (typeof isActive === 'boolean') service.isActive = isActive;
+    // 업데이트할 필드 준비
+    const updateData = {};
+    if (name) updateData.name = name;
+    if (baseUrl) updateData.baseUrl = baseUrl;
+    if (typeof isActive === 'boolean') updateData.isActive = isActive ? 1 : 0;
 
     // API 키 업데이트
     if (apiKey !== undefined) {
-      service.apiKey = apiKey && apiKey.trim() ? apiKey : null;
+      updateData.apiKey = apiKey && apiKey.trim() ? apiKey : null;
     }
 
-    // Vertex AI 전용 필드 업데이트
-    if (projectId !== undefined) {
-      service.projectId = projectId && projectId.trim() ? projectId : null;
-    }
-    if (region !== undefined) {
-      service.region = region && region.trim() ? region : 'us-east5';
-    }
-    if (credentials !== undefined) {
-      service.credentials = credentials && credentials.trim() ? credentials : null;
+    // Vertex AI 전용 필드 업데이트 (config에 저장)
+    if (projectId !== undefined || region !== undefined || credentials !== undefined) {
+      const config = service.config || {};
+      if (projectId !== undefined) config.projectId = projectId && projectId.trim() ? projectId : null;
+      if (region !== undefined) config.region = region && region.trim() ? region : 'us-east5';
+      if (credentials !== undefined) config.credentials = credentials && credentials.trim() ? credentials : null;
+      updateData.config = config;
     }
 
-    await service.save();
+    await AIService.updateOne({ id: service.id }, updateData);
+
+    // 업데이트된 서비스 조회
+    const updatedService = await AIService.findById(service.id);
 
     res.json({
       success: true,
       message: 'AI 서비스가 수정되었습니다',
       service: {
-        id: service._id,
-        serviceId: service.serviceId,
-        name: service.name,
-        hasApiKey: !!service.apiKey
+        id: updatedService.id,
+        serviceId: updatedService.serviceId,
+        name: updatedService.name,
+        hasApiKey: !!updatedService.apiKey
       }
     });
   } catch (error) {
@@ -219,14 +220,14 @@ router.delete('/:id', async (req, res) => {
     }
 
     // 기본 서비스는 삭제 불가
-    if (service.isBuiltIn) {
+    if (service.isBuiltIn === 1 || service.isBuiltIn === true) {
       return res.status(400).json({
         success: false,
         error: '기본 제공 서비스는 삭제할 수 없습니다'
       });
     }
 
-    await AIService.findByIdAndDelete(req.params.id);
+    await AIService.deleteOne({ id: parseInt(req.params.id) });
 
     res.json({
       success: true,
@@ -256,7 +257,10 @@ router.post('/:id/toggle', async (req, res) => {
       });
     }
 
-    const newStatus = await service.toggleActive();
+    const currentStatus = service.isActive === 1 || service.isActive === true;
+    const newStatus = !currentStatus;
+
+    await AIService.updateOne({ id: service.id }, { isActive: newStatus ? 1 : 0 });
 
     res.json({
       success: true,
@@ -278,7 +282,7 @@ router.post('/:id/toggle', async (req, res) => {
  */
 router.post('/:id/refresh-models', async (req, res) => {
   try {
-    const service = await AIService.findById(req.params.id).select('+apiKey');
+    const service = await AIService.findById(req.params.id);
 
     if (!service) {
       return res.status(404).json({
@@ -287,15 +291,18 @@ router.post('/:id/refresh-models', async (req, res) => {
       });
     }
 
+    const serviceType = service.type || service.serviceId;
+    const config = service.config || {};
+
     // Vertex AI는 API 키 대신 projectId 필요
-    if (service.type === 'vertex') {
-      if (!service.projectId) {
+    if (serviceType === 'vertex') {
+      if (!config.projectId) {
         return res.status(400).json({
           success: false,
           error: 'Vertex AI Project ID가 설정되지 않았습니다'
         });
       }
-    } else if (!service.apiKey && service.type !== 'ollama') {
+    } else if (!service.apiKey && serviceType !== 'ollama') {
       // API 키 확인 (Ollama와 Vertex 제외)
       return res.status(400).json({
         success: false,
@@ -305,18 +312,18 @@ router.post('/:id/refresh-models', async (req, res) => {
 
     // 모델 목록 가져오기
     // openai-compatible 타입은 serviceId로 판단
-    let serviceType = service.type;
-    if (service.type === 'openai-compatible') {
+    let effectiveType = serviceType;
+    if (serviceType === 'openai-compatible') {
       if (service.serviceId === 'xai') {
-        serviceType = 'xai';
+        effectiveType = 'xai';
       } else if (service.serviceId === 'lightning') {
-        serviceType = 'lightning';
+        effectiveType = 'lightning';
       } else {
-        serviceType = 'openai';
+        effectiveType = 'openai';
       }
     }
 
-    const result = await AIServiceFactory.getAvailableModels(serviceType, service.apiKey);
+    const result = await AIServiceFactory.getAvailableModels(effectiveType, service.apiKey);
 
     if (!result.success) {
       return res.status(400).json({
@@ -326,7 +333,7 @@ router.post('/:id/refresh-models', async (req, res) => {
     }
 
     // 모델 목록 업데이트
-    await service.updateModels(result.models);
+    await AIService.updateOne({ id: service.id }, { models: result.models });
 
     res.json({
       success: true,
@@ -348,7 +355,7 @@ router.post('/:id/refresh-models', async (req, res) => {
  */
 router.post('/:id/test', async (req, res) => {
   try {
-    const service = await AIService.findById(req.params.id).select('+apiKey');
+    const service = await AIService.findById(req.params.id);
 
     if (!service) {
       return res.status(404).json({
@@ -357,8 +364,10 @@ router.post('/:id/test', async (req, res) => {
       });
     }
 
-    // API 키 확인
-    if (!service.apiKey) {
+    const serviceType = service.type || service.serviceId;
+
+    // API 키 확인 (Ollama 제외)
+    if (!service.apiKey && serviceType !== 'ollama') {
       return res.status(400).json({
         success: false,
         error: 'API 키가 설정되지 않았습니다'
@@ -367,18 +376,18 @@ router.post('/:id/test', async (req, res) => {
 
     // 연결 테스트 (API 키 검증)
     // openai-compatible 타입은 serviceId로 판단
-    let serviceType = service.type;
-    if (service.type === 'openai-compatible') {
+    let effectiveType = serviceType;
+    if (serviceType === 'openai-compatible') {
       if (service.serviceId === 'xai') {
-        serviceType = 'xai';
+        effectiveType = 'xai';
       } else if (service.serviceId === 'lightning') {
-        serviceType = 'lightning';
+        effectiveType = 'lightning';
       } else {
-        serviceType = 'openai';
+        effectiveType = 'openai';
       }
     }
 
-    const result = await AIServiceFactory.validateApiKey(serviceType, service.apiKey);
+    const result = await AIServiceFactory.validateApiKey(effectiveType, service.apiKey);
 
     res.json({
       success: result.valid,

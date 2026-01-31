@@ -236,29 +236,37 @@ router.get('/', async (req, res) => {
 
     const roles = await query.exec();
 
-    const roleList = roles.map(role => ({
-      roleId: role.roleId,
-      name: role.name,
-      description: role.description,
-      category: role.category,
-      preferredModel: role.preferredModel,
-      fallbackModel: role.fallbackModel,
-      systemPrompt: role.systemPrompt,
-      maxTokens: role.maxTokens,
-      temperature: role.temperature,
-      triggers: role.triggers,
-      tags: role.tags || [],
-      active: role.active,
-      mode: role.mode || 'single',
-      chainSteps: role.chainSteps || [],
-      parallelRoles: role.parallelRoles || [],
-      stats: {
-        usageCount: role.stats.usageCount,
-        successRate: role.getSuccessRate(),
-        lastUsed: role.stats.lastUsed
-      },
-      createdBy: role.createdBy
-    }));
+    const roleList = roles.map(role => {
+      // stats 파싱 (SQLite에서 JSON 문자열로 저장됨)
+      const stats = typeof role.stats === 'string' ? JSON.parse(role.stats || '{}') : (role.stats || {});
+      const usageCount = stats.usageCount || 0;
+      const successCount = stats.successCount || 0;
+      const successRate = usageCount > 0 ? Math.round((successCount / usageCount) * 100) : 0;
+
+      return {
+        roleId: role.roleId,
+        name: role.name,
+        description: role.description,
+        category: role.category,
+        preferredModel: role.preferredModel,
+        fallbackModel: role.fallbackModel,
+        systemPrompt: role.systemPrompt,
+        maxTokens: role.maxTokens,
+        temperature: role.temperature,
+        triggers: role.triggers,
+        tags: role.tags || [],
+        active: role.active === 1 || role.active === true,
+        mode: role.mode || 'single',
+        chainSteps: role.chainSteps || [],
+        parallelRoles: role.parallelRoles || [],
+        stats: {
+          usageCount,
+          successRate,
+          lastUsed: stats.lastUsed
+        },
+        createdBy: role.createdBy
+      };
+    });
 
     res.json({
       success: true,

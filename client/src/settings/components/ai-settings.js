@@ -2214,7 +2214,7 @@ export class AISettings {
       'ollama': '🦙',
       'custom': '⚙️'
     };
-    return icons[type.toLowerCase()] || '🤖';
+    return icons[(type || 'custom').toLowerCase()] || '🤖';
   }
 
   /**
@@ -2427,7 +2427,7 @@ export class AISettings {
       // 비활성이면 숨김
       const hiddenClass = !isActive ? 'capsule-hidden' : '';
 
-      const config = serviceConfig[service.type.toLowerCase()] || serviceConfig['custom'];
+      const config = serviceConfig[(service.type || service.serviceId || 'custom').toLowerCase()] || serviceConfig['custom'];
       const displayName = config.displayName || service.name;
 
       return `
