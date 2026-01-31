@@ -1,12 +1,15 @@
 /**
- * JSONL 기반 대화 저장/로드 유틸리티
+ * 대화 저장/로드 유틸리티
+ * 일별 JSON 파일 기반 (JSONL 폐기)
  * 로컬 파일, FTP, Oracle 스토리지 지원
- * FTP 연결 실패 시 로컬 캐시에 저장 후 자동 동기화
+ *
+ * 저장 구조:
+ *   conversations/YYYY-MM/YYYY-MM-DD.json
  */
 const fs = require('fs');
 const path = require('path');
-const readline = require('readline');
 const { OracleStorage } = require('./oracle-storage');
+const { getArchiverAsync } = require('./conversation-archiver');
 
 // 스토리지 설정 캐시 (서버 재시작 시 초기화됨)
 let storageConfig = null;
@@ -91,6 +94,8 @@ class ConversationStore {
     this.ftpConnected = false;
     this.oracleStorage = null;
     this.oracleConnected = false;
+    this.archiver = null;
+    this.storagePath = null;
   }
 
   async init() {
@@ -98,6 +103,7 @@ class ConversationStore {
 
     const config = await getStorageConfig();
     this.storageType = config.type;
+    this.storagePath = config.path;
 
     if (this.storageType === 'ftp') {
       const { getFTPStorage } = require('./ftp-storage');
@@ -135,24 +141,21 @@ class ConversationStore {
       return;
     }
 
-    // 로컬 스토리지
-    if (!this.filePath) {
-      this.filePath = path.join(config.path, 'conversations.jsonl');
+    // 로컬 스토리지 - Archiver 사용 (일별 JSON)
+    try {
+      this.archiver = await getArchiverAsync();
+      await this.archiver.initialize();
+      console.log('[ConversationStore] Using Archiver for local storage');
+    } catch (e) {
+      console.error('[ConversationStore] Archiver init failed:', e.message);
     }
-    this.ensureFile();
+
     this.initialized = true;
   }
 
   ensureFile() {
-    if (this.storageType !== 'local') return;
-
-    const dir = path.dirname(this.filePath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    if (!fs.existsSync(this.filePath)) {
-      fs.writeFileSync(this.filePath, '');
-    }
+    // 더 이상 JSONL 파일 사용하지 않음
+    // Archiver가 일별 JSON 파일 관리
   }
 
   /**
@@ -266,26 +269,49 @@ class ConversationStore {
         this._saveToLocalCache(line);
       }
     } else if (this.storageType === 'ftp') {
-      // FTP 연결 안 되어 있으면 재연결 시도
-      if (!this.ftpConnected) {
-        await this._tryReconnectFTP();
-      }
-
-      if (this.ftpConnected) {
+      // FTP: Archiver 사용 (일별 JSON)
+      if (this.archiver) {
         try {
-          await this.ftpStorage.appendToFile('conversations.jsonl', line + '\n');
+          await this.archiver.archiveMessage({
+            role: message.role,
+            content: text,
+            timestamp,
+            tokens: message.tokens || 0,
+            tags: message.tags || [],
+            metadata: message.metadata || {},
+            routing: message.routing || null
+          });
         } catch (e) {
-          console.error('[ConversationStore] FTP save failed:', e.message);
-          this.ftpConnected = false;
-          // 로컬 캐시에 저장
+          console.error('[ConversationStore] Archiver save failed:', e.message);
           this._saveToLocalCache(line);
         }
       } else {
-        // FTP 안 되면 로컬 캐시에 저장
         this._saveToLocalCache(line);
       }
     } else {
-      fs.appendFileSync(this.filePath, line + '\n');
+      // 로컬: Archiver 사용 (일별 JSON)
+      if (this.archiver) {
+        try {
+          await this.archiver.archiveMessage({
+            role: message.role,
+            content: text,
+            timestamp,
+            tokens: message.tokens || 0,
+            tags: message.tags || [],
+            metadata: message.metadata || {},
+            routing: message.routing || null
+          });
+        } catch (e) {
+          console.error('[ConversationStore] Archiver save failed:', e.message);
+          // 폴백: 레거시 JSONL 저장
+          if (this.filePath) {
+            fs.appendFileSync(this.filePath, line + '\n');
+          }
+        }
+      } else if (this.filePath) {
+        // Archiver 없으면 레거시 JSONL 사용
+        fs.appendFileSync(this.filePath, line + '\n');
+      }
     }
 
     return { id, timestamp };
@@ -321,43 +347,28 @@ class ConversationStore {
       return [];
     }
 
-    // FTP 모드
-    if (this.storageType === 'ftp') {
-      // FTP 연결 안 되어 있으면 재연결 시도
-      if (!this.ftpConnected) {
-        await this._tryReconnectFTP();
+    // FTP/로컬 모드: Archiver 사용 (일별 JSON)
+    if (this.archiver) {
+      try {
+        const messages = await this.archiver.getRecentMessages(limit);
+        // ConversationStore 형식으로 변환
+        return messages.map(m => ({
+          id: m.id || `${m.timestamp}_${m.role}`,
+          role: m.role,
+          text: m.content,
+          content: m.content,
+          timestamp: m.timestamp,
+          tags: m.tags || [],
+          tokens: m.tokens || 0,
+          metadata: m.metadata || {},
+          routing: m.routing || null
+        }));
+      } catch (e) {
+        console.error('[ConversationStore] Archiver read failed:', e.message);
       }
-
-      let ftpMessages = [];
-      let cacheMessages = [];
-
-      // FTP에서 가져오기 (연결된 경우)
-      if (this.ftpConnected) {
-        try {
-          const lines = await this.readAllLines();
-          ftpMessages = lines.slice(-limit).map(line => {
-            try { return JSON.parse(line); } catch { return null; }
-          }).filter(Boolean);
-        } catch (e) {
-          console.error('[ConversationStore] FTP read failed:', e.message);
-          this.ftpConnected = false;
-        }
-      }
-
-      // 로컬 캐시에서 추가로 가져오기
-      if (fs.existsSync(PENDING_SYNC_FILE)) {
-        const cacheContent = fs.readFileSync(PENDING_SYNC_FILE, 'utf-8');
-        cacheMessages = cacheContent.split('\n').filter(l => l.trim()).map(line => {
-          try { return JSON.parse(line); } catch { return null; }
-        }).filter(Boolean);
-      }
-
-      // FTP + 캐시 합치기
-      const allMessages = [...ftpMessages, ...cacheMessages];
-      return allMessages.slice(-limit);
     }
 
-    // 로컬: JSON 아카이브에서 로드 (JSONL 폐기, JSON으로 통일)
+    // 폴백: JSON 아카이브에서 로드
     return this._loadFromJsonArchive(limit);
   }
 
