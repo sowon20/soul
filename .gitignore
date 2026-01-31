@@ -61,3 +61,10 @@ soul-backup/
 
 # Docker build cache
 .dockerignore
+
+# 민감한 설정 파일
+soul/config/gdrive-key.json
+soul/config/oracle/
+soul/debug-*.log
+soul/soul/
+
