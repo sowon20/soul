@@ -919,17 +919,17 @@ class SoulApp {
             <div class="server-item" data-service="backend">
               <span class="server-indicator"></span>
               <span class="server-name">Backend</span>
-              <span class="server-port">:3001</span>
+              <span class="server-port">:4000</span>
             </div>
-            <div class="server-item" data-service="mongodb">
+            <div class="server-item" data-service="sqlite">
               <span class="server-indicator"></span>
-              <span class="server-name">MongoDB</span>
-              <span class="server-port">:27017</span>
+              <span class="server-name">SQLite</span>
+              <span class="server-port">설정 DB</span>
             </div>
-            <div class="server-item" data-service="oracle">
+            <div class="server-item" data-service="storage">
               <span class="server-indicator"></span>
-              <span class="server-name">Oracle DB</span>
-              <span class="server-port">대화저장</span>
+              <span class="server-name" id="storageTypeName">저장소</span>
+              <span class="server-port" id="storageTypeLabel">로딩중...</span>
             </div>
             <div class="server-item" data-service="websocket">
               <span class="server-indicator" id="socketIndicator"></span>
@@ -937,7 +937,7 @@ class SoulApp {
               <span class="server-port">실시간</span>
             </div>
           </div>
-          <p style="margin-top: 20px; font-size: 12px; color: #888;">※ 개발자용 페이지입니다. 프로덕션 빌드 시 제거됩니다.</p>
+          <p style="margin-top: 20px; font-size: 12px; color: #888;">※ 개발자용 페이지입니다.</p>
         </div>
       `;
 

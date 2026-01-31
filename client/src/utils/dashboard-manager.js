@@ -285,6 +285,14 @@ class DashboardManager {
       const response = await fetch('/api/config/server-status');
       const status = await response.json();
 
+      // 저장소 타입 이름 매핑
+      const storageTypeNames = {
+        local: '로컬',
+        ftp: 'FTP/NAS',
+        oracle: 'Oracle',
+        notion: 'Notion'
+      };
+
       Object.entries(status).forEach(([service, info]) => {
         const item = grid.querySelector(`[data-service="${service}"]`);
         if (item) {
@@ -295,11 +303,23 @@ class DashboardManager {
           if (info.port) {
             portEl.textContent = `:${info.port}`;
           }
-          if (info.host && service === 'ftp') {
-            portEl.textContent = `${info.host}:${info.port}`;
+          if (info.label) {
+            portEl.textContent = info.label;
           }
         }
       });
+
+      // 저장소 상태 업데이트
+      const storageItem = grid.querySelector('[data-service="storage"]');
+      if (storageItem && status.storage) {
+        const indicator = storageItem.querySelector('.server-indicator');
+        const nameEl = storageItem.querySelector('.server-name');
+        const labelEl = storageItem.querySelector('.server-port');
+
+        indicator.className = `server-indicator ${status.storage.online ? 'online' : 'offline'}`;
+        nameEl.textContent = storageTypeNames[status.storage.type] || '저장소';
+        labelEl.textContent = status.storage.label || status.storage.type;
+      }
     } catch (error) {
       console.error('Failed to load server status:', error);
       grid.querySelectorAll('.server-indicator').forEach(el => {

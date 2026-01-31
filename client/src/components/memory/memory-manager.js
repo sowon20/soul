@@ -104,7 +104,7 @@ export class MemoryManager {
       <div class="memory-desc">
         <h4>메모리 구조</h4>
         <ul>
-          <li><strong>단기</strong>: 최근 대화 (MongoDB, ${shortTerm.count}/50)</li>
+          <li><strong>단기</strong>: 최근 대화 (일별 JSON, ${shortTerm.count}/50)</li>
           <li><strong>중기</strong>: AI 생성 주간 요약 (파일)</li>
           <li><strong>장기</strong>: 원본 대화 아카이브 (파일, 평생 보관)</li>
           <li><strong>문서</strong>: OCR/스캔 기록물 (파일)</li>

@@ -4065,7 +4065,7 @@ export class AISettings {
         compressionThreshold
       };
 
-      // MongoDB에 저장 (API 호출)
+      // SQLite에 저장 (API 호출)
       await this.apiClient.put('/config/memory', memoryConfig);
 
       this.memoryConfig = memoryConfig;
@@ -4093,7 +4093,7 @@ export class AISettings {
         compressionThreshold: 80
       };
 
-      // MongoDB에 저장 (API 호출)
+      // SQLite에 저장 (API 호출)
       await this.apiClient.put('/config/memory', defaultConfig);
 
       this.memoryConfig = defaultConfig;

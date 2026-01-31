@@ -563,10 +563,17 @@ router.post('/restart', async (req, res) => {
  * 서버 상태 확인
  */
 router.get('/server-status', async (req, res) => {
+  const storageTypeLabels = {
+    local: '로컬 디스크',
+    ftp: 'FTP/NAS',
+    oracle: 'Oracle Cloud',
+    notion: 'Notion'
+  };
+
   const status = {
     backend: { online: true, port: process.env.PORT || 4000 },
     sqlite: { online: false, label: '설정 DB' },
-    oracle: { online: false, label: '대화저장' }
+    storage: { online: false, type: 'local', label: '로딩중...' }
   };
 
   // SQLite 체크
@@ -577,14 +584,34 @@ router.get('/server-status', async (req, res) => {
     status.sqlite.online = false;
   }
 
-  // Oracle DB 체크 (ConversationStore 연결 상태)
+  // 저장소 상태 체크
   try {
-    const ConversationStore = require('../utils/conversation-store');
-    const store = new ConversationStore();
-    await store.init();
-    status.oracle.online = store.isConnected() && store.storageType === 'oracle';
+    const storageConfig = await configManager.getStorageConfig();
+    status.storage.type = storageConfig.type || 'local';
+    status.storage.label = storageTypeLabels[status.storage.type] || status.storage.type;
+
+    // 연결 상태 확인
+    if (storageConfig.type === 'local') {
+      // 로컬은 항상 온라인
+      status.storage.online = true;
+    } else if (storageConfig.type === 'oracle') {
+      // Oracle 연결 체크
+      const ConversationStore = require('../utils/conversation-store');
+      const store = new ConversationStore();
+      await store.init();
+      status.storage.online = store.oracleConnected === true;
+    } else if (storageConfig.type === 'ftp') {
+      // FTP 연결 체크
+      const ConversationStore = require('../utils/conversation-store');
+      const store = new ConversationStore();
+      await store.init();
+      status.storage.online = store.ftpConnected === true;
+    } else {
+      status.storage.online = false;
+    }
   } catch (e) {
-    status.oracle.online = false;
+    console.error('Storage status check failed:', e.message);
+    status.storage.online = false;
   }
 
   res.json(status);
