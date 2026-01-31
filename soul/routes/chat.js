@@ -64,13 +64,16 @@ function invalidateToolsCache() {
  * + Phase 8: 스마트 라우팅 및 단일 인격
  */
 router.post('/', async (req, res) => {
-  // 디버그 로그 파일
+  // 디버그 로그 (환경변수로 활성화 시에만)
   const fs = require('fs');
-  const logFile = '/Volumes/soul/app/soul/debug-chat.log';
-  const debugLog = (msg) => {
+  const path = require('path');
+  const os = require('os');
+  const DEBUG_ENABLED = process.env.SOUL_DEBUG === 'true';
+  const logFile = process.env.SOUL_DEBUG_LOG || path.join(os.homedir(), '.soul', 'debug-chat.log');
+  const debugLog = DEBUG_ENABLED ? (msg) => {
     const timestamp = new Date().toISOString();
     fs.appendFileSync(logFile, `[${timestamp}] ${msg}\n`);
-  };
+  } : () => {};
 
   try {
     const { message, sessionId = 'main-conversation', options = {} } = req.body;

@@ -5,8 +5,6 @@
  * Phase: Week 1 - 자연어 제어 기초
  */
 
-const mongoose = require('mongoose');
-
 class IntentDetector {
   constructor() {
     // 의도 카테고리

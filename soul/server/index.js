@@ -2,9 +2,11 @@ require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env'
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const mongoose = require('mongoose');
 const http = require('http');
 const { Server } = require('socket.io');
+
+// SQLite 초기화
+const db = require('../db');
 
 const app = express();
 const server = http.createServer(app);
@@ -15,31 +17,44 @@ const io = new Server(server, {
 // 글로벌로 io 접근 가능하게 (도구 실행 상태 전송용)
 global.io = io;
 
-// MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/soul')
-.then(async () => {
-  console.log('✅ MongoDB connected');
+// Database Initialization (SQLite)
+(async () => {
+  try {
+    db.init();
+    console.log('✅ SQLite database initialized');
 
-  // 기본 AI 서비스 초기화
-  const AIService = require('../models/AIService');
-  await AIService.initializeBuiltInServices();
+    // 기본 AI 서비스 초기화
+    const AIService = require('../models/AIService');
+    await AIService.initializeBuiltinServices();
 
-  // 에이전트 프로필 로드 (DB에서)
-  const { getAgentProfileManager } = require('../utils/agent-profile');
-  const profileManager = getAgentProfileManager();
-  await profileManager.initialize();
+    // 에이전트 프로필 로드 (DB에서)
+    const { getAgentProfileManager } = require('../utils/agent-profile');
+    const profileManager = getAgentProfileManager();
+    await profileManager.initialize();
 
-  // 기본 역할(알바) 초기화
-  const Role = require('../models/Role');
-  await Role.initializeDefaultRoles();
-  console.log('✅ Role system initialized');
+    // 기본 역할(알바) 초기화
+    const Role = require('../models/Role');
+    await Role.initializeDefaultRoles();
+    console.log('✅ Role system initialized');
 
-  // 예약 메시지 복구 (서버 재시작 후)
-  const { restoreScheduledMessages } = require('../utils/scheduled-messages');
-  await restoreScheduledMessages();
-  console.log('✅ Scheduled messages restored');
-})
-.catch(err => console.error('❌ MongoDB connection error:', err));
+    // 예약 메시지 복구 (서버 재시작 후)
+    const { restoreScheduledMessages } = require('../utils/scheduled-messages');
+    await restoreScheduledMessages();
+    console.log('✅ Scheduled messages restored');
+
+    // ProactiveMessenger 초기화
+    const { getProactiveMessenger } = require('../utils/proactive-messenger');
+    try {
+      const messenger = await getProactiveMessenger(io);
+      messenger.start();
+      console.log('✅ ProactiveMessenger started');
+    } catch (e) {
+      console.error('❌ ProactiveMessenger init failed:', e.message);
+    }
+  } catch (err) {
+    console.error('❌ Database initialization error:', err);
+  }
+})();
 
 // Middleware
 app.use(cors());
@@ -136,18 +151,6 @@ io.on('connection', (socket) => {
 // io 인스턴스 글로벌 접근용
 app.set('io', io);
 app.set('connectedClients', connectedClients);
-
-// ProactiveMessenger 초기화
-const { getProactiveMessenger } = require('../utils/proactive-messenger');
-mongoose.connection.once('open', async () => {
-  try {
-    const messenger = await getProactiveMessenger(io);
-    messenger.start();
-    console.log('✅ ProactiveMessenger started');
-  } catch (e) {
-    console.error('❌ ProactiveMessenger init failed:', e.message);
-  }
-});
 
 server.listen(PORT, () => {
   console.log(`🌟 Soul server running on port ${PORT}`);

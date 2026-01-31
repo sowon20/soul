@@ -519,17 +519,17 @@ router.post('/restart', async (req, res) => {
  */
 router.get('/server-status', async (req, res) => {
   const status = {
-    backend: { online: true, port: 3001 },
-    mongodb: { online: false, port: 27017 },
+    backend: { online: true, port: process.env.PORT || 4000 },
+    sqlite: { online: false, label: '설정 DB' },
     oracle: { online: false, label: '대화저장' }
   };
 
-  // MongoDB 체크
+  // SQLite 체크
   try {
-    const mongoose = require('mongoose');
-    status.mongodb.online = mongoose.connection.readyState === 1;
+    const db = require('../db');
+    status.sqlite.online = !!db.db;
   } catch (e) {
-    status.mongodb.online = false;
+    status.sqlite.online = false;
   }
 
   // Oracle DB 체크 (ConversationStore 연결 상태)

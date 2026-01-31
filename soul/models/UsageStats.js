@@ -1,321 +1,141 @@
 /**
- * UsageStats.js
- * AI 사용 통계 MongoDB 모델
- *
- * 요청마다 기록하여 기간별 조회 가능
+ * UsageStats Model
+ * AI 사용 통계 (SQLite)
  */
 
-const mongoose = require('mongoose');
-
-const usageStatsSchema = new mongoose.Schema({
-  // 시간 정보
-  timestamp: {
-    type: Date,
-    default: Date.now,
-    index: true
-  },
-  date: {
-    type: String, // YYYY-MM-DD 형식
-    index: true
-  },
-  hour: {
-    type: Number, // 0-23
-    index: true
-  },
-
-  // 모델 정보
-  tier: {
-    type: String,
-    enum: ['light', 'medium', 'heavy'],
-    required: true,
-    index: true
-  },
-  modelId: {
-    type: String,
-    required: true,
-    index: true
-  },
-  serviceId: {
-    type: String,
-    required: true,
-    index: true
-  },
-
-  // 사용량 정보
-  inputTokens: {
-    type: Number,
-    default: 0
-  },
-  outputTokens: {
-    type: Number,
-    default: 0
-  },
-  totalTokens: {
-    type: Number,
-    default: 0
-  },
-
-  // 토큰 분류 (어디에 사용되었는지)
-  tokenBreakdown: {
-    messages: { type: Number, default: 0 },    // 대화 메시지
-    system: { type: Number, default: 0 },       // 시스템 프롬프트
-    tools: { type: Number, default: 0 },        // 도구 스키마
-    toolCount: { type: Number, default: 0 }     // 사용된 도구 개수
-  },
-
-  // 비용 (USD)
-  cost: {
-    type: Number,
-    default: 0
-  },
-
-  // 응답 시간 (ms)
-  latency: {
-    type: Number,
-    default: 0
-  },
-
-  // 세션 정보
-  sessionId: {
-    type: String,
-    default: 'main-conversation'
-  },
-
-  // 사용 목적 구분 (어디서 호출되었는지)
-  category: {
-    type: String,
-    enum: ['chat', 'summary', 'compression', 'alba', 'role', 'embedding', 'other'],
-    default: 'chat',
-    index: true
-  }
-}, {
-  timestamps: true
-});
-
-// 복합 인덱스
-usageStatsSchema.index({ date: 1, tier: 1 });
-usageStatsSchema.index({ date: 1, modelId: 1 });
-usageStatsSchema.index({ date: 1, category: 1 });
-usageStatsSchema.index({ timestamp: -1 });
+const { UsageStats } = require('../db/models');
 
 /**
  * 사용 기록 추가
  */
-usageStatsSchema.statics.addUsage = async function(data) {
+UsageStats.addUsage = async function(data) {
   const now = new Date();
-  const date = now.toISOString().split('T')[0]; // YYYY-MM-DD
-  const hour = now.getHours();
+  const date = now.toISOString().split('T')[0];
 
   return this.create({
-    timestamp: now,
     date,
-    hour,
-    tier: data.tier,
-    modelId: data.modelId,
-    serviceId: data.serviceId,
+    service: data.serviceId || 'unknown',
+    model: data.modelId || 'unknown',
     inputTokens: data.inputTokens || 0,
     outputTokens: data.outputTokens || 0,
-    totalTokens: data.totalTokens || 0,
-    tokenBreakdown: data.tokenBreakdown || {
-      messages: 0,
-      system: 0,
-      tools: 0,
-      toolCount: 0
-    },
-    cost: data.cost || 0,
-    latency: data.latency || 0,
-    sessionId: data.sessionId || 'main-conversation',
-    category: data.category || 'chat'
+    requests: 1,
+    metadata: JSON.stringify({
+      tier: data.tier,
+      tokenBreakdown: data.tokenBreakdown,
+      cost: data.cost || 0,
+      latency: data.latency || 0,
+      sessionId: data.sessionId || 'main-conversation',
+      category: data.category || 'chat',
+      timestamp: now.toISOString(),
+      hour: now.getHours()
+    })
   });
 };
 
 /**
  * 기간별 통계 조회
- * @param {string} period - 'today', 'week', 'month', 'all', 'custom'
- * @param {Object} options - { startDate, endDate } for custom period
  */
-usageStatsSchema.statics.getStatsByPeriod = async function(period = 'today', options = {}) {
+UsageStats.getStatsByPeriod = async function(period = 'today', options = {}) {
+  const db = require('../db');
+  if (!db.db) db.init();
+
   const now = new Date();
-  let startDate, endDate;
+  let startDate;
 
   switch (period) {
     case 'today':
-      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      startDate = now.toISOString().split('T')[0];
       break;
     case 'week':
-      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      startDate = weekAgo.toISOString().split('T')[0];
       break;
     case 'month':
-      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
       break;
     case 'custom':
-      // 커스텀 기간
-      if (options.startDate) {
-        startDate = new Date(options.startDate);
-        startDate.setHours(0, 0, 0, 0);
-      } else {
-        startDate = new Date(0);
-      }
-      if (options.endDate) {
-        endDate = new Date(options.endDate);
-        endDate.setHours(23, 59, 59, 999);
-      }
+      startDate = options.startDate || '1970-01-01';
       break;
-    case 'all':
     default:
-      startDate = new Date(0); // 전체
+      startDate = '1970-01-01';
   }
 
-  // 쿼리 구성
-  let query = {};
-  if (period === 'all') {
-    query = {};
-  } else if (endDate) {
-    query = { timestamp: { $gte: startDate, $lte: endDate } };
-  } else {
-    query = { timestamp: { $gte: startDate } };
-  }
+  // SQLite에서 집계
+  const stmt = db.db.prepare(`
+    SELECT
+      COUNT(*) as totalRequests,
+      SUM(input_tokens) as inputTokens,
+      SUM(output_tokens) as outputTokens,
+      SUM(input_tokens + output_tokens) as totalTokens
+    FROM usage_stats
+    WHERE date >= ?
+  `);
 
-  // 기본 통계
-  const basicStats = await this.aggregate([
-    { $match: query },
-    {
-      $group: {
-        _id: null,
-        totalRequests: { $sum: 1 },
-        totalTokens: { $sum: '$totalTokens' },
-        inputTokens: { $sum: '$inputTokens' },
-        outputTokens: { $sum: '$outputTokens' },
-        // 토큰 분류별 합계
-        messageTokens: { $sum: '$tokenBreakdown.messages' },
-        systemTokens: { $sum: '$tokenBreakdown.system' },
-        toolTokens: { $sum: '$tokenBreakdown.tools' },
-        avgToolCount: { $avg: '$tokenBreakdown.toolCount' },
-        totalCost: { $sum: '$cost' },
-        avgLatency: { $avg: '$latency' },
-        lightCount: {
-          $sum: { $cond: [{ $eq: ['$tier', 'light'] }, 1, 0] }
-        },
-        mediumCount: {
-          $sum: { $cond: [{ $eq: ['$tier', 'medium'] }, 1, 0] }
-        },
-        heavyCount: {
-          $sum: { $cond: [{ $eq: ['$tier', 'heavy'] }, 1, 0] }
-        }
-      }
-    }
-  ]);
-
-  // 모델별 통계
-  const modelStats = await this.aggregate([
-    { $match: query },
-    {
-      $group: {
-        _id: { modelId: '$modelId', serviceId: '$serviceId' },
-        count: { $sum: 1 },
-        totalTokens: { $sum: '$totalTokens' },
-        totalCost: { $sum: '$cost' },
-        avgLatency: { $avg: '$latency' }
-      }
-    },
-    { $sort: { count: -1 } }
-  ]);
-
-  // 카테고리별 통계
-  const categoryStats = await this.aggregate([
-    { $match: query },
-    {
-      $group: {
-        _id: '$category',
-        count: { $sum: 1 },
-        totalTokens: { $sum: '$totalTokens' },
-        totalCost: { $sum: '$cost' }
-      }
-    },
-    { $sort: { totalCost: -1 } }
-  ]);
-
-  const stats = basicStats[0] || {
+  const stats = stmt.get(startDate) || {
     totalRequests: 0,
-    totalTokens: 0,
     inputTokens: 0,
     outputTokens: 0,
-    messageTokens: 0,
-    systemTokens: 0,
-    toolTokens: 0,
-    avgToolCount: 0,
-    totalCost: 0,
-    avgLatency: 0,
-    lightCount: 0,
-    mediumCount: 0,
-    heavyCount: 0
+    totalTokens: 0
   };
 
-  const total = stats.totalRequests || 1; // 0으로 나누기 방지
+  // 모델별 통계
+  const modelStmt = db.db.prepare(`
+    SELECT
+      model,
+      service,
+      COUNT(*) as count,
+      SUM(input_tokens + output_tokens) as totalTokens
+    FROM usage_stats
+    WHERE date >= ?
+    GROUP BY model, service
+    ORDER BY count DESC
+  `);
+
+  const modelStats = modelStmt.all(startDate);
 
   return {
     period,
-    totalRequests: stats.totalRequests,
-    totalTokens: stats.totalTokens,
-    inputTokens: stats.inputTokens,
-    outputTokens: stats.outputTokens,
-    // 토큰 분류
-    tokenBreakdown: {
-      messages: stats.messageTokens || 0,
-      system: stats.systemTokens || 0,
-      tools: stats.toolTokens || 0,
-      avgToolCount: Math.round(stats.avgToolCount || 0)
-    },
-    totalCost: stats.totalCost,
-    averageLatency: stats.avgLatency || 0,
-    distribution: {
-      light: ((stats.lightCount / total) * 100).toFixed(1) + '%',
-      medium: ((stats.mediumCount / total) * 100).toFixed(1) + '%',
-      heavy: ((stats.heavyCount / total) * 100).toFixed(1) + '%'
-    },
-    routingDecisions: {
-      light: stats.lightCount,
-      medium: stats.mediumCount,
-      heavy: stats.heavyCount
-    },
+    totalRequests: stats.totalRequests || 0,
+    totalTokens: stats.totalTokens || 0,
+    inputTokens: stats.inputTokens || 0,
+    outputTokens: stats.outputTokens || 0,
     modelUsage: modelStats.map(m => ({
-      modelId: m._id.modelId,
-      serviceId: m._id.serviceId,
+      modelId: m.model,
+      serviceId: m.service,
       count: m.count,
-      percentage: ((m.count / total) * 100).toFixed(1) + '%',
-      totalTokens: m.totalTokens,
-      totalCost: m.totalCost,
-      avgLatency: m.avgLatency
-    })),
-    categoryUsage: categoryStats.map(c => ({
-      category: c._id || 'chat',
-      count: c.count,
-      percentage: ((c.count / total) * 100).toFixed(1) + '%',
-      totalTokens: c.totalTokens,
-      totalCost: c.totalCost
+      totalTokens: m.totalTokens
     }))
   };
 };
 
 /**
- * 일별 추이 조회 (최근 N일)
+ * 일별 추이 조회
  */
-usageStatsSchema.statics.getDailyTrend = async function(days = 7) {
+UsageStats.getDailyTrend = async function(days = 7) {
+  const db = require('../db');
+  if (!db.db) db.init();
+
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
+  const startDateStr = startDate.toISOString().split('T')[0];
 
-  return this.aggregate([
-    { $match: { timestamp: { $gte: startDate } } },
-    {
-      $group: {
-        _id: '$date',
-        requests: { $sum: 1 },
-        tokens: { $sum: '$totalTokens' },
-        cost: { $sum: '$cost' }
-      }
-    },
-    { $sort: { _id: 1 } }
-  ]);
+  const stmt = db.db.prepare(`
+    SELECT
+      date,
+      SUM(requests) as requests,
+      SUM(input_tokens + output_tokens) as tokens
+    FROM usage_stats
+    WHERE date >= ?
+    GROUP BY date
+    ORDER BY date ASC
+  `);
+
+  return stmt.all(startDateStr).map(row => ({
+    _id: row.date,
+    requests: row.requests,
+    tokens: row.tokens,
+    cost: 0
+  }));
 };
 
-module.exports = mongoose.model('UsageStats', usageStatsSchema);
+module.exports = UsageStats;
