@@ -917,19 +917,19 @@ class SoulApp {
           <h2 style="margin-bottom: 20px; font-size: 18px; font-weight: 600;">🖥️ 서버 상태</h2>
           <div class="server-status-grid" id="serverStatusGrid">
             <div class="server-item" data-service="backend">
-              <span class="server-indicator"></span>
+              <span class="server-indicator checking"></span>
               <span class="server-name">Backend</span>
               <span class="server-port">:4000</span>
             </div>
             <div class="server-item" data-service="sqlite">
-              <span class="server-indicator"></span>
+              <span class="server-indicator checking"></span>
               <span class="server-name">SQLite</span>
               <span class="server-port">설정 DB</span>
             </div>
             <div class="server-item" data-service="storage">
-              <span class="server-indicator"></span>
+              <span class="server-indicator checking"></span>
               <span class="server-name" id="storageTypeName">저장소</span>
-              <span class="server-port" id="storageTypeLabel">로딩중...</span>
+              <span class="server-port" id="storageTypeLabel">확인중...</span>
             </div>
             <div class="server-item" data-service="websocket">
               <span class="server-indicator" id="socketIndicator"></span>
