@@ -2409,9 +2409,9 @@ export class AISettings {
       const isActive = service.isActive;
       // Vertex AI는 projectId로, Ollama는 항상 true, 나머지는 apiKey로 판단
       let hasKey;
-      if (service.type === 'vertex') {
+      if (service.type === 'vertex' || service.serviceId === 'vertex') {
         hasKey = !!service.projectId;
-      } else if (service.type === 'ollama') {
+      } else if (service.type === 'ollama' || service.serviceId === 'ollama') {
         hasKey = true; // 로컬 서버는 항상 준비됨
       } else {
         hasKey = service.hasApiKey;
@@ -2427,7 +2427,7 @@ export class AISettings {
       // 비활성이면 숨김
       const hiddenClass = !isActive ? 'capsule-hidden' : '';
 
-      const config = serviceConfig[(service.type || service.serviceId || 'custom').toLowerCase()] || serviceConfig['custom'];
+      const config = serviceConfig[(service.serviceId || service.type || 'custom').toLowerCase()] || serviceConfig['custom'];
       const displayName = config.displayName || service.name;
 
       return `
@@ -2452,9 +2452,9 @@ export class AISettings {
       const isActive = service.isActive;
       // Vertex AI는 projectId로, Ollama는 항상 true, 나머지는 apiKey로 판단
       let hasKey;
-      if (service.type === 'vertex') {
+      if (service.type === 'vertex' || service.serviceId === 'vertex') {
         hasKey = !!service.projectId;
-      } else if (service.type === 'ollama') {
+      } else if (service.type === 'ollama' || service.serviceId === 'ollama') {
         hasKey = true;
       } else {
         hasKey = service.hasApiKey;
@@ -3294,32 +3294,50 @@ export class AISettings {
    * 서비스 활성화/비활성화 토글
    */
   async toggleServiceActive(serviceId, isActive) {
+    // serviceId를 숫자로 변환 (dataset에서 문자열로 오기 때문)
+    const numericId = parseInt(serviceId, 10);
+
     try {
-      await this.apiClient.post(`/ai-services/${serviceId}/toggle`);
+      const response = await this.apiClient.post(`/ai-services/${serviceId}/toggle`);
+
+      // 서버 응답에서 실제 상태 가져오기
+      const actualIsActive = response.isActive;
 
       // 성공 메시지 표시
-      this.showSaveStatus(`서비스가 ${isActive ? '활성화' : '비활성화'}되었습니다.`, 'success');
+      this.showSaveStatus(`서비스가 ${actualIsActive ? '활성화' : '비활성화'}되었습니다.`, 'success');
 
       // 로컬 서비스 데이터 업데이트
-      const service = this.services.find(s => s.id === serviceId);
+      const service = this.services.find(s => s.id === numericId || s.id === serviceId);
       if (service) {
-        service.isActive = isActive;
+        service.isActive = actualIsActive;
       }
 
       // 카드 상태 업데이트
       const card = document.querySelector(`.ai-service-card[data-service-id="${serviceId}"]`);
       if (card) {
-        card.classList.toggle('active', isActive);
-        card.classList.toggle('inactive', !isActive);
+        card.classList.toggle('active', actualIsActive);
+        card.classList.toggle('inactive', !actualIsActive);
+
+        // 카드 내 체크박스도 동기화
+        const cardCheckbox = card.querySelector('input[data-action="toggle-active"]');
+        if (cardCheckbox) {
+          cardCheckbox.checked = actualIsActive;
+        }
+      }
+
+      // 드롭다운의 체크박스도 동기화
+      const dropdownCheckbox = document.querySelector(`.api-dropdown-content input[data-service-id="${serviceId}"][data-action="toggle-service"]`);
+      if (dropdownCheckbox) {
+        dropdownCheckbox.checked = actualIsActive;
       }
 
       // 캡슐 UI 실시간 업데이트
       this.updateCapsuleUI();
 
       // 활성화 시 API 키가 있는 서비스면 모델 새로고침
-      if (isActive && service) {
+      if (actualIsActive && service) {
         const hasKey = service.type === 'vertex' ? !!service.projectId :
-                       service.type === 'ollama' ? true :
+                       (service.serviceId === 'ollama' || service.type === 'ollama') ? true :
                        service.hasApiKey;
 
         if (hasKey) {
@@ -3343,6 +3361,10 @@ export class AISettings {
       const checkbox = document.querySelector(`input[data-service-id="${serviceId}"][data-action="toggle-active"]`);
       if (checkbox) {
         checkbox.checked = !isActive;
+      }
+      const dropdownCheckbox = document.querySelector(`.api-dropdown-content input[data-service-id="${serviceId}"][data-action="toggle-service"]`);
+      if (dropdownCheckbox) {
+        dropdownCheckbox.checked = !isActive;
       }
     }
   }
