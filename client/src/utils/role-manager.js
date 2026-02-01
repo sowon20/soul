@@ -669,13 +669,36 @@ export class RoleManager {
   }
 
   showSuccess(message) {
-    // TODO: 토스트 메시지 구현
-    alert(message);
+    this.showToast(message, 'success');
   }
 
   showError(message) {
-    // TODO: 토스트 메시지 구현
-    alert(message);
+    this.showToast(message, 'error');
+  }
+
+  showToast(message, type = 'success') {
+    // 토스트 컨테이너 확인 또는 생성
+    let container = document.querySelector('.toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.className = 'toast-container';
+      document.body.appendChild(container);
+    }
+
+    // 토스트 요소 생성
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.innerHTML = `
+      <span class="toast-icon">${type === 'success' ? '✓' : '✕'}</span>
+      <span class="toast-message">${message}</span>
+    `;
+    container.appendChild(toast);
+
+    // 3초 후 자동 제거
+    setTimeout(() => {
+      toast.classList.add('toast-fade-out');
+      setTimeout(() => toast.remove(), 300);
+    }, 3000);
   }
 
   editRole(roleId) {
