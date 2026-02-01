@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y \
     python3 \
     make \
     g++ \
+    libsecret-1-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # 의존성 먼저 설치 (캐시 활용)
