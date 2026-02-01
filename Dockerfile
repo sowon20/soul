@@ -1,7 +1,7 @@
 FROM node:18-slim
 
-# Hugging Face Spaces는 user 1000으로 실행
-RUN useradd -m -u 1000 user
+# Hugging Face Spaces는 user 1000으로 실행 (이미 있으면 스킵)
+RUN useradd -m -u 1000 user 2>/dev/null || true
 
 WORKDIR /app
 
