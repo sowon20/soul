@@ -1,0 +1,62 @@
+/**
+ * CSS Variables
+ * 색상, 폰트, 간격 등 전역 변수 정의
+ */
+
+/* 폰트 */
+@font-face {
+  font-family: 'KakaoSmallFont';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2503@1.0/KakaoSmallSans-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'KakaoSmallFont';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2503@1.0/KakaoSmallSans-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'KakaoSmallFont';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2503@1.0/KakaoSmallSans-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+}
+
+/* CSS 변수 */
+:root {
+  /* Layout */
+  --dock-height: 35px;
+
+  /* Colors */
+  --bg-dark: #1e1b1a;
+  --text-primary: #e8e8e8;
+  --text-secondary: rgba(255, 255, 255, 0.7);
+
+  /* Sidebar */
+  --sidebar-bg: #c2b9aa;
+  --sidebar-width: 300px;
+  --sidebar-min-width: 200px;
+  --sidebar-max-width: 500px;
+
+  /* Card */
+  --card-bg: rgba(45, 45, 45, 0.8);
+  --card-border: rgba(255, 255, 255, 0.08);
+  --card-radius: 20px;
+
+  /* Glass effect */
+  --glass-blur: blur(30px) saturate(180%) contrast(90%);
+
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 24px;
+
+  /* Transitions */
+  --transition-fast: 0.15s ease-out;
+  --transition-normal: 0.3s ease-out;
+}

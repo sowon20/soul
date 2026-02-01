@@ -1,0 +1,49 @@
+{
+  "ai": {
+    "defaultService": "anthropic",
+    "defaultModel": "claude-haiku-4-5-20251001",
+    "services": {
+      "anthropic": {
+        "enabled": false,
+        "apiKey": null
+      },
+      "openai": {
+        "enabled": false,
+        "apiKey": null
+      },
+      "google": {
+        "enabled": false,
+        "apiKey": null
+      },
+      "ollama": {
+        "enabled": true,
+        "baseUrl": "http://localhost:11434"
+      }
+    }
+  },
+  "memory": {
+    "storagePath": "./memory",
+    "autoArchive": true
+  },
+  "files": {
+    "storagePath": "./files"
+  },
+  "routing": {
+    "enabled": true,
+    "light": {
+      "modelId": "claude-opus-4-5-20251101",
+      "serviceId": "anthropic",
+      "thinking": true
+    },
+    "medium": {
+      "modelId": "claude-sonnet-4-20250514",
+      "serviceId": "anthropic",
+      "thinking": false
+    },
+    "heavy": {
+      "modelId": "claude-opus-4-5-20251101",
+      "serviceId": "anthropic",
+      "thinking": false
+    }
+  }
+}

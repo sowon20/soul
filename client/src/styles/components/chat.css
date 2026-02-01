@@ -1,0 +1,175 @@
+/**
+ * Chat Component
+ * 채팅 메시지, 말풍선, 액션 버튼
+ */
+
+/* 채팅 메시지 영역 */
+.chat-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 28px;
+  padding-bottom: 40px;
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+}
+
+.chat-messages.loaded {
+  opacity: 1;
+}
+
+/* 데스크톱에서 사이드바 숨김 시 메시지 영역 상단 여백 제거 */
+@media (min-width: 900px) {
+  .left-card.hide ~ .center-group ~ .right-area .right-card-top {
+    padding-top: 8px;
+  }
+}
+
+/* 메시지 공통 */
+.chat-message {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+}
+
+/* AI 메시지 (왼쪽, 말풍선 없음) */
+.chat-message.assistant {
+  align-items: flex-start;
+}
+
+.chat-message.assistant .message-content {
+  background: transparent;
+  color: #e8e8e8;
+  padding: 0;
+  border-radius: 0;
+  width: 100%;
+  line-height: 1.6;
+}
+
+/* 사용자 메시지 (오른쪽, 말풍선 있음) */
+.chat-message.user {
+  align-items: flex-end;
+}
+
+.chat-message.user .message-content {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  padding: 10px 14px;
+  border-radius: 12px;
+  max-width: 70%;
+  line-height: 1.5;
+}
+
+/* 메시지 시간 */
+.chat-message .message-time {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* 메시지 액션 버튼 */
+.message-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.message-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 0;
+}
+
+.message-action-btn:hover {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.message-action-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* 라우팅 정보 (호버 시 표시) */
+.message-actions .routing-info {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.7rem;
+  color: #9a9590;
+  cursor: default;
+  margin-left: auto;
+  padding-left: 8px;
+}
+
+/* assistant 메시지 호버 시 라우팅 정보 표시 */
+.chat-message.assistant:hover .message-actions .routing-info[data-active="true"] {
+  display: inline-flex;
+}
+
+/* tier 배지 (작은 박스) */
+.routing-info .routing-tier {
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* tier 색상 */
+.routing-info .routing-tier.light,
+.routing-info[data-tier="light"] .routing-tier {
+  background: rgba(74, 222, 128, 0.2);
+  color: #22c55e;
+}
+
+.routing-info .routing-tier.medium,
+.routing-info[data-tier="medium"] .routing-tier {
+  background: rgba(251, 191, 36, 0.2);
+  color: #f59e0b;
+}
+
+.routing-info .routing-tier.heavy,
+.routing-info[data-tier="heavy"] .routing-tier {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+/* 모델명 (사용자 메시지 시간과 같은 스타일) */
+.routing-info .routing-model {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 사용자 메시지 하단 영역 */
+.user-message-footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  margin-top: -2px;
+}
+
+.chat-message.user:hover .user-message-footer {
+  opacity: 1;
+}
+
+/* 사용자 메시지 시간 스타일 */
+.user-message-footer .message-time {
+  order: -1;
+}
+

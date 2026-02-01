@@ -1,0 +1,147 @@
+/**
+ * Chat Page Layout
+ * 채팅 페이지 전용 레이아웃
+ */
+
+/* 오른쪽 영역 래퍼 */
+.right-area {
+  flex: 1;
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+  z-index: 1;
+  position: relative;
+}
+
+/* 모바일에서 right-area의 z-index 조정 */
+@media (max-width: 899px) {
+  .right-area {
+    z-index: auto;
+  }
+}
+
+/* 오른쪽 컨테이너 */
+.right-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  position: relative;
+  z-index: 1;
+}
+
+/* 데스크톱에서 사이드바 숨김 시 대화창 확장 */
+@media (min-width: 900px) {
+  .left-card.hide ~ .center-group ~ .right-area {
+    margin-left: -12px;
+    z-index: auto;
+  }
+}
+
+/* 오른쪽 상단 카드 */
+.right-card-top {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(30px) saturate(180%) contrast(90%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%) contrast(90%);
+  position: relative;
+  overflow-y: auto;
+  padding: 8px 0;
+  box-shadow: none;
+}
+
+/* 스크롤 하단 이동 버튼 */
+.scroll-to-bottom {
+  position: absolute;
+  bottom: 140px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* 독이 표시될 때 버튼 위치 조정 */
+.right-container:has(.dock-test-area:not([style*="display: none"])) .scroll-to-bottom {
+  bottom: calc(140px + var(--dock-height));
+}
+
+.scroll-to-bottom.show {
+  opacity: 1;
+  pointer-events: auto;
+  animation: pulse-wave 2s ease-in-out infinite;
+}
+
+@keyframes pulse-wave {
+  0%, 100% {
+    box-shadow:
+      0 4px 12px rgba(0, 0, 0, 0.15),
+      0 0 0 0 rgba(255, 255, 255, 0.4);
+  }
+  50% {
+    box-shadow:
+      0 4px 12px rgba(0, 0, 0, 0.15),
+      0 0 0 8px rgba(255, 255, 255, 0);
+  }
+}
+
+.scroll-to-bottom:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: translateX(-50%);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+  animation: none;
+}
+
+.scroll-to-bottom svg {
+  width: 20px;
+  height: 20px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* 스크롤바 숨김 (스크롤 기능은 유지) */
+.right-card-top::-webkit-scrollbar {
+  display: none;
+}
+
+/* Firefox */
+.right-card-top {
+  scrollbar-width: none;
+}
+
+
+/* 오른쪽 하단 카드 */
+.right-card-bottom {
+  height: auto;
+  min-height: 100px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(30px) saturate(180%) contrast(90%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%) contrast(90%);
+  position: relative;
+  padding: 16px 20px;
+}
+
+/* 거친 유리 질감을 위한 noise 효과 */
+.right-card-bottom::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
+  border-radius: 20px;
+  pointer-events: none;
+  opacity: 0.8;
+}
+

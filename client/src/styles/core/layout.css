@@ -1,0 +1,38 @@
+/**
+ * Layout Styles
+ * 컨테이너, 그리드, 레이아웃 관련 스타일
+ */
+
+/* 컨테이너 */
+.container {
+  display: flex;
+  height: 100vh;
+  padding: clamp(4px, 0.5vw, 16px);
+  gap: 12px;
+  position: relative;
+  z-index: 1;
+}
+
+/* 900px 이상에서만 overflow: hidden */
+@media (min-width: 900px) {
+  .container {
+    overflow: hidden;
+  }
+}
+
+/* 중앙 그룹 (가운데 패널) */
+.center-group {
+  flex: 1;
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* 오른쪽 영역 */
+.right-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}

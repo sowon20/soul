@@ -1,0 +1,160 @@
+/**
+ * AI Service Manager Styles
+ * 간단한 기능 위주 스타일 (추후 디자인 개선 예정)
+ */
+
+.ai-service-container {
+  padding: 10px;
+  max-width: 100%;
+  margin: 0 auto;
+  color: #333;
+}
+
+.ai-service-header {
+  margin-bottom: 20px;
+}
+
+.ai-service-header h1 {
+  margin: 0 0 10px 0;
+  font-size: 24px;
+  color: #333;
+}
+
+.ai-service-header p {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+}
+
+/* 테이블 */
+.service-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border: 1px solid #ddd;
+  margin-top: 20px;
+  color: #333;
+}
+
+.service-table th {
+  background: #f5f5f5;
+  padding: 12px;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 2px solid #ddd;
+  color: #333;
+}
+
+.service-table td {
+  padding: 12px;
+  border-bottom: 1px solid #eee;
+  color: #333;
+}
+
+.service-table tbody tr:hover {
+  background: #f9f9f9;
+}
+
+/* 배지 */
+.badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.badge-success {
+  background: #d4edda;
+  color: #155724;
+}
+
+.badge-warning {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.badge-inactive {
+  background: #e2e3e5;
+  color: #6c757d;
+}
+
+/* 버튼 */
+.btn {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  margin-right: 4px;
+}
+
+.btn:hover {
+  opacity: 0.9;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-sm {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.btn-primary {
+  background: #007bff;
+  color: white;
+}
+
+.btn-secondary {
+  background: #6c757d;
+  color: white;
+}
+
+.btn-success {
+  background: #28a745;
+  color: white;
+}
+
+.btn-warning {
+  background: #ffc107;
+  color: #212529;
+}
+
+/* 다크모드 대응 (기존 테마 따라가기) */
+@media (prefers-color-scheme: dark) {
+  .ai-service-container {
+    color: #fff;
+  }
+
+  .ai-service-header h1 {
+    color: #fff;
+  }
+
+  .ai-service-header p {
+    color: #aaa;
+  }
+
+  .service-table {
+    background: #2a2a2a;
+    border-color: #444;
+    color: #fff;
+  }
+
+  .service-table th {
+    background: #333;
+    border-bottom-color: #555;
+    color: #fff;
+  }
+
+  .service-table td {
+    border-bottom-color: #444;
+    color: #ddd;
+  }
+
+  .service-table tbody tr:hover {
+    background: #333;
+  }
+}

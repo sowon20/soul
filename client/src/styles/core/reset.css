@@ -1,0 +1,30 @@
+/**
+ * Reset & Base Styles
+ * 기본 리셋 및 베이스 스타일
+ */
+
+/* 기본 리셋 */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background-color: var(--bg-dark, #1e1b1a);
+  color: var(--text-primary, #e8e8e8);
+  font-size: 14px;
+  overflow: hidden;
+}
+
+/* 배경 */
+.bg {
+  position: fixed;
+  inset: 0;
+  background:
+    linear-gradient(rgba(75, 71, 70, 0.5), rgba(75, 71, 70, 0.5)),
+    url('/public/bg/bg.jpg') center/cover no-repeat;
+  opacity: 0.4;
+  z-index: -1;
+}

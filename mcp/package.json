@@ -1,0 +1,32 @@
+{
+  "name": "soul-mcp-server",
+  "version": "1.0.0",
+  "description": "Soul MCP Server - Model Context Protocol implementation",
+  "main": "hub-server.js",
+  "bin": {
+    "soul-mcp": "./hub-server.js"
+  },
+  "scripts": {
+    "start": "node hub-server.js",
+    "test": "echo 'MCP Server - use mcp-inspector for testing'"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "soul",
+    "ai",
+    "memory"
+  ],
+  "author": "Soul Project",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.5.0",
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/inspector": "^0.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

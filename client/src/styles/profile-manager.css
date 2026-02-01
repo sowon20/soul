@@ -1,0 +1,519 @@
+/**
+ * Profile Manager Styles - Phase P
+ */
+
+.profile-panel {
+  padding: 1rem;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.profile-section {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.profile-section-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 0 0 1rem 0;
+  color: var(--foreground);
+}
+
+.profile-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+/* 기본 정보 */
+.profile-basic-info {
+  display: grid;
+  gap: 1rem;
+}
+
+.profile-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.profile-field label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+
+.profile-field small {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  margin-top: 0.25rem;
+}
+
+.profile-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 0.875rem;
+  transition: border-color 0.2s;
+}
+
+.profile-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.1);
+}
+
+/* 버튼 */
+.profile-btn {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.profile-btn-add {
+  background: var(--primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.profile-btn-add:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.profile-btn-save {
+  background: var(--primary);
+  color: white;
+  width: 100%;
+  margin-top: 1rem;
+}
+
+.profile-btn-save:hover {
+  opacity: 0.9;
+}
+
+/* 커스텀 필드 */
+.profile-custom-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.profile-empty {
+  color: var(--muted-foreground);
+  text-align: center;
+  padding: 2rem;
+  font-size: 0.875rem;
+}
+
+.profile-custom-field {
+  display: flex;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  cursor: move;
+  transition: all 0.2s;
+}
+
+.profile-custom-field:hover {
+  border-color: var(--primary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.profile-custom-field[draggable="true"] {
+  user-select: none;
+}
+
+.profile-field-drag-handle {
+  font-size: 1.25rem;
+  color: var(--muted-foreground);
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  padding: 0.25rem;
+}
+
+.profile-field-drag-handle:active {
+  cursor: grabbing;
+}
+
+.profile-field-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.profile-field-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.profile-field-label {
+  flex: 1;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 0.875rem;
+}
+
+.profile-field-label:hover {
+  border-color: var(--border);
+  background: var(--background);
+}
+
+.profile-field-label:focus {
+  outline: none;
+  border-color: var(--primary);
+  background: var(--background);
+}
+
+.profile-field-delete {
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: var(--destructive);
+  font-size: 1.5rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.profile-custom-field:hover .profile-field-delete {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.profile-field-delete:hover {
+  background: var(--destructive);
+  color: white;
+}
+
+.profile-field-value {
+  width: 100%;
+}
+
+.profile-field-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 0.875rem;
+  transition: border-color 0.2s;
+}
+
+.profile-field-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.1);
+}
+
+.profile-field-input[type="textarea"],
+textarea.profile-field-input {
+  min-height: 4rem;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.profile-field-meta {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.profile-field-type {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  background: var(--background);
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.profile-field-type:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+/* 권한 설정 */
+.profile-permissions {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.profile-permissions .profile-field label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.profile-permissions .profile-field input[type="checkbox"] {
+  width: 1.25rem;
+  height: 1.25rem;
+  cursor: pointer;
+}
+
+/* 저장 상태 */
+.profile-save-status {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  display: none;
+  z-index: 1000;
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.profile-save-status.info {
+  background: var(--primary);
+  color: white;
+}
+
+.profile-save-status.success {
+  background: var(--success, #10b981);
+  color: white;
+}
+
+.profile-save-status.error {
+  background: var(--destructive);
+  color: white;
+}
+
+/* 에러 메시지 */
+.error-message {
+  padding: 2rem;
+  text-align: center;
+  color: var(--destructive);
+}
+
+.error-message p {
+  margin: 0.5rem 0;
+}
+
+/* 반응형 */
+@media (max-width: 768px) {
+  .profile-panel {
+    padding: 0.75rem;
+  }
+
+  .profile-section {
+    padding: 1rem;
+  }
+
+  .profile-custom-field {
+    flex-direction: column;
+  }
+
+  .profile-field-drag-handle {
+    align-self: flex-start;
+  }
+}
+
+/* 다크 모드 호환 */
+[data-theme="dark"] .profile-custom-field {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="dark"] .profile-custom-field:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* 프로필 사진 섹션 */
+.profile-image-section {
+  text-align: center;
+  padding: 0 !important;
+  padding-top: 0.5rem !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+.profile-image-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.profile-image-wrapper {
+  position: relative;
+  width: 100%;
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.03);
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.profile-image-wrapper:hover {
+  border-color: var(--primary, #3b82f6);
+  transform: scale(1.02);
+}
+
+.profile-image-wrapper:hover .profile-image-overlay {
+  opacity: 1;
+}
+
+.profile-image-preview {
+  width: 100%;
+  height: auto;
+  display: block;
+  opacity: 0.7;
+  transition: opacity 0.3s ease;
+}
+
+.profile-image-wrapper:hover .profile-image-preview {
+  opacity: 1;
+}
+
+.profile-image-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+}
+
+.profile-image-placeholder svg {
+  width: 48px;
+  height: 48px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.profile-image-overlay {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%) translateY(10px);
+  width: 90%;
+  right: auto;
+  top: auto;
+  background: rgba(30, 30, 35, 0.7);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 6px 16px;
+  border-radius: 20px;
+  opacity: 0;
+  transition: all 0.25s ease;
+}
+
+.profile-image-wrapper:hover .profile-image-overlay {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.profile-image-upload-btn,
+.profile-image-delete-btn {
+  width: auto;
+  height: auto;
+  padding: 4px 8px;
+  border-radius: 12px;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.profile-image-upload-btn {
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.profile-image-upload-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.profile-image-delete-btn {
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 150, 150, 0.9);
+}
+
+.profile-image-delete-btn:hover {
+  background: rgba(255, 100, 100, 0.3);
+}
+
+.profile-image-upload-btn svg,
+.profile-image-delete-btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* 반응형 - 프로필 사진 */
+@media (max-width: 768px) {
+  .profile-image-wrapper {
+    width: 100%;
+  }
+
+  .profile-image-placeholder svg {
+    width: 40px;
+    height: 40px;
+  }
+
+  .profile-image-upload-btn,
+  .profile-image-delete-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .profile-image-upload-btn svg,
+  .profile-image-delete-btn svg {
+    width: 18px;
+    height: 18px;
+  }
+}

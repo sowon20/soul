@@ -1,0 +1,126 @@
+/**
+ * Sidebar Component
+ * 왼쪽 사이드바 + 가운데 메뉴 카드
+ */
+
+/* 왼쪽 카드 - 베이지 */
+.left-card {
+  width: 350px;
+  min-width: 200px;
+  max-width: 500px;
+  flex-shrink: 0;
+  background: #c2b9aa;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  transition: opacity 0.15s ease-out, visibility 0.15s ease-out;
+  z-index: 10;
+}
+
+/* 900px 미만: overlay (위로 덮음) */
+@media (max-width: 899px) {
+  .left-card {
+    position: fixed;
+    left: 12px;
+    top: 12px;
+    bottom: 12px;
+    width: 350px;
+    min-width: 0;
+    max-width: 350px;
+    z-index: 101;
+    flex-shrink: 0;
+  }
+
+  .left-card.hide {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  /* 왼쪽 카드가 숨겨지면 center-card만 숨김, 토글 버튼은 유지 (모바일만) */
+  .left-card.hide ~ .center-group .center-card {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  /* 토글 버튼은 항상 보이도록 */
+  .left-card.hide ~ .center-group .mobile-menu-btn {
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+  }
+}
+
+/* 가운데 그룹 (center-card + 토글 버튼) */
+.center-group {
+  display: flex;
+  gap: 12px;
+  flex-shrink: 0;
+  z-index: 10;
+  position: relative;
+  transition: opacity 0.15s ease-out, visibility 0.15s ease-out, width 0.15s ease-out;
+}
+
+/* 데스크톱에서 숨김 시 flex 공간 제거 */
+@media (min-width: 900px) {
+  .center-group.hide {
+    width: 0;
+    min-width: 0;
+    overflow: visible;
+    transform: none;
+    margin: 0;
+    gap: 0;
+    padding: 0;
+    /* visibility를 제거하여 토글 버튼이 보이도록 함 */
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .center-group.hide .center-card {
+    display: none;
+  }
+
+  .left-card.hide {
+    display: none;
+  }
+}
+
+/* 가운데 카드 (좁음) - 아이보리 */
+.center-card {
+  width: 64px;
+  flex-shrink: 0;
+  background: #e8e4df;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 8px;
+}
+
+/* 900px 미만: overlay (위로 덮음) */
+@media (max-width: 899px) {
+  .center-group {
+    position: fixed;
+    left: 374px;
+    top: 12px;
+    z-index: 100;
+    overflow: visible;
+  }
+
+  .center-group.hide {
+    transform: translateX(calc(-374px));
+    /* 토글 버튼은 계속 보이도록 opacity/visibility 제거 */
+  }
+
+  .center-group.hide .center-card {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .center-card {
+    width: 64px;
+    height: calc(100vh - 24px);
+  }
+}

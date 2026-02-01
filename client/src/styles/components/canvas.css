@@ -1,0 +1,213 @@
+/**
+ * Canvas Panel Component
+ * 오른쪽 캔버스 패널 (토글 가능)
+ */
+
+/* 맨 오른쪽 패널 */
+.canvas-panel {
+  width: 350px;
+  min-width: 250px;
+  max-width: 500px;
+  flex-shrink: 0;
+  background: rgba(78, 78, 78, 0.7);
+  backdrop-filter: blur(30px) saturate(180%) contrast(90%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%) contrast(90%);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  transition: all 0.3s ease-out;
+  z-index: 5;
+  padding: 24px 0 24px 24px !important;
+  box-shadow: none;
+}
+
+/* 화면이 작을 때 최소 너비 줄이기 */
+@media (max-width: 1200px) {
+  .canvas-panel {
+    min-width: 200px;
+    width: 300px;
+  }
+}
+
+@media (max-width: 900px) {
+  .canvas-panel {
+    min-width: 150px;
+    width: 250px;
+  }
+}
+
+/* 화면이 600px 이하일 때 오른쪽 패널 숨김 */
+@media (max-width: 600px) {
+  .canvas-panel {
+    display: none;
+  }
+}
+
+/* 거친 유리 질감 */
+.canvas-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
+  background-size: 12px 12px, 12px 12px, auto;
+  border-radius: 20px;
+  pointer-events: none;
+  opacity: 1;
+}
+
+.canvas-panel.hide {
+  display: none !important;
+}
+
+/* 기본적으로 숨김 */
+.canvas-panel {
+  display: none !important;
+}
+
+.canvas-panel:not(.hide) {
+  display: flex !important;
+}
+
+/* Canvas 패널 디버깅 - 완전히 숨김 */
+#canvasPanel.hide {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  min-width: 0 !important;
+}
+
+#canvasPanel.hide::before {
+  display: none !important;
+}
+
+/* 모든 화면 크기에서 hide 클래스 강제 적용 */
+@media (max-width: 1200px) {
+  .canvas-panel.hide {
+    display: none !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .canvas-panel.hide {
+    display: none !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .canvas-panel {
+    display: none !important;
+  }
+}
+
+/* 오른쪽 패널 리사이저 */
+.canvas-resizer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: col-resize;
+  z-index: 10;
+}
+
+.canvas-resizer::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 20px;
+  bottom: 20px;
+  width: 1px;
+  transform: translateX(-50%);
+  background: transparent;
+  transition: all 0.2s;
+}
+
+.canvas-resizer:hover::before {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.2) 0px,
+    rgba(255, 255, 255, 0.2) 3px,
+    transparent 3px,
+    transparent 6px
+  );
+}
+
+.canvas-resizer.resizing::before {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.3) 0px,
+    rgba(255, 255, 255, 0.3) 3px,
+    transparent 3px,
+    transparent 6px
+  );
+}
+
+.canvas-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 16px;
+  padding-right: 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  position: relative;
+  z-index: 1;
+}
+
+.canvas-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #e8e8e8;
+}
+
+.close-panel-btn {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px 8px;
+  transition: color 0.2s;
+}
+
+.close-panel-btn:hover {
+  color: #ffffff;
+}
+
+.canvas-content {
+  flex: 1;
+  overflow-y: auto;
+  padding-top: 16px;
+  padding-right: 24px;
+  position: relative;
+  z-index: 1;
+}
+
+/* 오른쪽 패널 스크롤바 */
+.canvas-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.canvas-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.canvas-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+
+.canvas-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Firefox */
+.canvas-content {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+

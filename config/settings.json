@@ -1,0 +1,50 @@
+{
+  "ai": {
+    "defaultService": "anthropic",
+    "defaultModel": "claude-haiku-4-5-20251001",
+    "services": {
+      "anthropic": {
+        "enabled": true,
+        "apiKey": "your_anthropic_key_here"
+      },
+      "openai": {
+        "enabled": true,
+        "apiKey": "your_openai_key_here"
+      },
+      "google": {
+        "enabled": true,
+        "apiKey": "your_google_key_here"
+      },
+      "ollama": {
+        "enabled": true,
+        "baseUrl": "http://localhost:11434"
+      }
+    }
+  },
+  "memory": {
+    "storagePath": "./memory",
+    "autoArchive": true,
+    "autoSave": true,
+    "autoInject": true,
+    "shortTermSize": 50,
+    "compressionThreshold": 80
+  },
+  "files": {
+    "storagePath": "./files"
+  },
+  "routing": {
+    "enabled": true,
+    "light": {
+      "modelId": "claude-haiku-4-5-20251001",
+      "serviceId": "anthropic"
+    },
+    "medium": {
+      "modelId": "gemini-3-flash-preview",
+      "serviceId": "google"
+    },
+    "heavy": {
+      "modelId": "gemini-3-flash-preview",
+      "serviceId": "google"
+    }
+  }
+}

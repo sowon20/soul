@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Soul</title>
+  <link rel="stylesheet" href="/src/styles/main.css?v=74">
+  <!-- Prism.js CSS - VSCode Dark Theme -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+  <!-- Marked.js for Markdown rendering -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
+  <!-- Socket.io Client -->
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <!-- Google Fonts for Neomorphic Title -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@500&family=Poppins:wght@700;800&family=Montserrat:wght@700;800&family=Raleway:wght@700;800&family=Roboto:wght@700;900&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- 배경 -->
+  <div class="bg"></div>
+
+  <!-- 모바일 오버레이 -->
+  <div class="mobile-overlay" id="mobileOverlay"></div>
+
+  <!-- 3개 카드 레이아웃 -->
+  <div class="container">
+    <!-- 왼쪽 카드 (좁은 사이드바) -->
+    <div class="card left-card">
+      <div class="left-resizer"></div>
+      <h1 class="neomorphic-title">
+        <span class="neomorphic-text" data-text=".soul">.soul</span>
+      </h1>
+
+      <div class="search-box">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/>
+          <path d="M21 21l-4.35-4.35"/>
+        </svg>
+        <input type="text" placeholder="Search" class="search-input">
+      </div>
+
+      <!-- 대시보드 - AI 라우팅 통계 -->
+      <div class="dashboard">
+        <div class="dashboard-section">
+          <div class="dashboard-title-row">
+            <h3 class="dashboard-title">AI 사용 통계</h3>
+            <div class="stats-actions">
+              <button class="stats-text-btn" id="refreshStatsBtn">새로고침</button>
+              <button class="stats-text-btn stats-text-danger" id="resetStatsBtn">초기화</button>
+            </div>
+          </div>
+          <!-- 기간 선택 탭 -->
+          <div class="stats-period-tabs">
+            <button class="stats-period-tab active" data-period="today">오늘</button>
+            <button class="stats-period-tab" data-period="week">주간</button>
+            <button class="stats-period-tab" data-period="month">월간</button>
+            <button class="stats-period-tab" data-period="all">전체</button>
+            <button class="stats-period-tab" data-period="custom">기간</button>
+          </div>
+          <!-- 커스텀 기간 선택 -->
+          <div class="stats-date-range" id="statsDateRange" style="display: none;">
+            <input type="date" id="statsStartDate" class="stats-date-input">
+            <span class="stats-date-separator">~</span>
+            <input type="date" id="statsEndDate" class="stats-date-input">
+            <button id="statsDateApply" class="stats-date-apply">조회</button>
+          </div>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <div class="stat-label">총 요청</div>
+              <div class="stat-value" id="stat-requests">0</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">경량</div>
+              <div class="stat-value" id="stat-light">0%</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">중간</div>
+              <div class="stat-value" id="stat-medium">0%</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">고성능</div>
+              <div class="stat-value" id="stat-heavy">0%</div>
+            </div>
+          </div>
+          <div class="stats-grid stats-secondary">
+            <div class="stat-item stat-cost-item">
+              <div class="stat-label">예상 비용</div>
+              <div class="stat-value stat-cost-wrapper">
+                <span id="stat-cost">$0.00</span>
+                <div class="currency-dropdown" id="currencyDropdown">
+                  <button class="currency-option" data-currency="USD">$</button>
+                  <button class="currency-option" data-currency="KRW">₩</button>
+                </div>
+              </div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">평균 응답</div>
+              <div class="stat-value" id="stat-latency">-</div>
+            </div>
+          </div>
+          <!-- 토큰 사용량 (눈에 띄게) -->
+          <div class="token-usage-highlight">
+            <div class="token-usage-header">
+              <span class="token-label">토큰 사용량</span>
+            </div>
+            <div class="token-usage-values">
+              <div class="token-stat">
+                <span class="token-stat-label">총</span>
+                <span class="token-stat-value" id="stat-total-tokens">0</span>
+              </div>
+              <div class="token-stat">
+                <span class="token-stat-label">입력</span>
+                <span class="token-stat-value" id="stat-input-tokens">0</span>
+              </div>
+              <div class="token-stat">
+                <span class="token-stat-label">출력</span>
+                <span class="token-stat-value" id="stat-output-tokens">0</span>
+              </div>
+            </div>
+            <div class="token-per-request" id="stat-tokens-per-request">
+              평균 <span>0</span> 토큰/요청
+            </div>
+            <!-- 입력 토큰 분류 (누적 + 마지막 요청) -->
+            <div class="token-breakdown-section">
+              <!-- 마지막 요청 -->
+              <div class="breakdown-panel" id="lastRequestPanel">
+                <div class="breakdown-panel-header" data-target="lastRequestContent">
+                  <h5 class="breakdown-title">마지막 요청</h5>
+                  <span class="breakdown-time" id="lastRequestTime">-</span>
+                  <span class="breakdown-toggle">▼</span>
+                </div>
+                <div class="breakdown-panel-content" id="lastRequestContent">
+                  <div class="last-request-model-row">
+                    <span class="last-req-tier-badge" id="lastReqTier">-</span>
+                    <span class="last-req-model-name" id="lastReqModel">-</span>
+                  </div>
+                  <div class="last-request-stats">
+                    <span class="last-stat">입력 <strong id="lastReqInput">-</strong></span>
+                    <span class="last-stat">출력 <strong id="lastReqOutput">-</strong></span>
+                    <span class="last-stat" id="lastReqCost">-</span>
+                    <span class="last-stat" id="lastReqLatency">-</span>
+                  </div>
+                  <div class="breakdown-bar-container">
+                    <div class="breakdown-bar">
+                      <div class="breakdown-segment messages" id="lastBreakdownMessages" style="width: 0%"></div>
+                      <div class="breakdown-segment system" id="lastBreakdownSystem" style="width: 0%"></div>
+                      <div class="breakdown-segment tools" id="lastBreakdownTools" style="width: 0%"></div>
+                    </div>
+                    <div class="breakdown-legend">
+                      <span class="legend-item"><span class="legend-dot messages"></span>메시지 <span id="lastBreakdownMessagesVal">0</span></span>
+                      <span class="legend-item"><span class="legend-dot system"></span>시스템 <span id="lastBreakdownSystemVal">0</span></span>
+                      <span class="legend-item"><span class="legend-dot tools"></span>도구(<span id="lastBreakdownToolCount">0</span>) <span id="lastBreakdownToolsVal">0</span></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <!-- 누적 -->
+              <div class="breakdown-panel collapsed" id="cumulativePanel">
+                <div class="breakdown-panel-header" data-target="cumulativeContent">
+                  <h5 class="breakdown-title">누적</h5>
+                  <span class="breakdown-toggle">▶</span>
+                </div>
+                <div class="breakdown-panel-content" id="cumulativeContent" style="display: none;">
+                  <div id="token-breakdown" class="token-breakdown">
+                    <div class="no-data">분류 데이터 없음</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 모델별 사용량 -->
+          <div class="model-usage-section">
+            <h4 class="model-usage-title">모델별 사용량</h4>
+            <div id="model-usage-list" class="model-usage-list">
+              <div class="no-data">아직 사용 기록이 없습니다</div>
+            </div>
+          </div>
+          <!-- 카테고리별 사용량 (내부/외부 구분) -->
+          <div class="category-usage-section">
+            <h4 class="category-usage-title">용도별 사용량</h4>
+            <div id="category-usage-list" class="category-usage-list">
+              <div class="no-data">카테고리별 기록 없음</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 가운데 카드 + 토글 버튼 래퍼 -->
+    <div class="center-group">
+      <!-- 가운데 카드 (좁은 아이콘 사이드바) -->
+      <div class="card center-card">
+        <!-- 캘린더 위젯 -->
+        <div class="calendar-widget">
+          <div class="calendar-weekday" id="calendarWeekday">Mon</div>
+          <div class="calendar-month" id="calendarMonth">Jul</div>
+          <div class="calendar-day" id="calendarDay">15</div>
+        </div>
+
+        <!-- 시간 표시 (플립 스타일) -->
+        <div class="flip-time">
+          <div class="flip-digit" id="hourTens">0</div>
+          <div class="flip-digit" id="hourOnes">0</div>
+          <div class="flip-separator">:</div>
+          <div class="flip-digit" id="minuteTens">0</div>
+          <div class="flip-digit" id="minuteOnes">0</div>
+        </div>
+
+        <!-- 구분선 -->
+        <div style="width: 100%; height: 1px; background: rgba(0,0,0,0.1); margin: 12px 0;"></div>
+
+        <!-- 뉴모픽 버튼 (별도) -->
+        <button class="neo-btn neo-btn-1">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/>
+            <rect x="14" y="14" width="7" height="7" rx="1"/>
+          </svg>
+          <span>대시보드</span>
+        </button>
+        <button class="neo-btn neo-btn-2">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2a3 3 0 0 0-3 3v1H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-3V5a3 3 0 0 0-3-3z"/>
+            <circle cx="9" cy="13" r="1"/>
+            <circle cx="15" cy="13" r="1"/>
+            <path d="M9 17h6"/>
+          </svg>
+          <span>AI</span>
+        </button>
+        <button class="neo-btn neo-btn-3">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+          <span>APP</span>
+        </button>
+        <button class="neo-btn neo-btn-4">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="2" width="20" height="8" rx="2"/>
+            <rect x="2" y="14" width="20" height="8" rx="2"/>
+            <circle cx="6" cy="6" r="1" fill="currentColor"/>
+            <circle cx="6" cy="18" r="1" fill="currentColor"/>
+          </svg>
+          <span>서버</span>
+        </button>
+
+        <!-- 프로필 영역 -->
+        <div class="profile-nickname" id="profileNickname"></div>
+        <button class="profile-btn" id="profileBtn" title="프로필 관리">
+          <div class="profile-avatar"></div>
+        </button>
+      </div>
+
+      <!-- 모바일 메뉴 토글 버튼 -->
+      <button class="mobile-menu-btn" id="mobileMenuBtn">.soul</button>
+    </div>
+
+    <!-- 오른쪽 영역 래퍼 -->
+    <div class="right-area">
+      <!-- 오른쪽 카드 (상하 분할) -->
+      <div class="right-container">
+        <button class="scroll-to-bottom" id="scrollToBottom" title="맨 아래로">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="7 13 12 18 17 13"/>
+            <polyline points="7 6 12 11 17 6"/>
+          </svg>
+        </button>
+        <!-- 채팅 메시지 영역 -->
+        <div class="card right-card-top" id="chatContainer">
+          <div class="chat-messages" id="messagesArea">
+            <!-- 메시지는 JS에서 동적으로 로드됨 -->
+          </div>
+        </div>
+
+
+        <!-- MacOS Dock 영역 -->
+        <div class="dock-test-area">
+          <div class="dock">
+            <!-- DB에서 동적 로드 -->
+          </div>
+        </div>
+
+        <!-- 채팅 입력창 -->
+        <div class="card right-card-bottom">
+          <form id="chatForm" class="chat-input-wrapper">
+            <textarea id="messageInput" class="chat-input" placeholder="Message .Soul" rows="1"></textarea>
+            <div class="chat-actions">
+              <div class="chat-actions-left">
+                <button class="attach-btn" title="추가">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                    <line x1="12" y1="4" x2="12" y2="20"/>
+                    <line x1="4" y1="12" x2="20" y2="12"/>
+                  </svg>
+                </button>
+                <button class="attach-btn" title="MCP">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <circle cx="18" cy="5" r="3"/>
+                    <circle cx="6" cy="12" r="3"/>
+                    <circle cx="18" cy="19" r="3"/>
+                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                  </svg>
+                </button>
+                <button class="attach-btn" id="toggleRightPanelBtn" title="Details">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M12 1v6m0 6v6M1 12h6m6 0h6"/>
+                    <circle cx="12" cy="12" r="10"/>
+                  </svg>
+                </button>
+                <button class="attach-btn" id="testBoxToggleBtn" title="테스트 박스">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <line x1="3" y1="9" x2="21" y2="9"/>
+                    <line x1="9" y1="21" x2="9" y2="9"/>
+                  </svg>
+                </button>
+              </div>
+              <button id="sendBtn" type="submit" class="chat-send-btn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                </svg>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- 맨 오른쪽 패널 (토글 가능) -->
+      <div class="card canvas-panel hide" id="canvasPanel">
+        <div class="canvas-resizer" id="canvasResizer"></div>
+        <div class="canvas-header">
+          <div class="canvas-tabs" id="canvasTabs"></div>
+          <button class="close-panel-btn" id="closeCanvasPanelBtn">✕</button>
+        </div>
+        <div class="canvas-content" id="canvasContent"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 메시지 템플릿 -->
+  <!-- 사용자 메시지 템플릿 -->
+  <template id="userMessageTemplate">
+    <div class="chat-message user">
+      <div class="message-content"></div>
+      <div class="user-message-footer">
+        <div class="message-time"></div>
+        <button class="message-action-btn copy-btn" title="복사">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+            <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+          </svg>
+        </button>
+        <button class="message-action-btn edit-btn" title="수정">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 20h9"/>
+            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+          </svg>
+        </button>
+        <button class="message-action-btn delete-btn" title="삭제">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </template>
+
+  <!-- AI 메시지 템플릿 -->
+  <template id="assistantMessageTemplate">
+    <div class="chat-message assistant">
+      <div class="message-content"></div>
+      <div class="message-actions">
+        <button class="message-action-btn copy-btn" title="복사">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+            <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+          </svg>
+        </button>
+        <button class="message-action-btn like-btn" title="좋아요">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3zM7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3"/>
+          </svg>
+        </button>
+        <button class="message-action-btn dislike-btn" title="싫어요">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3zm7-13h2.67A2.31 2.31 0 0122 4v7a2.31 2.31 0 01-2.33 2H17"/>
+          </svg>
+        </button>
+        <button class="message-action-btn bookmark-btn" title="북마크">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/>
+          </svg>
+        </button>
+        <button class="message-action-btn retry-btn" title="재생성">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="23 4 23 10 17 10"/>
+            <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
+          </svg>
+        </button>
+        <!-- 라우팅 정보 (호버 시 표시) -->
+        <span class="routing-info" title="">
+          <span class="routing-tier"></span>
+          <span class="routing-model"></span>
+        </span>
+      </div>
+    </div>
+  </template>
+
+  <!-- Gooey 효과용 SVG 필터 -->
+  <svg style="position:absolute;width:0;height:0;">
+    <defs>
+      <filter id="gooey">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="blur"/>
+        <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -10" result="gooey"/>
+      </filter>
+    </defs>
+  </svg>
+
+  <!-- 타이핑 인디케이터 템플릿 (끈적끈적 글로우 점) -->
+  <template id="typingIndicatorTemplate">
+    <div class="chat-message assistant typing-indicator">
+      <div class="message-content">
+        <div class="typing-dots">
+          <div class="os1-loader">
+            <div class="dot"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- 외부 링크 팝업 모달 -->
+  <div class="external-link-modal" id="externalLinkModal">
+    <div class="external-link-backdrop"></div>
+    <div class="external-link-dialog">
+      <h3 class="external-link-title">링크 열기</h3>
+      <p class="external-link-desc">아래의 링크로 이동합니다.</p>
+      <div class="external-link-url" id="externalLinkUrl"></div>
+      <div class="external-link-actions">
+        <button class="external-link-btn cancel" id="externalLinkCancel">취소</button>
+        <button class="external-link-btn confirm" id="externalLinkConfirm">열기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Prism.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-jsx.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+  <script type="module" src="/src/main.js?v=27"></script>
+</body>
+</html>
