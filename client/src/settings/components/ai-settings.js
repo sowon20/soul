@@ -1598,7 +1598,7 @@ export class AISettings {
             <div class="oracle-field">
               <label>사용자</label>
               <input type="text" id="oracleUser" class="storage-input"
-                     value="${this.storageConfig.oracle?.user || ''}" placeholder="예: ADMIN">
+                     value="" placeholder="예: ADMIN">
             </div>
             <div class="oracle-field">
               <label>비밀번호</label>
