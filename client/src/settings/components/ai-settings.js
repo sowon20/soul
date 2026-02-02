@@ -1610,9 +1610,6 @@ export class AISettings {
                      placeholder="데이터 암호화용 키">
             </div>
           </div>
-          <div class="oracle-info">
-            <small>🔒 비밀번호는 시스템 키체인에 안전하게 저장됩니다</small>
-          </div>
           <div class="storage-test-row">
             <button class="settings-btn settings-btn-outline" id="testOracleBtn">🔌 연결 테스트</button>
             <span class="test-result" id="oracleTestResult"></span>
