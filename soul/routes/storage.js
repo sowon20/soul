@@ -266,39 +266,83 @@ router.get('/browse/check', async (req, res) => {
 
 /**
  * POST /api/storage/migrate
- * 저장소 간 데이터 마이그레이션
+ * 저장소 간 데이터 마이그레이션 (전체 데이터 이동)
  */
 router.post('/migrate', async (req, res) => {
   try {
-    const { section, from, to } = req.body;
+    // 클라이언트에서 보내는 파라미터: fromType, toType
+    const { fromType, toType, section, from, to } = req.body;
 
-    if (!section || !from || !to) {
+    // 파라미터 호환성 처리 (fromType/toType 또는 from/to)
+    const sourceType = fromType || from;
+    const targetType = toType || to;
+
+    if (!sourceType || !targetType) {
       return res.status(400).json({
         success: false,
-        error: 'section, from, to 필드가 필요합니다.'
+        error: 'fromType, toType 필드가 필요합니다.'
       });
     }
 
-    console.log(`[Storage Migration] ${section}: ${from} → ${to}`);
+    console.log(`[Storage Migration] 전체 마이그레이션: ${sourceType} → ${targetType}`);
 
-    // 저장소 어댑터 로드
-    const sourceAdapter = await getStorageAdapter(from, section);
-    const targetAdapter = await getStorageAdapter(to, section);
+    // 전체 섹션 마이그레이션 (대화, 메모리, 설정 등)
+    const sections = section ? [section] : ['conversations', 'memory', 'config'];
+    const results = {};
 
-    if (!sourceAdapter || !targetAdapter) {
-      return res.status(400).json({
-        success: false,
-        error: '저장소 어댑터를 로드할 수 없습니다.'
-      });
+    for (const sec of sections) {
+      try {
+        console.log(`[Storage Migration] ${sec} 마이그레이션 시작...`);
+
+        // 저장소 어댑터 로드
+        const sourceAdapter = await getStorageAdapter(sourceType, sec);
+        const targetAdapter = await getStorageAdapter(targetType, sec);
+
+        if (sourceAdapter && targetAdapter) {
+          const result = await migrateData(sourceAdapter, targetAdapter, sec);
+          results[sec] = result;
+          console.log(`[Storage Migration] ${sec} 완료:`, result);
+        } else {
+          results[sec] = { skipped: true, reason: 'adapter not available' };
+        }
+      } catch (secError) {
+        console.error(`[Storage Migration] ${sec} 실패:`, secError.message);
+        results[sec] = { error: secError.message };
+      }
     }
 
-    // 데이터 마이그레이션 수행
-    const result = await migrateData(sourceAdapter, targetAdapter, section);
+    // 중요: 서버의 모든 저장소 인스턴스 리셋하여 새 설정 적용
+    console.log('[Storage Migration] 저장소 인스턴스 재초기화...');
+    const { resetMemoryManager } = require('../utils/memory-layers');
+    const { resetConversationPipeline } = require('../utils/conversation-pipeline');
+    const { clearStorageConfigCache } = require('../utils/conversation-store');
+    const { resetArchiver } = require('../utils/conversation-archiver');
+
+    clearStorageConfigCache();
+    resetArchiver();
+    resetMemoryManager();
+    resetConversationPipeline();
+
+    // 새 저장소 타입으로 연결 시도
+    if (targetType === 'oracle') {
+      try {
+        const { OracleStorage } = require('../utils/oracle-storage');
+        const oracle = new OracleStorage();
+        await oracle.initialize();
+        console.log('[Storage Migration] Oracle 연결 성공');
+      } catch (oracleError) {
+        console.warn('[Storage Migration] Oracle 연결 실패 (무시됨):', oracleError.message);
+      }
+    }
+
+    console.log('[Storage Migration] 마이그레이션 완료!');
 
     res.json({
       success: true,
-      message: `${section} 마이그레이션 완료`,
-      stats: result
+      message: '마이그레이션 완료',
+      from: sourceType,
+      to: targetType,
+      results
     });
   } catch (error) {
     console.error('[Storage Migration] Error:', error);

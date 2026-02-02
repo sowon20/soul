@@ -4788,6 +4788,88 @@ export class AISettings {
   }
 
   /**
+   * 마이그레이션 모달 표시
+   */
+  showMigrationModal(fromType, toType, onConfirm, onCancel) {
+    const typeNames = { local: '로컬', ftp: 'FTP/NAS', oracle: 'Oracle Cloud', notion: 'Notion' };
+
+    // 기존 모달 제거
+    const existing = document.getElementById('migrationModal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'migrationModal';
+    modal.innerHTML = `
+      <div class="migration-modal-overlay">
+        <div class="migration-modal">
+          <h3>📦 저장소 변경</h3>
+          <p>모든 데이터(대화, 기억, 파일)를<br><strong>${typeNames[toType]}</strong>(으)로 이동하시겠습니까?</p>
+          <p class="migration-info">현재: ${typeNames[fromType]} → 변경: ${typeNames[toType]}</p>
+          <div class="migration-buttons">
+            <button class="migration-btn migration-btn-cancel">취소</button>
+            <button class="migration-btn migration-btn-confirm">확인</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // 스타일 추가
+    const style = document.createElement('style');
+    style.textContent = `
+      .migration-modal-overlay {
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.6); z-index: 10000;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .migration-modal {
+        background: var(--bg-secondary, #1e1e1e); border-radius: 12px;
+        padding: 24px; max-width: 400px; text-align: center;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+      }
+      .migration-modal h3 { margin: 0 0 16px; font-size: 1.3em; }
+      .migration-modal p { margin: 8px 0; color: var(--text-secondary, #aaa); }
+      .migration-modal strong { color: var(--primary, #007aff); }
+      .migration-info { font-size: 0.9em; opacity: 0.7; }
+      .migration-buttons { margin-top: 20px; display: flex; gap: 12px; justify-content: center; }
+      .migration-btn { padding: 10px 24px; border-radius: 8px; border: none; cursor: pointer; font-size: 1em; }
+      .migration-btn-cancel { background: var(--bg-tertiary, #333); color: var(--text-primary, #fff); }
+      .migration-btn-confirm { background: var(--primary, #007aff); color: white; }
+      .migration-progress { margin-top: 16px; }
+      .migration-progress-bar { height: 6px; background: var(--bg-tertiary, #333); border-radius: 3px; overflow: hidden; }
+      .migration-progress-fill { height: 100%; background: var(--primary, #007aff); transition: width 0.3s; }
+      .migration-status { margin-top: 8px; font-size: 0.9em; color: var(--text-secondary, #aaa); }
+    `;
+    document.head.appendChild(style);
+    document.body.appendChild(modal);
+
+    modal.querySelector('.migration-btn-cancel').onclick = () => {
+      modal.remove();
+      onCancel?.();
+    };
+    modal.querySelector('.migration-btn-confirm').onclick = () => {
+      onConfirm?.(modal);
+    };
+  }
+
+  /**
+   * 마이그레이션 진행상황 표시
+   */
+  showMigrationProgress(modal, status, percent) {
+    const content = modal.querySelector('.migration-modal');
+    if (!content.querySelector('.migration-progress')) {
+      content.querySelector('.migration-buttons').style.display = 'none';
+      content.innerHTML += `
+        <div class="migration-progress">
+          <div class="migration-progress-bar"><div class="migration-progress-fill" style="width: 0%"></div></div>
+          <div class="migration-status">준비 중...</div>
+        </div>
+      `;
+    }
+    content.querySelector('.migration-progress-fill').style.width = `${percent}%`;
+    content.querySelector('.migration-status').textContent = status;
+  }
+
+  /**
    * 통합 스토리지 설정 저장
    */
   async saveStorageSettings() {
@@ -4797,12 +4879,67 @@ export class AISettings {
 
       // 저장소 타입이 변경되었는지 확인
       if (this.originalStorageType && currentType !== this.originalStorageType) {
-        const confirmed = confirm(
-          `저장소를 "${typeNames[this.originalStorageType]}"에서 "${typeNames[currentType]}"(으)로 변경합니다.\n\n` +
-          `기존 데이터는 그대로 유지됩니다.\n계속하시겠습니까?`
-        );
-        if (!confirmed) return;
+        return new Promise((resolve) => {
+          this.showMigrationModal(this.originalStorageType, currentType,
+            async (modal) => {
+              await this._performStorageMigration(currentType, modal);
+              resolve();
+            },
+            () => resolve()
+          );
+        });
       }
+
+      // 타입 변경 없으면 바로 저장
+      await this._saveStorageConfig(currentType);
+    } catch (error) {
+      console.error('Failed to save storage settings:', error);
+      this.showSaveStatus('저장소 설정 저장에 실패했습니다: ' + error.message, 'error');
+    }
+  }
+
+  /**
+   * 저장소 마이그레이션 수행
+   */
+  async _performStorageMigration(currentType, modal) {
+    try {
+      this.showMigrationProgress(modal, '설정 저장 중...', 10);
+      await this._saveStorageConfig(currentType);
+
+      this.showMigrationProgress(modal, '데이터 마이그레이션 중...', 30);
+
+      // 서버에 마이그레이션 요청
+      const response = await this.apiClient.post('/storage/migrate', {
+        fromType: this.originalStorageType,
+        toType: currentType
+      });
+
+      this.showMigrationProgress(modal, '연결 재설정 중...', 70);
+
+      // 서버 재연결 대기
+      await new Promise(r => setTimeout(r, 1000));
+
+      this.showMigrationProgress(modal, '완료!', 100);
+
+      await new Promise(r => setTimeout(r, 500));
+      modal.remove();
+
+      this.originalStorageType = currentType;
+      this.showSaveStatus('✅ 저장소가 변경되었습니다. 페이지를 새로고침합니다...', 'success');
+
+      // 페이지 새로고침
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (error) {
+      modal.remove();
+      throw error;
+    }
+  }
+
+  /**
+   * 저장소 설정 저장 (내부)
+   */
+  async _saveStorageConfig(currentType) {
+    try {
 
       // 저장소 설정 구성
       const config = { type: currentType };
@@ -4853,7 +4990,7 @@ export class AISettings {
       this.showSaveStatus('✅ 저장소 설정이 저장되었습니다.', 'success');
     } catch (error) {
       console.error('Failed to save storage settings:', error);
-      this.showSaveStatus('저장소 설정 저장에 실패했습니다: ' + error.message, 'error');
+      throw error;
     }
   }
 
