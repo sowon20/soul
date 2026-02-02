@@ -210,14 +210,14 @@ export class AISettings {
                         <span>진지</span>
                         <span>유머</span>
                       </div>
-                      <input type="range" class="timeline-range" data-field="humor" min="0" max="1" step="0.1" value="${this.agentProfile?.personality?.communication?.humor ?? 0.3}">
+                      <input type="range" class="timeline-range" data-field="humor" min="0" max="1" step="0.1" value="${this.agentProfile?.personality?.communication?.humor ?? 0.5}">
                     </div>
                     <div class="timeline-slider-item">
                       <div class="slider-labels">
                         <span>기계적</span>
                         <span>공감적</span>
                       </div>
-                      <input type="range" class="timeline-range" data-field="empathy" min="0" max="1" step="0.1" value="${this.agentProfile?.personality?.traits?.empathetic ?? 0.6}">
+                      <input type="range" class="timeline-range" data-field="empathy" min="0" max="1" step="0.1" value="${this.agentProfile?.personality?.traits?.empathetic ?? 0.5}">
                     </div>
                     <div class="timeline-slider-item">
                       <div class="slider-labels">
@@ -513,14 +513,14 @@ export class AISettings {
                           <span class="slider-label-left">🧐 진지</span>
                           <span class="slider-label-right">😄 유머러스</span>
                         </div>
-                        <input type="range" class="personality-range" id="soulHumor" min="0" max="1" step="0.1" value="${this.agentProfile.personality?.communication?.humor ?? 0.3}">
+                        <input type="range" class="personality-range" id="soulHumor" min="0" max="1" step="0.1" value="${this.agentProfile.personality?.communication?.humor ?? 0.5}">
                       </div>
                       <div class="personality-slider-item">
                         <div class="slider-header">
                           <span class="slider-label-left">🤖 기계적</span>
                           <span class="slider-label-right">💕 공감적</span>
                         </div>
-                        <input type="range" class="personality-range" id="soulEmpathy" min="0" max="1" step="0.1" value="${this.agentProfile.personality?.traits?.empathetic ?? 0.6}">
+                        <input type="range" class="personality-range" id="soulEmpathy" min="0" max="1" step="0.1" value="${this.agentProfile.personality?.traits?.empathetic ?? 0.5}">
                       </div>
                     </div>
                   </div>
@@ -4585,8 +4585,8 @@ export class AISettings {
     const defaults = {
       formality: 0.5,
       verbosity: 0.5,
-      humor: 0.3,
-      empathy: 0.6,
+      humor: 0.5,
+      empathy: 0.5,
       temperature: 0.7
     };
 
