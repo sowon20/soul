@@ -76,19 +76,19 @@ Soul AI는 개인용 AI 어시스턴트 앱입니다. 여러 AI 서비스(Claude
 
 | 파일 | 역할 | 누가 사용 |
 |------|------|----------|
-| `/Dockerfile` | 환경 중립 Dockerfile (기본 PORT=4000) | Oracle VM |
+| `/Dockerfile` | 공용 Dockerfile (SPACE_ID 있으면 HF 모드) | 둘 다 |
 | `/README.md` (YAML 헤더) | HF Space 설정 (sdk: docker, app_port: 7860) | HF Space만 |
 | `/.github/workflows/sync-to-hf.yml` | GitHub→HF & Oracle 자동 배포 | GitHub Actions |
-| `/deploy/hf/Dockerfile` | HF 전용 Dockerfile (Dataset 래퍼 포함) | HF Space |
 | `/deploy/hf/hf-wrapper.sh` | HF Dataset 백업/복원 + Oracle Wallet 영속성 | HF Space |
 
-### 포트 설정 방식
+### 포트 및 실행 방식
 ```
 Dockerfile: ENV PORT=4000 (기본값)
     ↓
-HF Space Settings에서 환경변수 PORT=7860 오버라이드
+HF Space: SPACE_ID 환경변수 자동 설정됨
     ↓
-서버 코드: process.env.PORT || 4000 으로 읽음
+CMD: SPACE_ID 있으면 → hf-wrapper.sh (백업/복원 + 서버)
+     SPACE_ID 없으면 → node soul/server/index.js (직접 실행)
 ```
 
 **즉, 같은 Dockerfile로 두 환경 모두 동작함!**
