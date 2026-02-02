@@ -28,9 +28,14 @@ restore_data() {
     if huggingface-cli download "$REPO_ID" --repo-type dataset --local-dir "$DATA_DIR" 2>/dev/null; then
         echo "[HF-Wrapper] Data restored successfully"
 
-        # Oracle Wallet 파일이 있으면 복원
-        if [ -d "$DATA_DIR/oracle-wallet" ]; then
-            echo "[HF-Wrapper] Restoring Oracle Wallet..."
+        # Oracle Wallet zip 파일이 있으면 압축 해제
+        if [ -f "$DATA_DIR/Wallet_database.zip" ]; then
+            echo "[HF-Wrapper] Extracting Oracle Wallet from zip..."
+            unzip -o "$DATA_DIR/Wallet_database.zip" -d "$WALLET_DIR/" 2>/dev/null || true
+            echo "[HF-Wrapper] Oracle Wallet extracted to $WALLET_DIR"
+        # 기존 폴더 방식도 지원 (하위 호환)
+        elif [ -d "$DATA_DIR/oracle-wallet" ]; then
+            echo "[HF-Wrapper] Restoring Oracle Wallet from folder..."
             cp -r "$DATA_DIR/oracle-wallet/"* "$WALLET_DIR/" 2>/dev/null || true
             echo "[HF-Wrapper] Oracle Wallet restored to $WALLET_DIR"
         fi
