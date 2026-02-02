@@ -525,7 +525,7 @@ export class MCPManager {
               ${icons.map(icon => `
                 <div class="icon-option" data-icon="${icon}" 
                   style="width: 48px; height: 48px; border: 2px solid ${server.icon === icon ? '#4285f4' : '#ddd'}; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; background: ${server.icon === icon ? '#e3f2fd' : '#f9f9f9'};">
-                  <img src="./src/assets/${icon}" style="width: 32px; height: 32px;" alt="${icon}">
+                  <img src="/assets/${icon}" style="width: 32px; height: 32px;" alt="${icon}">
                 </div>
               `).join('')}
             </div>

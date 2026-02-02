@@ -118,7 +118,7 @@ class SoulSocketClient {
     if (this.notificationPermission === 'granted') {
       const notification = new Notification('Soul', {
         body: data.message,
-        icon: '/src/assets/soul-icon.webp',
+        icon: /assets/soul-icon.webp',
         tag: 'proactive-' + data.conditionId,
         requireInteraction: true
       });

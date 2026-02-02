@@ -758,8 +758,8 @@ class SoulApp {
     console.log('✅ 가운데 메뉴 버튼 등록:', buttons.length);
 
     // 사운드 효과 (로컬)
-    const inSound = new Audio('./src/assets/sounds/in.mp3');
-    const outSound = new Audio('./src/assets/sounds/out.mp3');
+    const inSound = new Audio('/assets/sounds/in.mp3');
+    const outSound = new Audio('/assets/sounds/out.mp3');
 
     [inSound, outSound].forEach(a => {
       a.preload = 'auto';
@@ -1125,7 +1125,7 @@ class SoulApp {
     dock.innerHTML = sorted.map(item => `
       <div class="dock-item ${item.fixed ? 'fixed' : ''}" data-id="${item.id}" data-name="${item.name}" draggable="${!item.fixed && this.dockEditMode}">
         <div class="icon">
-          <img src="./src/assets/${item.icon}" alt="${item.name}" />
+          <img src="/assets/${item.icon}" alt="${item.name}" />
         </div>
         ${this.dockEditMode && !item.fixed ? '<div class="dock-item-remove">×</div>' : ''}
       </div>
@@ -1595,7 +1595,7 @@ class SoulApp {
             <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;">
               ${icons.map(icon => `
                 <div class="icon-option" data-icon="${icon}" style="width: 40px; height: 40px; border: 2px solid ${server.icon === icon ? '#4285f4' : '#444'}; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; background: ${server.icon === icon ? 'rgba(66,133,244,0.2)' : '#1a1a2e'};">
-                  <img src="./src/assets/${icon}" style="width: 28px; height: 28px;">
+                  <img src="/assets/${icon}" style="width: 28px; height: 28px;">
                 </div>
               `).join('')}
             </div>
