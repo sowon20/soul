@@ -67,19 +67,20 @@ Soul AI는 개인용 AI 어시스턴트 앱입니다. 여러 AI 서비스(Claude
     ↓                                              ↓
 [HuggingFace Space]                         [Oracle VM]
 (테스트용, 7860 포트)                        (배포용, 4000 포트)
-README.md의 app_port: 7860                  수동: git pull 필요
-환경변수 PORT=7860 설정됨
+자동: HF로 git push                         자동: SSH로 git pull & restart
 ```
+
+**⚡ git push 한 번에 두 환경 모두 자동 배포됨!**
 
 ### 핵심 파일 역할
 
 | 파일 | 역할 | 누가 사용 |
 |------|------|----------|
-| `/Dockerfile` | 환경 중립 Dockerfile (기본 PORT=4000) | Oracle VM, HF Space 둘 다 |
+| `/Dockerfile` | 환경 중립 Dockerfile (기본 PORT=4000) | Oracle VM |
 | `/README.md` (YAML 헤더) | HF Space 설정 (sdk: docker, app_port: 7860) | HF Space만 |
-| `/.github/workflows/sync-to-hf.yml` | GitHub→HF 자동 동기화 | GitHub Actions |
-| `/deploy/hf/Dockerfile` | (현재 미사용) HF 전용 Dataset 래퍼 | - |
-| `/deploy/hf/hf-wrapper.sh` | (현재 미사용) HF Dataset 백업/복원 | - |
+| `/.github/workflows/sync-to-hf.yml` | GitHub→HF & Oracle 자동 배포 | GitHub Actions |
+| `/deploy/hf/Dockerfile` | HF 전용 Dockerfile (Dataset 래퍼 포함) | HF Space |
+| `/deploy/hf/hf-wrapper.sh` | HF Dataset 백업/복원 + Oracle Wallet 영속성 | HF Space |
 
 ### 포트 설정 방식
 ```
@@ -99,13 +100,14 @@ HF Space Settings에서 환경변수 PORT=7860 오버라이드
 **GitHub Secrets 필요:**
 1. GitHub 레포 → Settings → Secrets and variables → Actions
 2. New repository secret:
-   - Name: `HF_TOKEN`
-   - Value: HuggingFace 토큰 (hf_xxx...)
+   - `HF_TOKEN`: HuggingFace 토큰 (hf_xxx...)
+   - `ORACLE_SSH_KEY`: Oracle VM SSH 개인키 (-----BEGIN RSA PRIVATE KEY-----...)
 
 **작동 방식:**
 - `git push origin main` 하면
-- GitHub Actions가 자동으로 HF Space에도 푸시
-- HF Space가 자동으로 재빌드
+- GitHub Actions가 자동으로:
+  1. HF Space에 푸시 → HF 자동 재빌드
+  2. Oracle VM에 SSH 접속 → git pull & restart
 
 ### 환경별 상세
 
@@ -113,9 +115,9 @@ HF Space Settings에서 환경변수 PORT=7860 오버라이드
 |------|-----------|-----------|
 | URL | http://134.185.105.192:4000 | https://sowon20-soul.hf.space |
 | 포트 | 4000 | 7860 |
-| 데이터 저장 | 파일시스템 (영구) | 컨테이너 (재시작 시 초기화) |
+| 데이터 저장 | 파일시스템 (영구) | HF Dataset (자동 백업/복원) |
 | 용도 | 배포용 (일반 사용자) | 테스트용 (LLM 호출 검증) |
-| 업데이트 | 수동 (git pull) | 자동 (GitHub Actions) |
+| 업데이트 | 자동 (GitHub Actions) | 자동 (GitHub Actions) |
 
 ### HF Space 환경변수 설정
 Settings → Variables and secrets에서:
@@ -148,10 +150,11 @@ cd ~/soul && git pull && cd client && npm run build && sudo systemctl restart so
 ```
 
 ### 주의사항
-1. **GitHub에만 푸시하면 HF는 자동, Oracle은 수동 업데이트 필요**
+1. **git push 한 번에 HF + Oracle 둘 다 자동 배포됨**
 2. **환경별 코드 분기 금지** - 환경변수로만 차이 처리
 3. **HF 전용 코드는 deploy/ 폴더에만** - 메인 코드 오염 금지
 4. **README.md 상단 YAML은 건드리지 말 것** - HF Space 설정임
+5. **keytar 사용 금지** - 환경변수(ORACLE_PASSWORD 등)로만 인증 처리
 
 ---
 
