@@ -8,8 +8,22 @@ DATA_DIR="${SOUL_DATA_DIR:-/home/node/.soul}"
 REPO_ID="${HF_DATASET_REPO:-sowon20/dataset}"
 WALLET_DIR="/app/soul/config/oracle"
 
-# HF CLI 명령어 (python -m 방식으로 실행)
-HF_CLI="python3 -m huggingface_hub.commands.huggingface_cli"
+# HF CLI 명령어 (전체 경로 사용)
+HF_CLI="/usr/local/bin/huggingface-cli"
+
+# CLI가 없으면 PATH에서 찾기
+if [ ! -f "$HF_CLI" ]; then
+    HF_CLI=$(which huggingface-cli 2>/dev/null || echo "")
+fi
+
+# 그래도 없으면 pip로 설치
+if [ -z "$HF_CLI" ] || [ ! -f "$HF_CLI" ]; then
+    echo "[HF-Wrapper] Installing huggingface-cli..."
+    pip3 install --break-system-packages -q huggingface_hub[cli] 2>/dev/null || true
+    HF_CLI=$(which huggingface-cli 2>/dev/null || echo "/usr/local/bin/huggingface-cli")
+fi
+
+echo "[HF-Wrapper] Using HF CLI: $HF_CLI"
 
 # 토큰 로그인
 if [ -n "$HF_TOKEN" ]; then
