@@ -17,11 +17,11 @@ const io = new Server(server, {
 // 글로벌로 io 접근 가능하게 (도구 실행 상태 전송용)
 global.io = io;
 
-// Database Initialization (SQLite)
+// Database Initialization
 (async () => {
   try {
-    db.init();
-    console.log('✅ SQLite database initialized');
+    await db.init();
+    console.log('✅ Database initialized');
 
     // 기본 AI 서비스 초기화
     const AIService = require('../models/AIService');
