@@ -471,12 +471,13 @@ router.post('/upload-oracle-wallet', walletUpload.single('wallet'), async (req, 
  */
 router.post('/oracle/test', async (req, res) => {
   try {
-    const { user, connectString } = req.body;
+    const { user, connectString, connectionString } = req.body;
     const { OracleStorage } = require('../utils/oracle-storage');
+    const connStr = connectString || connectionString;
 
     const oracle = new OracleStorage({
       user: user || 'ADMIN',
-      connectString: connectString || 'database_high'
+      connectString: connStr || 'database_high'
     });
 
     await oracle.initialize();

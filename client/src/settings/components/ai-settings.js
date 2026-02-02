@@ -4994,7 +4994,7 @@ export class AISettings {
         password: document.getElementById('oraclePassword')?.value
       };
 
-      const response = await this.apiClient.post('/storage/test-oracle', oracleConfig);
+      const response = await this.apiClient.post('/storage/oracle/test', oracleConfig);
       if (resultEl) {
         resultEl.textContent = response.success ? '✅ 연결 성공' : '❌ 연결 실패';
         resultEl.className = 'test-result ' + (response.success ? 'success' : 'error');
