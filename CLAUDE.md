@@ -54,37 +54,85 @@ Soul AI는 개인용 AI 어시스턴트 앱입니다. 여러 AI 서비스(Claude
 
 ---
 
-## 🔥 배포 구조 (중요!)
+## 🔥 배포 구조 (매우 중요 - 반드시 숙지!)
 
-**같은 GitHub 레포, 다른 Dockerfile:**
+### 전체 흐름도
+```
+[로컬 개발]
+    ↓ git push origin main
+[GitHub] ─────────────────────────────────────────┐
+    │                                              │
+    │ GitHub Actions 자동 실행                      │
+    │ (.github/workflows/sync-to-hf.yml)           │
+    ↓                                              ↓
+[HuggingFace Space]                         [Oracle VM]
+(테스트용, 7860 포트)                        (배포용, 4000 포트)
+README.md의 app_port: 7860                  수동: git pull 필요
+환경변수 PORT=7860 설정됨
+```
 
+### 핵심 파일 역할
+
+| 파일 | 역할 | 누가 사용 |
+|------|------|----------|
+| `/Dockerfile` | 환경 중립 Dockerfile (기본 PORT=4000) | Oracle VM, HF Space 둘 다 |
+| `/README.md` (YAML 헤더) | HF Space 설정 (sdk: docker, app_port: 7860) | HF Space만 |
+| `/.github/workflows/sync-to-hf.yml` | GitHub→HF 자동 동기화 | GitHub Actions |
+| `/deploy/hf/Dockerfile` | (현재 미사용) HF 전용 Dataset 래퍼 | - |
+| `/deploy/hf/hf-wrapper.sh` | (현재 미사용) HF Dataset 백업/복원 | - |
+
+### 포트 설정 방식
 ```
-GitHub 레포 (sowon20/soul)
-├── /Dockerfile              ← Oracle VM이 사용 (깨끗한 코드)
-├── /deploy/hf/Dockerfile    ← HF Spaces가 사용 (Dataset 연동 포함)
-└── /deploy/hf/hf-wrapper.sh ← HF 전용 래퍼 (백업/복원)
+Dockerfile: ENV PORT=4000 (기본값)
+    ↓
+HF Space Settings에서 환경변수 PORT=7860 오버라이드
+    ↓
+서버 코드: process.env.PORT || 4000 으로 읽음
 ```
+
+**즉, 같은 Dockerfile로 두 환경 모두 동작함!**
+
+### 자동 동기화 설정 (GitHub → HF)
+
+**이미 설정됨:** `.github/workflows/sync-to-hf.yml`
+
+**GitHub Secrets 필요:**
+1. GitHub 레포 → Settings → Secrets and variables → Actions
+2. New repository secret:
+   - Name: `HF_TOKEN`
+   - Value: HuggingFace 토큰 (hf_xxx...)
+
+**작동 방식:**
+- `git push origin main` 하면
+- GitHub Actions가 자동으로 HF Space에도 푸시
+- HF Space가 자동으로 재빌드
+
+### 환경별 상세
 
 | 항목 | Oracle VM | HF Spaces |
 |------|-----------|-----------|
-| Dockerfile | `/Dockerfile` | `/deploy/hf/Dockerfile` |
+| URL | http://134.185.105.192:4000 | https://sowon20-soul.hf.space |
 | 포트 | 4000 | 7860 |
-| 데이터 저장 | 파일시스템 (영구) | HF Dataset (래퍼로 백업/복원) |
+| 데이터 저장 | 파일시스템 (영구) | 컨테이너 (재시작 시 초기화) |
 | 용도 | 배포용 (일반 사용자) | 테스트용 (LLM 호출 검증) |
-| IP | 134.185.105.192 | sowon20-soul.hf.space |
+| 업데이트 | 수동 (git pull) | 자동 (GitHub Actions) |
 
-**HF Spaces 설정:**
-- Settings → Dockerfile path: `deploy/hf/Dockerfile`
-- Secrets: `HF_TOKEN`, `HF_DATASET_REPO=sowon20/dataset`
+### HF Space 환경변수 설정
+Settings → Variables and secrets에서:
+- `PORT` = `7860`
+- `HF_TOKEN` = `hf_xxx...` (Dataset 백업용, 선택)
+- `HF_DATASET_REPO` = `sowon20/dataset` (Dataset 백업용, 선택)
 
-**Oracle VM 접속:**
+### Oracle VM 관리
+
+**SSH 접속:**
 ```bash
 ssh soul_clean
 # 또는
 ssh -i "~/Downloads/ssh-key-2026-02-02 (1).key" ubuntu@134.185.105.192
 ```
 
-**Oracle VM 서버 관리:**
+**서버 관리:**
 ```bash
 # 상태 확인
 sudo systemctl status soul
@@ -95,9 +143,15 @@ sudo systemctl restart soul
 # 로그 보기
 sudo journalctl -u soul -f
 
-# 코드 업데이트
+# 코드 업데이트 (수동)
 cd ~/soul && git pull && cd client && npm run build && sudo systemctl restart soul
 ```
+
+### 주의사항
+1. **GitHub에만 푸시하면 HF는 자동, Oracle은 수동 업데이트 필요**
+2. **환경별 코드 분기 금지** - 환경변수로만 차이 처리
+3. **HF 전용 코드는 deploy/ 폴더에만** - 메인 코드 오염 금지
+4. **README.md 상단 YAML은 건드리지 말 것** - HF Space 설정임
 
 ---
 
