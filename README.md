@@ -5,6 +5,7 @@ colorFrom: purple
 colorTo: blue
 sdk: docker
 app_port: 7860
+dockerfile: deploy/hf/Dockerfile
 pinned: false
 license: mit
 ---
