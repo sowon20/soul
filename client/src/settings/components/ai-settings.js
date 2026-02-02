@@ -4580,11 +4580,11 @@ export class AISettings {
    * 서버 기본값과 다를 때만 true 반환
    */
   hasPersonalitySliderChanged() {
-    // 서버 기본값 (agent-profile.js와 동일)
+    // 서버 기본값 (agent-profile.js와 동일 - 모두 0.5 중앙)
     const serverDefaults = {
       formality: 0.5,
       verbosity: 0.5,
-      humor: 0.3,
+      humor: 0.5,
       temperature: 0.7
     };
 

@@ -42,9 +42,9 @@ class AgentProfile {
         formality: 0.5,    // 캐주얼 ←→ 격식
         verbosity: 0.5,    // 간결 ←→ 상세
         technicality: 0.5, // 일반 용어 ←→ 기술 용어
-        directness: 0.7,   // 완곡 ←→ 직접적
-        emoji: 0.3,        // 이모지 사용량
-        humor: 0.3         // 진지 ←→ 유머러스
+        directness: 0.5,   // 완곡 ←→ 직접적
+        emoji: 0.5,        // 이모지 사용량
+        humor: 0.5         // 진지 ←→ 유머러스
       }
     };
     this.capabilities = options.capabilities || [
