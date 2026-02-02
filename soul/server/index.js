@@ -115,15 +115,21 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', service: 'soul-server' });
 });
 
-// Serve static files from client
-app.use(express.static(path.join(__dirname, '../../client')));
+// Serve static files from client (production: dist, dev: src)
+const clientPath = process.env.NODE_ENV === 'production'
+  ? path.join(__dirname, '../../client/dist')
+  : path.join(__dirname, '../../client');
+app.use(express.static(clientPath));
 
 // Serve index.html for all non-API routes (SPA routing)
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api')) {
     return next();
   }
-  res.sendFile(path.join(__dirname, '../../client/index.html'));
+  const indexPath = process.env.NODE_ENV === 'production'
+    ? path.join(__dirname, '../../client/dist/index.html')
+    : path.join(__dirname, '../../client/index.html');
+  res.sendFile(indexPath);
 });
 
 // Error handling
