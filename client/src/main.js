@@ -149,7 +149,7 @@ class SoulApp {
               <select id="bootstrapStorageType">
                 <option value="local" selected>💾 로컬 저장소</option>
                 <option value="ftp">🌐 FTP/NAS</option>
-                <option value="oracle">☁️ Oracle Cloud</option>
+                <option value="oracle">☁️ Oracle</option>
                 <option value="notion">📝 Notion</option>
               </select>
             </div>
@@ -798,6 +798,10 @@ class SoulApp {
             // AI 설정 페이지 표시
             await this.showAISettings();
             this.setActiveNavButton(2);
+          } else if (btnText === '저장소' || btn.classList.contains('neo-btn-storage')) {
+            // 저장소 설정 페이지 표시
+            await this.showStorageSettings();
+            this.setActiveNavButton('storage');
           } else if (btnText === 'APP' || btn.classList.contains('neo-btn-3')) {
             await this.showAppSettings();
             this.setActiveNavButton(3);
@@ -848,7 +852,12 @@ class SoulApp {
     }
 
     // 해당 버튼에 active 추가
-    if (buttonNum > 0) {
+    if (buttonNum === 'storage') {
+      const storageBtn = document.querySelector('.neo-btn-storage');
+      if (storageBtn) {
+        storageBtn.classList.add('active');
+      }
+    } else if (buttonNum > 0) {
       const activeBtn = document.querySelector(`.neo-btn-${buttonNum}`);
       if (activeBtn) {
         activeBtn.classList.add('active');
@@ -886,6 +895,37 @@ class SoulApp {
       const { SettingsManager } = await import('./settings/settings-manager.js');
       const settingsManager = new SettingsManager(this.apiClient);
       await settingsManager.render(settingsContainer, 'ai');
+    }
+  }
+
+  /**
+   * 저장소 설정 페이지 표시
+   */
+  async showStorageSettings() {
+    console.log('💾 저장소 설정 페이지 표시');
+
+    const dashboard = document.querySelector('.dashboard');
+    const addPageBtn = document.querySelector('.add-page-btn');
+
+    if (dashboard) {
+      dashboard.style.display = 'none';
+      if (addPageBtn) addPageBtn.style.display = 'none';
+
+      let settingsContainer = document.getElementById('settingsContainer');
+      if (!settingsContainer) {
+        settingsContainer = document.createElement('div');
+        settingsContainer.id = 'settingsContainer';
+        settingsContainer.className = 'settings-wrapper';
+        settingsContainer.style.cssText = 'padding: 0; flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden;';
+        dashboard.parentElement.appendChild(settingsContainer);
+      }
+
+      settingsContainer.style.display = 'flex';
+
+      // 설정 매니저로 저장소 설정 페이지 렌더링
+      const { SettingsManager } = await import('./settings/settings-manager.js');
+      const settingsManager = new SettingsManager(this.apiClient);
+      await settingsManager.render(settingsContainer, 'storage');
     }
   }
 

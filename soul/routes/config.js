@@ -377,11 +377,12 @@ router.put('/files', async (req, res) => {
 
 /**
  * GET /api/config/storage
- * 통합 저장소 설정 조회
+ * 저장소 설정 조회 (로컬 파일 기반)
  */
 router.get('/storage', async (req, res) => {
   try {
-    const storageConfig = await configManager.getStorageConfig();
+    const localConfig = require('../utils/local-config');
+    const storageConfig = await localConfig.readStorageConfig();
     res.json(storageConfig);
   } catch (error) {
     console.error('Error reading storage config:', error);
@@ -394,11 +395,12 @@ router.get('/storage', async (req, res) => {
 
 /**
  * PUT /api/config/storage
- * 통합 저장소 설정 업데이트
+ * 저장소 설정 업데이트 (로컬 파일에 저장)
  */
 router.put('/storage', async (req, res) => {
   try {
-    const storageConfig = await configManager.updateStorageConfig(req.body);
+    const localConfig = require('../utils/local-config');
+    const storageConfig = await localConfig.writeStorageConfig(req.body);
 
     // 모든 관련 인스턴스 리셋 (설정 즉시 적용)
     const { resetMemoryManager } = require('../utils/memory-layers');
@@ -410,7 +412,11 @@ router.put('/storage', async (req, res) => {
     resetMemoryManager();
     resetConversationPipeline();
 
-    res.json(storageConfig);
+    res.json({
+      ...storageConfig,
+      message: '저장소 설정이 저장되었습니다. 변경사항을 적용하려면 서버를 재시작하세요.',
+      restartRequired: true
+    });
   } catch (error) {
     console.error('Error updating storage config:', error);
     res.status(500).json({
@@ -418,6 +424,26 @@ router.put('/storage', async (req, res) => {
       message: error.message
     });
   }
+});
+
+/**
+ * GET /api/config/storage/available-types
+ * 사용 가능한 저장소 타입 목록
+ */
+router.get('/storage/available-types', async (req, res) => {
+  res.json({
+    memory: [
+      { type: 'local', name: '로컬', enabled: true, description: '로컬 SQLite 데이터베이스' },
+      { type: 'oracle', name: 'Oracle', enabled: true, description: 'Oracle Autonomous Database' },
+      { type: 'notion', name: 'Notion', enabled: true, description: 'Notion 데이터베이스' },
+      { type: 'ftp', name: 'FTP', enabled: false, description: 'FTP 서버 (준비중)' }
+    ],
+    file: [
+      { type: 'local', name: '로컬', enabled: true, description: '로컬 파일 시스템' },
+      { type: 'oracle', name: 'Oracle Storage', enabled: false, description: 'Oracle Object Storage (준비중)' },
+      { type: 'nas', name: 'NAS', enabled: false, description: 'NAS/SMB 공유 (준비중)' }
+    ]
+  });
 });
 
 /**

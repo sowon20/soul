@@ -583,13 +583,6 @@ export class AISettings {
             ${this.renderMemorySettings()}
           </section>
 
-          <!-- 저장소 경로 설정 -->
-          <section class="settings-section">
-            <h3 class="settings-section-title">저장소 경로 설정</h3>
-            <p class="settings-section-desc">메모리와 파일의 저장 위치를 지정합니다</p>
-            ${this.renderStorageSettings()}
-          </section>
-
         </div>
 
         <!-- 저장 상태 표시 -->
@@ -1497,243 +1490,14 @@ export class AISettings {
   }
 
   /**
-   * 통합 저장소 설정 렌더링
+   * @deprecated 저장소 설정은 storage-settings.js로 이동됨
    */
   renderStorageSettings() {
-    const storageTypes = [
-      { id: 'local', label: '💾 로컬', hint: '로컬 디스크' },
-      { id: 'ftp', label: '🌐 FTP', hint: 'FTP 서버' },
-      { id: 'oracle', label: '☁️ Oracle', hint: 'Oracle Cloud' },
-      { id: 'notion', label: '📝 Notion', hint: 'Notion 연동' }
-    ];
-    const currentType = this.storageConfig.type || 'local';
-
-    return `
-      <div class="storage-settings-container">
-        <div class="storage-info-banner">
-          <span class="info-icon">💡</span>
-          <span>모든 데이터(대화, 기억, 파일)를 하나의 저장소에 통합 저장합니다.</span>
-        </div>
-
-        <!-- 저장소 타입 선택 -->
-        <div class="storage-type-tabs">
-          ${storageTypes.map(type => `
-            <button class="storage-type-tab ${currentType === type.id ? 'active' : ''}"
-                    data-type="${type.id}">
-              ${type.label}
-              <span class="tab-hint">${type.hint}</span>
-            </button>
-          `).join('')}
-        </div>
-
-        <!-- 로컬 설정 -->
-        <div class="storage-panel" id="localStoragePanel" style="display: ${currentType === 'local' ? 'block' : 'none'};">
-          <div class="storage-field">
-            <label class="storage-label">저장 경로</label>
-            <div class="storage-path-input">
-              <input type="text" class="storage-input" id="storagePath"
-                     value="${this.storageConfig.path || '~/.soul'}"
-                     placeholder="~/.soul">
-              <button class="browse-btn" id="browseStorageBtn" title="폴더 선택">📁</button>
-            </div>
-            <small class="storage-hint">대화 기록, 기억, 첨부 파일이 이 경로에 저장됩니다</small>
-          </div>
-        </div>
-
-        <!-- FTP 설정 -->
-        <div class="storage-panel" id="ftpStoragePanel" style="display: ${currentType === 'ftp' ? 'block' : 'none'};">
-          <div class="ftp-config-grid">
-            <div class="ftp-field">
-              <label>호스트</label>
-              <input type="text" id="ftpHost" class="storage-input"
-                     value="${this.storageConfig.ftp?.host || ''}" placeholder="192.168.0.1">
-            </div>
-            <div class="ftp-field">
-              <label>포트</label>
-              <input type="number" id="ftpPort" class="storage-input"
-                     value="${this.storageConfig.ftp?.port || 21}">
-            </div>
-            <div class="ftp-field">
-              <label>사용자</label>
-              <input type="text" id="ftpUser" class="storage-input"
-                     value="${this.storageConfig.ftp?.user || ''}" placeholder="username">
-            </div>
-            <div class="ftp-field">
-              <label>비밀번호</label>
-              <input type="password" id="ftpPassword" class="storage-input" placeholder="********">
-            </div>
-            <div class="ftp-field ftp-field-full">
-              <label>원격 경로</label>
-              <input type="text" id="ftpBasePath" class="storage-input"
-                     value="${this.storageConfig.ftp?.basePath || '/soul'}" placeholder="/soul">
-            </div>
-          </div>
-          <div class="storage-test-row">
-            <button class="settings-btn settings-btn-outline" id="testFtpBtn">🔌 연결 테스트</button>
-            <span class="test-result" id="ftpTestResult"></span>
-          </div>
-        </div>
-
-        <!-- Oracle 설정 -->
-        <div class="storage-panel" id="oracleStoragePanel" style="display: ${currentType === 'oracle' ? 'block' : 'none'};">
-          <!-- Wallet 업로드 -->
-          <div class="oracle-wallet-section">
-            <label>Wallet (인증서)</label>
-            <div class="oracle-wallet-row">
-              <input type="file" id="oracleWalletFile" accept=".zip" style="display:none">
-              <button class="settings-btn settings-btn-outline" id="uploadWalletBtn">📁 Wallet.zip 업로드</button>
-              <span class="wallet-status" id="walletStatus">${this.storageConfig.oracle?.walletUploaded ? '✅ 업로드됨' : '⚪ 미설정'}</span>
-            </div>
-            <small class="oracle-hint">Oracle Cloud에서 다운로드한 Wallet zip 파일</small>
-          </div>
-
-          <div class="oracle-config-grid">
-            <div class="oracle-field">
-              <label>연결 문자열</label>
-              <select id="oracleConnectionString" class="storage-input">
-                <option value="">-- Wallet 업로드 후 선택 --</option>
-              </select>
-              <small class="oracle-hint">Wallet 업로드 시 자동으로 TNS 목록이 표시됩니다</small>
-            </div>
-            <div class="oracle-field">
-              <label>사용자</label>
-              <input type="text" id="oracleUser" class="storage-input"
-                     value="" placeholder="예: ADMIN">
-            </div>
-            <div class="oracle-field">
-              <label>비밀번호</label>
-              <input type="password" id="oraclePassword" class="storage-input" placeholder="********">
-            </div>
-            <div class="oracle-field">
-              <label>암호화 키 (선택)</label>
-              <input type="password" id="oracleEncryptionKey" class="storage-input"
-                     placeholder="데이터 암호화용 키">
-            </div>
-          </div>
-          <div class="storage-test-row">
-            <button class="settings-btn settings-btn-outline" id="testOracleBtn">🔌 연결 테스트</button>
-            <span class="test-result" id="oracleTestResult"></span>
-          </div>
-        </div>
-
-        <!-- Notion 설정 -->
-        <div class="storage-panel" id="notionStoragePanel" style="display: ${currentType === 'notion' ? 'block' : 'none'};">
-          <div class="notion-config">
-            <div class="notion-field">
-              <label>Integration Token</label>
-              <input type="password" id="notionToken" class="storage-input"
-                     placeholder="secret_xxxxx">
-            </div>
-            <div class="notion-field">
-              <label>Database ID</label>
-              <input type="text" id="notionDatabaseId" class="storage-input"
-                     value="${this.storageConfig.notion?.databaseId || ''}"
-                     placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
-            </div>
-          </div>
-          <div class="notion-info">
-            <small>📖 <a href="https://developers.notion.com/docs/getting-started" target="_blank">Notion API 설정 가이드</a></small>
-          </div>
-          <div class="storage-test-row">
-            <button class="settings-btn settings-btn-outline" id="testNotionBtn">🔌 연결 테스트</button>
-            <span class="test-result" id="notionTestResult"></span>
-          </div>
-        </div>
-
-        <div class="storage-actions">
-          <button class="settings-btn settings-btn-primary" id="saveStorageBtn">저장</button>
-          <button class="settings-btn settings-btn-outline" id="resetStorageBtn">기본값</button>
-        </div>
-      </div>
-
-      <!-- 폴더 탐색 모달 - 밀러 컬럼 스타일 -->
-      <div class="folder-browser-modal" id="folderBrowserModal" style="display: none;">
-        <div class="folder-browser-content miller-columns">
-          <div class="folder-browser-header">
-            <h3>📁 폴더 선택</h3>
-            <button class="close-btn" id="closeFolderBrowser">✕</button>
-          </div>
-          
-          <!-- 현재 선택 경로 -->
-          <div class="folder-browser-current">
-            <span class="current-path-display" id="currentPathDisplay">/</span>
-            <button class="select-current-btn" id="selectCurrentFolder">✓ 여기 선택</button>
-          </div>
-          
-          <!-- 밀러 컬럼 컨테이너 -->
-          <div class="miller-columns-container" id="millerColumns">
-            <!-- 동적으로 컬럼 추가됨 -->
-          </div>
-          
-          <div class="folder-browser-actions">
-            <span class="folder-browser-help">💡 클릭으로 탐색, 선택 후 "여기 선택"</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- 저장소 변경 옵션 모달 -->
-      <div class="storage-migration-modal" id="storageMigrationModal" style="display: none;">
-        <div class="storage-migration-content">
-          <div class="storage-migration-header">
-            <h3>📦 저장소 변경</h3>
-            <button class="close-btn" id="closeMigrationModal">✕</button>
-          </div>
-
-          <div class="storage-migration-info" id="migrationInfo">
-            <!-- 동적으로 채워짐 -->
-          </div>
-
-          <div class="storage-migration-options">
-            <label class="migration-option" data-option="reset">
-              <input type="radio" name="migrationOption" value="reset">
-              <div class="option-content">
-                <span class="option-icon">🗑️</span>
-                <div class="option-text">
-                  <strong>초기화</strong>
-                  <span>새 저장소에서 빈 상태로 시작</span>
-                </div>
-              </div>
-            </label>
-
-            <label class="migration-option" data-option="keep">
-              <input type="radio" name="migrationOption" value="keep" checked>
-              <div class="option-content">
-                <span class="option-icon">📌</span>
-                <div class="option-text">
-                  <strong>유지</strong>
-                  <span>기존 데이터 그대로 두고 새 저장소 사용 (이전 데이터 접근 불가)</span>
-                </div>
-              </div>
-            </label>
-
-            <label class="migration-option" data-option="migrate">
-              <input type="radio" name="migrationOption" value="migrate">
-              <div class="option-content">
-                <span class="option-icon">📤</span>
-                <div class="option-text">
-                  <strong>마이그레이션</strong>
-                  <span>기존 데이터를 새 저장소로 복사</span>
-                </div>
-              </div>
-            </label>
-          </div>
-
-          <div class="storage-migration-warning" id="migrationWarning" style="display: none;">
-            <span class="warning-icon">⚠️</span>
-            <span class="warning-text">마이그레이션은 데이터 양에 따라 시간이 걸릴 수 있습니다.</span>
-          </div>
-
-          <div class="storage-migration-actions">
-            <button class="settings-btn settings-btn-outline" id="cancelMigration">취소</button>
-            <button class="settings-btn settings-btn-primary" id="confirmMigration">확인</button>
-          </div>
-        </div>
-      </div>
-    `;
+    return '';
   }
 
   /**
-   * 스토리지 설정 초기화
+   * @deprecated 저장소 설정은 storage-settings.js로 이동됨
    */
   async loadStorageTypes() {
     try {
@@ -3403,9 +3167,6 @@ export class AISettings {
       selectCurrentFolder.addEventListener('click', () => this.selectCurrentFolder());
     }
 
-    // 스토리지 타입 로드
-    this.loadStorageTypes();
-
     // Oracle Wallet 상태 로드
     this.loadOracleWalletStatus();
 
@@ -4791,7 +4552,7 @@ export class AISettings {
    * 마이그레이션 모달 표시
    */
   showMigrationModal(fromType, toType, onConfirm, onCancel) {
-    const typeNames = { local: '로컬', ftp: 'FTP/NAS', oracle: 'Oracle Cloud', notion: 'Notion' };
+    const typeNames = { local: '로컬', ftp: 'FTP/NAS', oracle: 'Oracle', notion: 'Notion' };
 
     // 기존 모달 제거
     const existing = document.getElementById('migrationModal');
@@ -4875,7 +4636,7 @@ export class AISettings {
   async saveStorageSettings() {
     try {
       const currentType = this.storageConfig.type;
-      const typeNames = { local: '로컬', ftp: 'FTP/NAS', oracle: 'Oracle Cloud', notion: 'Notion' };
+      const typeNames = { local: '로컬', ftp: 'FTP/NAS', oracle: 'Oracle', notion: 'Notion' };
 
       // 저장소 타입이 변경되었는지 확인
       if (this.originalStorageType && currentType !== this.originalStorageType) {

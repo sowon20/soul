@@ -31,12 +31,12 @@ class AgentProfile {
     this.customPrompt = options.customPrompt || '';
     this.personality = options.personality || {
       traits: {
-        helpful: 1.0,
-        professional: 0.9,
-        friendly: 0.8,
-        precise: 0.9,
-        proactive: 0.7,
-        empathetic: 0.6
+        helpful: 0.5,
+        professional: 0.5,
+        friendly: 0.5,
+        precise: 0.5,
+        proactive: 0.5,
+        empathetic: 0.5
       },
       communication: {
         formality: 0.5,    // 캐주얼 ←→ 격식
@@ -362,18 +362,20 @@ class AgentProfileManager {
       description: '당신의 생각을 이해하고 함께 성장하는 AI 동반자입니다.',
       personality: {
         traits: {
-          helpful: 1.0,
-          professional: 0.9,
-          friendly: 0.8,
-          precise: 0.9,
-          proactive: 0.7,
-          empathetic: 0.8
+          helpful: 0.5,
+          professional: 0.5,
+          friendly: 0.5,
+          precise: 0.5,
+          proactive: 0.5,
+          empathetic: 0.5
         },
         communication: {
-          formality: 0.6,
-          verbosity: 0.6,
-          technicality: 0.8,
-          directness: 0.7
+          formality: 0.5,
+          verbosity: 0.5,
+          technicality: 0.5,
+          directness: 0.5,
+          emoji: 0.5,
+          humor: 0.5
         }
       },
       capabilities: [

@@ -2697,6 +2697,39 @@ body {
   filter: contrast(0.92);
 }
 
+/* 뉴모픽 버튼 - 저장소 */
+.neo-btn-storage {
+  background: #ebe8e4;
+  color: rgba(56, 66, 79, 0.7);
+}
+
+.neo-btn-storage:hover {
+  color: #ff7025;
+}
+
+.neo-btn-storage:active {
+  color: #ff7025;
+  box-shadow:
+    inset 6px 6px 12px rgba(0, 0, 0, 0.08),
+    inset -6px -6px 12px rgba(255, 255, 255, 0.7);
+  filter: contrast(0.92);
+}
+
+.neo-btn-storage.active {
+  color: #ff7025;
+  box-shadow:
+    inset 3px 3px 6px rgba(0, 0, 0, 0.06),
+    inset -3px -3px 6px rgba(255, 255, 255, 0.8);
+  filter: contrast(0.97);
+}
+
+.neo-btn-storage.active:active {
+  box-shadow:
+    inset 6px 6px 12px rgba(0, 0, 0, 0.08),
+    inset -6px -6px 12px rgba(255, 255, 255, 0.7);
+  filter: contrast(0.92);
+}
+
 /* 뉴모픽 버튼 4 */
 .neo-btn-4 {
   background: #ebe8e4;

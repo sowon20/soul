@@ -80,6 +80,15 @@ export class SettingsManager {
         ComponentClass = AppSettings;
         break;
 
+      case 'storage':
+        const { StorageSettings } = await import('./components/storage-settings.js');
+        // StorageSettings는 다른 컴포넌트와 인터페이스가 다름
+        const storageComponent = new StorageSettings(this.apiClient);
+        this.components.set(pageName, {
+          render: async (container) => await storageComponent.init(container)
+        });
+        return this.components.get(pageName);
+
       default:
         throw new Error(`Unknown page: ${pageName}`);
     }
