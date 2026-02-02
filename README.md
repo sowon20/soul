@@ -1,3 +1,13 @@
+---
+title: Soul AI
+emoji: 🌟
+colorFrom: purple
+colorTo: blue
+sdk: docker
+pinned: false
+license: mit
+---
+
 # 🌟 Soul Project
 
 > **단일 인격 AI 동반자 시스템** - 완전 재배포 가능한 오픈소스 프로젝트
