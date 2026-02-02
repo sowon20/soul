@@ -1,4 +1,4 @@
-name: Sync to HuggingFace Space
+name: Deploy to HuggingFace & Oracle VM
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - main
 
 jobs:
-  sync:
+  deploy-hf:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,3 +19,18 @@ jobs:
         run: |
           git remote add hf https://user:$HF_TOKEN@huggingface.co/spaces/sowon20/soul || true
           git push hf main --force
+
+  deploy-oracle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Oracle VM
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: 134.185.105.192
+          username: ubuntu
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          script: |
+            cd ~/soul
+            git pull origin main
+            cd client && npm run build
+            sudo systemctl restart soul
