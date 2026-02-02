@@ -1,23 +1,13 @@
 /**
  * Oracle Autonomous Database Storage (Thin Mode - no Oracle Client needed)
  * 대화 및 임베딩 저장용
- * 비밀번호는 macOS 키체인에서 가져옴
+ * 비밀번호는 환경변수에서 가져옴
  */
 
 const oracledb = require('oracledb');
 const fs = require('fs');
-
-// keytar is optional (for secure credential storage)
-let keytar = null;
-try {
-  keytar = require('keytar');
-} catch (e) {
-  console.log('[OracleStorage] keytar not available, using env vars for credentials');
-}
 const path = require('path');
 const crypto = require('crypto');
-
-const SERVICE_NAME = 'soul-oracle-db';
 
 class OracleStorage {
   constructor(config = {}) {
@@ -33,58 +23,17 @@ class OracleStorage {
   }
 
   /**
-   * 키체인 또는 환경변수에서 비밀번호 가져오기
+   * 환경변수에서 비밀번호 가져오기
    */
   async _getCredentials() {
-    // Try keytar first, then fall back to env vars
-    if (keytar) {
-      try {
-        this.password = await keytar.getPassword(SERVICE_NAME, 'password');
-        this.encryptionKey = await keytar.getPassword(SERVICE_NAME, 'encryptionKey');
-      } catch (e) {
-        console.log('[OracleStorage] keytar failed (no D-Bus?), using env vars');
-      }
-    }
-
-    // Fallback to environment variables
-    if (!this.password) {
-      this.password = process.env.ORACLE_PASSWORD;
-      this.encryptionKey = process.env.ORACLE_ENCRYPTION_KEY;
-    }
+    this.password = process.env.ORACLE_PASSWORD;
+    this.encryptionKey = process.env.ORACLE_ENCRYPTION_KEY;
 
     if (!this.password) {
-      throw new Error('[OracleStorage] Password not found. Set ORACLE_PASSWORD env var or run setup.');
+      throw new Error('[OracleStorage] Password not found. Set ORACLE_PASSWORD env var.');
     }
 
     return { password: this.password, encryptionKey: this.encryptionKey };
-  }
-
-  /**
-   * 키체인에 비밀번호 저장 (최초 설정용)
-   */
-  static async setCredentials(password, encryptionKey) {
-    if (!keytar) {
-      console.log('[OracleStorage] keytar not available, use ORACLE_PASSWORD env var');
-      return;
-    }
-    await keytar.setPassword(SERVICE_NAME, 'password', password);
-    if (encryptionKey) {
-      await keytar.setPassword(SERVICE_NAME, 'encryptionKey', encryptionKey);
-    }
-    console.log('[OracleStorage] Credentials saved to keychain');
-  }
-
-  /**
-   * 키체인에서 비밀번호 삭제
-   */
-  static async deleteCredentials() {
-    if (!keytar) {
-      console.log('[OracleStorage] keytar not available');
-      return;
-    }
-    await keytar.deletePassword(SERVICE_NAME, 'password');
-    await keytar.deletePassword(SERVICE_NAME, 'encryptionKey');
-    console.log('[OracleStorage] Credentials deleted from keychain');
   }
 
   /**
