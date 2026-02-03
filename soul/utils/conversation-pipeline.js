@@ -64,7 +64,7 @@ class ConversationPipeline {
       // === 1단계: 컨텍스트/문서 섹션 (상단) ===
 
       // 1-1. 시스템 프롬프트 (프로필 포함)
-      const systemPrompt = await this._buildSystemPromptWithProfile(options);
+      const { prompt: systemPrompt, timezone: profileTimezone } = await this._buildSystemPromptWithProfile(options);
 
       // 1-2. 시간 인지 프롬프트
       const { getTimeAwarePromptBuilder } = require('./time-aware-prompt');
@@ -82,7 +82,7 @@ class ConversationPipeline {
       }
 
       const timePrompt = await timePromptBuilder.build({
-        timezone: options.timezone || 'Asia/Seoul',
+        timezone: profileTimezone,
         lastMessageTime: lastMsgTime,
         sessionDuration: 0,
         messageIndex: recentMsgs.length
@@ -511,15 +511,7 @@ class ConversationPipeline {
    * - 지침은 하단에 배치
    */
   async _buildSystemPromptWithProfile(options = {}) {
-    // 시스템 설정에서 기본 timezone 가져오기
     let userTimezone = 'Asia/Seoul';
-    try {
-      const configManager = require('./config');
-      const localeConfig = await configManager.getConfigValue('locale', { timezone: 'Asia/Seoul' });
-      userTimezone = localeConfig.timezone || 'Asia/Seoul';
-    } catch (e) {
-      // 설정 로드 실패 시 기본값 사용
-    }
 
     // === 1. 인격/역할 정의 (기본 프롬프트) ===
     let basePrompt = options.systemPrompt || this.config.systemPrompt;
@@ -530,6 +522,10 @@ class ConversationPipeline {
       const userId = options.userId || 'default';
       const profile = await ProfileModel.getOrCreateDefault(userId);
 
+      // 프로필에서 timezone 가져오기
+      const tz = profile.basicInfo?.timezone?.value;
+      if (tz) userTimezone = tz;
+
       if (profile.permissions.autoIncludeInContext) {
         const profileSummary = profile.generateSummary(profile.permissions.readScope);
         const basicInfo = profileSummary.basicInfo || {};
@@ -537,11 +533,6 @@ class ConversationPipeline {
         const name = basicInfo.name || '';
         const nickname = basicInfo.nickname ? ` (${basicInfo.nickname})` : '';
         const location = basicInfo.location || '';
-        const tz = typeof basicInfo.timezone === 'string'
-          ? basicInfo.timezone
-          : (basicInfo.timezone?.value || 'Asia/Seoul');
-
-        userTimezone = tz;
 
         // 프로필 정보를 XML로 구조화
         profileSection = '<user_profile>\n';
@@ -618,7 +609,7 @@ class ConversationPipeline {
       prompt += `\n\n<additional_instructions>\n${options.additionalInstructions}\n</additional_instructions>`;
     }
 
-    return prompt;
+    return { prompt, timezone: userTimezone };
   }
 
   /**

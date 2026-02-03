@@ -29,7 +29,7 @@ function parseProfileValue(profile) {
     basicInfo: {
       name: { value: '', visibility: { visibleToSoul: true, autoIncludeInContext: true } },
       country: { value: '', visibility: { visibleToSoul: true, autoIncludeInContext: true } },
-      timezone: { value: 'UTC', visibility: { visibleToSoul: true, autoIncludeInContext: true } },
+      timezone: { value: 'Asia/Seoul', visibility: { visibleToSoul: true, autoIncludeInContext: true } },
       language: { value: 'ko', visibility: { visibleToSoul: true, autoIncludeInContext: true } }
     },
     customFields: [],
@@ -93,7 +93,7 @@ Profile.getOrCreateDefault = async function(userId = 'default') {
         basicInfo: {
           name: { value: '', visibility: { visibleToSoul: true, autoIncludeInContext: true } },
           country: { value: '', visibility: { visibleToSoul: true, autoIncludeInContext: true } },
-          timezone: { value: 'UTC', visibility: { visibleToSoul: true, autoIncludeInContext: true } },
+          timezone: { value: 'Asia/Seoul', visibility: { visibleToSoul: true, autoIncludeInContext: true } },
           language: { value: 'ko', visibility: { visibleToSoul: true, autoIncludeInContext: true } }
         },
         customFields: [],

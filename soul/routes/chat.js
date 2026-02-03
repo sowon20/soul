@@ -435,8 +435,21 @@ ${rulesText}</self_notes>\n\n`;
 
       // AI 호출 (도구 포함) - 프로필 설정 적용
       const totalChars = chatMessages.reduce((sum, m) => sum + (m.content?.length || 0), 0);
-      // 도구 토큰 추정: 도구당 약 500-800 토큰 (JSON 스키마 + 설명)
-      const toolsTokenEstimate = allTools.length * 700;
+      // 도구 필요 여부 판단 (간단한 대화에는 도구 생략 → 토큰 절약)
+      let needsTools = allTools.length > 0;
+      if (needsTools) {
+        const lastMsg = message.trim();
+        if (lastMsg.length <= 20) {
+          const noToolPatterns = /^(ㅋ{1,}|ㅎ{1,}|ㅇㅇ|ㅇㅋ|ㄱㄱ|ㄴㄴ|ㅜ{1,}|ㅠ{1,}|ㅎㅎ|ㅋㅋ|ㅎㅇ|ㄳ|ㅊㅊ|ok|ㅅㄱ|ㅂㅂ|넵|네|응|어|좋아|ㅇㅈ|감사|고마워|알겠어|그래|오키|굿|잘자|안녕|하이|반가워|수고|대박|실화|진짜|헐|와|오|아|흠|맞아|그렇구나|그렇지|당연|맞네|인정|좋네|괜찮아|화이팅|파이팅|짱|최고|오키도키|ㄹㅇ|ㄱㅅ|ㅈㄱ|ㅊㅋ|그치|맞다|아하|오호|매우 좋아|잘했어|ㅁㅁ)[!?.~ㅋㅎ]*$/i;
+          if (noToolPatterns.test(lastMsg)) {
+            needsTools = false;
+            console.log(`[Chat] Simple message, skipping tools: "${lastMsg}"`);
+          }
+        }
+      }
+
+      const actualToolCount = needsTools ? allTools.length : 0;
+      const toolsTokenEstimate = actualToolCount * 700;
       const systemPromptTokens = Math.ceil(combinedSystemPrompt.length / 4);
       const messageTokens = Math.ceil(totalChars / 4);
       const totalTokenEstimate = messageTokens + systemPromptTokens + toolsTokenEstimate;
@@ -446,13 +459,13 @@ ${rulesText}</self_notes>\n\n`;
         messages: messageTokens,
         system: systemPromptTokens,
         tools: toolsTokenEstimate,
-        toolCount: allTools.length
+        toolCount: actualToolCount
       };
 
       console.log(`[Chat] Sending to AI: ${chatMessages.length} messages, ~${totalChars} chars`)
-      console.log(`[Chat] Token estimate: messages=${messageTokens}, system=${systemPromptTokens}, tools(${allTools.length})=${toolsTokenEstimate}, total=${totalTokenEstimate}`);
+      console.log(`[Chat] Token estimate: messages=${messageTokens}, system=${systemPromptTokens}, tools(${actualToolCount})=${toolsTokenEstimate}, total=${totalTokenEstimate}`);
       console.log(`[Chat] System prompt: ${combinedSystemPrompt.length} chars`);
-      
+
       // Tool Search 설정 로드
       const toolSearchConfig = await configManager.getConfigValue('toolSearch', {
         enabled: false,
@@ -463,8 +476,8 @@ ${rulesText}</self_notes>\n\n`;
         systemPrompt: combinedSystemPrompt,
         maxTokens: aiSettings.maxTokens,
         temperature: aiSettings.temperature,
-        tools: allTools.length > 0 ? allTools : null,
-        toolExecutor: allTools.length > 0 ? toolExecutor : null,
+        tools: needsTools ? allTools : null,
+        toolExecutor: needsTools ? toolExecutor : null,
         thinking: routingResult.thinking || false,
         // Tool Search 설정 (Claude 전용)
         enableToolSearch: toolSearchConfig.enabled,

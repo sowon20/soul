@@ -220,20 +220,29 @@ source.exportAll() → 공통 JSON → target.importAll()
 ### 1. AI 서비스 관리
 - 여러 AI 서비스(Claude, OpenAI, Gemini, Groq, DeepSeek 등) 지원
 - API 키 관리 및 서비스 활성화/비활성화
+- **도구(Tool) 지원**: 모든 AI 서비스에서 도구 호출 가능 (Claude 네이티브, OpenAI/xAI/HuggingFace/LightningAI/Ollama는 OpenAI 호환, Gemini는 functionDeclarations)
+- 간단한 메시지(ㅋㅋ, 넵, ok 등)에는 도구 생략하여 토큰 절약
 
 ### 2. 두뇌(Brain) 설정 - 라우팅 시스템
 **두 가지 모드**:
 - **단일 모델 (single)**: 하나의 모델만 사용
 - **자동 라우팅 (auto)**: 복잡도에 따라 모델 자동 선택
 
-### 3. 성격(Personality) 설정
+### 3. 사용자 프로필
+- 설정 > 프로필에서 기본 정보 관리
+- **시간대(timezone)**: 프로필 기본 정보에서 관리 (기본값: Asia/Seoul)
+- **언어(language)**: 프로필 기본 정보에서 관리 (기본값: ko)
+- 각 필드에 visibility 토글 (소울에게 공개 / 자동 컨텍스트 포함)
+- AI 컨텍스트 전달 경로: 프로필 → chat.js (`<user_profile>`) + conversation-pipeline.js (`<current_time>`, 시간 프롬프트)
+
+### 4. 성격(Personality) 설정
 - 프롬프트: AI의 역할과 말투 정의
 - 세밀조절 슬라이더 (formality, verbosity, humor, empathy, temperature)
 
-### 4. 역할(알바) 시스템
+### 5. 역할(알바) 시스템
 - 특정 작업을 위한 전문 AI 역할
 
-### 5. MCP 도구 시스템
+### 6. MCP 도구 시스템
 - 외부 도구 통합 (Model Context Protocol)
 
 ---
@@ -253,7 +262,7 @@ SOUL_DATA_DIR=~/.soul
 ## 주의사항
 
 1. `ai-settings.js`는 4000줄+ 대형 파일 - offset/limit으로 부분 읽기 필요
-2. 하드코딩된 기본값 없음 - 빈 문자열 또는 null 사용
+2. 하드코딩된 기본값 최소화 - timezone(Asia/Seoul), language(ko)만 기본값 있음
 3. DB는 SQLite 기본
 4. Vite 캐시 문제 시: `rm -rf client/node_modules/.vite`
 5. **특정 환경 전용 코드는 메인에 넣지 말 것** - deploy/ 폴더로 분리

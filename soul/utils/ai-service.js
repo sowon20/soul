@@ -979,6 +979,8 @@ class OpenAIService extends AIService {
       systemPrompt = null,
       maxTokens = 4096,
       temperature = 1.0,
+      tools = null,
+      toolExecutor = null,
       // Claude 전용 옵션들 - 무시되지만 경고 출력
       documents = null,
       searchResults = null,
@@ -1026,7 +1028,19 @@ class OpenAIService extends AIService {
       requestBody.temperature = temperature;
     }
 
-    const response = await fetch(`${this.baseUrl}/chat/completions`, {
+    // OpenAI 도구 전달
+    if (tools && tools.length > 0) {
+      requestBody.tools = tools.map(t => ({
+        type: 'function',
+        function: {
+          name: t.name,
+          description: t.description || '',
+          parameters: t.input_schema || { type: 'object', properties: {} }
+        }
+      }));
+    }
+
+    let response = await fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1035,7 +1049,7 @@ class OpenAIService extends AIService {
       body: JSON.stringify(requestBody)
     });
 
-    const data = await response.json();
+    let data = await response.json();
 
     // 에러 응답 처리
     if (data.error) {
@@ -1045,6 +1059,41 @@ class OpenAIService extends AIService {
     // 정상 응답 확인
     if (!data.choices || !data.choices[0]) {
       throw new Error('Invalid response from OpenAI API');
+    }
+
+    // 도구 호출 루프
+    while (data.choices[0].finish_reason === 'tool_calls' && toolExecutor) {
+      const toolCalls = data.choices[0].message.tool_calls;
+      if (!toolCalls || toolCalls.length === 0) break;
+
+      apiMessages.push(data.choices[0].message);
+
+      for (const tc of toolCalls) {
+        const input = JSON.parse(tc.function.arguments || '{}');
+        console.log(`[OpenAI Tool] Executing: ${tc.function.name}`, input);
+        const result = await toolExecutor(tc.function.name, input);
+        apiMessages.push({
+          role: 'tool',
+          tool_call_id: tc.id,
+          content: typeof result === 'string' ? result : JSON.stringify(result)
+        });
+      }
+
+      requestBody.messages = apiMessages;
+      response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`
+        },
+        body: JSON.stringify(requestBody)
+      });
+      data = await response.json();
+
+      if (data.error) {
+        throw new Error(data.error.message || 'OpenAI API error');
+      }
+      if (!data.choices || !data.choices[0]) break;
     }
 
     // 사용량 정보 추출 (OpenAI format: prompt_tokens, completion_tokens)
@@ -1130,6 +1179,8 @@ class HuggingFaceService extends AIService {
       systemPrompt = null,
       maxTokens = 4096,
       temperature = 0.7,
+      tools = null,
+      toolExecutor = null,
     } = options;
 
     const apiMessages = [...messages];
@@ -1147,7 +1198,19 @@ class HuggingFaceService extends AIService {
       temperature: temperature
     };
 
-    const response = await fetch(`${this.baseUrl}/chat/completions`, {
+    // OpenAI 호환 도구 전달
+    if (tools && tools.length > 0) {
+      requestBody.tools = tools.map(t => ({
+        type: 'function',
+        function: {
+          name: t.name,
+          description: t.description || '',
+          parameters: t.input_schema || { type: 'object', properties: {} }
+        }
+      }));
+    }
+
+    let response = await fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1156,7 +1219,7 @@ class HuggingFaceService extends AIService {
       body: JSON.stringify(requestBody)
     });
 
-    const data = await response.json();
+    let data = await response.json();
 
     if (data.error) {
       throw new Error(data.error.message || 'HuggingFace API error');
@@ -1164,6 +1227,44 @@ class HuggingFaceService extends AIService {
 
     if (!data.choices || !data.choices[0]) {
       throw new Error('Invalid response from HuggingFace API');
+    }
+
+    // 도구 호출 루프 (OpenAI 호환 형식)
+    while (data.choices[0].finish_reason === 'tool_calls' && toolExecutor) {
+      const toolCalls = data.choices[0].message.tool_calls;
+      if (!toolCalls || toolCalls.length === 0) break;
+
+      // assistant 메시지 추가 (tool_calls 포함)
+      apiMessages.push(data.choices[0].message);
+
+      // 도구 실행 및 결과 추가
+      for (const tc of toolCalls) {
+        const input = JSON.parse(tc.function.arguments || '{}');
+        console.log(`[HF Tool] Executing: ${tc.function.name}`, input);
+        const result = await toolExecutor(tc.function.name, input);
+        apiMessages.push({
+          role: 'tool',
+          tool_call_id: tc.id,
+          content: typeof result === 'string' ? result : JSON.stringify(result)
+        });
+      }
+
+      // 재호출
+      requestBody.messages = apiMessages;
+      response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`
+        },
+        body: JSON.stringify(requestBody)
+      });
+      data = await response.json();
+
+      if (data.error) {
+        throw new Error(data.error.message || 'HuggingFace API error');
+      }
+      if (!data.choices || !data.choices[0]) break;
     }
 
     const usage = {
@@ -1232,6 +1333,8 @@ class GoogleService extends AIService {
       systemPrompt = null,
       maxTokens = 4096,
       temperature = 1.0,
+      tools = null,
+      toolExecutor = null,
       // Claude 전용 옵션들 - 무시되지만 경고 출력
       documents = null,
       searchResults = null,
@@ -1267,18 +1370,14 @@ class GoogleService extends AIService {
     };
 
     // Gemini thinking 설정 (2.5+, 3.0+ 등 thinking 지원 모델)
-    // thinkingBudget: 0 = 비활성화, -1 = 동적(Auto), 양수 = 특정 토큰 수
-    // Gemini 3.0+는 thinkingLevel 사용 가능하나 thinkingBudget도 하위 호환
     const supportsThinking = /gemini[- ]?(2\.5|2-5|3|[4-9])/i.test(this.modelName);
     if (supportsThinking) {
       if (thinking) {
-        // thinking 활성화: 동적 모드 (-1)
         generationConfig.thinkingConfig = {
           thinkingBudget: -1  // Auto/dynamic
         };
         console.log(`[Google] Gemini thinking enabled (dynamic budget) for ${this.modelName}`);
       } else {
-        // thinking 비활성화
         generationConfig.thinkingConfig = {
           thinkingBudget: 0
         };
@@ -1303,16 +1402,26 @@ class GoogleService extends AIService {
       };
     }
 
-    const response = await fetch(
-      `${this.baseUrl}/models/${this.modelName}:generateContent?key=${this.apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
-      }
-    );
+    // Gemini 도구 전달 (functionDeclarations 형식)
+    if (tools && tools.length > 0) {
+      requestBody.tools = [{
+        functionDeclarations: tools.map(t => ({
+          name: t.name,
+          description: t.description || '',
+          parameters: t.input_schema || { type: 'object', properties: {} }
+        }))
+      }];
+    }
 
-    const data = await response.json();
+    const apiUrl = `${this.baseUrl}/models/${this.modelName}:generateContent?key=${this.apiKey}`;
+
+    let response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody)
+    });
+
+    let data = await response.json();
 
     // 에러 응답 처리
     if (data.error) {
@@ -1324,6 +1433,54 @@ class GoogleService extends AIService {
       throw new Error('Invalid response from Google API');
     }
 
+    // 도구 호출 루프 (Gemini functionCall 형식)
+    let parts = data.candidates[0].content?.parts || [];
+    let functionCalls = parts.filter(p => p.functionCall);
+
+    while (functionCalls.length > 0 && toolExecutor) {
+      // model 응답을 contents에 추가
+      contents.push({
+        role: 'model',
+        parts: parts
+      });
+
+      // 도구 실행 및 결과 추가
+      const functionResponses = [];
+      for (const fc of functionCalls) {
+        const { name, args } = fc.functionCall;
+        console.log(`[Google Tool] Executing: ${name}`, args);
+        const result = await toolExecutor(name, args || {});
+        functionResponses.push({
+          functionResponse: {
+            name: name,
+            response: typeof result === 'string' ? { result } : result
+          }
+        });
+      }
+
+      contents.push({
+        role: 'user',
+        parts: functionResponses
+      });
+
+      // 재호출
+      requestBody.contents = contents;
+      response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody)
+      });
+      data = await response.json();
+
+      if (data.error) {
+        throw new Error(data.error.message || 'Google API error');
+      }
+      if (!data.candidates || !data.candidates[0]) break;
+
+      parts = data.candidates[0].content?.parts || [];
+      functionCalls = parts.filter(p => p.functionCall);
+    }
+
     // Gemini는 usageMetadata로 토큰 정보 반환
     const usage = {
       input_tokens: data.usageMetadata?.promptTokenCount || 0,
@@ -1331,16 +1488,13 @@ class GoogleService extends AIService {
     };
 
     // Gemini 2.5 응답에서 thinking과 text 분리
-    const parts = data.candidates[0].content.parts || [];
     let thinkingContent = '';
     let textContent = '';
 
     for (const part of parts) {
       if (part.thought) {
-        // thinking 파트
         thinkingContent += part.text || '';
       } else if (part.text) {
-        // 일반 텍스트 파트
         textContent += part.text;
       }
     }
@@ -1435,6 +1589,8 @@ class XAIService extends AIService {
       systemPrompt = null,
       maxTokens = 4096,
       temperature = 1.0,
+      tools = null,
+      toolExecutor = null,
       // Claude 전용 옵션들 - 무시되지만 경고 출력
       documents = null,
       searchResults = null,
@@ -1479,10 +1635,19 @@ class XAIService extends AIService {
       requestBody.temperature = temperature;
     }
 
-    console.log('[XAI] Request URL:', `${this.baseUrl}/chat/completions`);
-    console.log('[XAI] Request body:', JSON.stringify(requestBody, null, 2));
+    // OpenAI 호환 도구 전달
+    if (tools && tools.length > 0) {
+      requestBody.tools = tools.map(t => ({
+        type: 'function',
+        function: {
+          name: t.name,
+          description: t.description || '',
+          parameters: t.input_schema || { type: 'object', properties: {} }
+        }
+      }));
+    }
 
-    const response = await fetch(`${this.baseUrl}/chat/completions`, {
+    let response = await fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1491,29 +1656,52 @@ class XAIService extends AIService {
       body: JSON.stringify(requestBody)
     });
 
-    console.log('[XAI] Response status:', response.status);
-    console.log('[XAI] Response headers:', Object.fromEntries(response.headers.entries()));
-
     if (!response.ok) {
       const errorText = await response.text();
       console.error('[XAI] Error response:', errorText);
       throw new Error(`xAI API error (${response.status}): ${errorText || 'Unknown error'}`);
     }
 
-    const responseText = await response.text();
-    console.log('[XAI] Response text:', responseText);
-
-    let data;
-    try {
-      data = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error('[XAI] JSON parse error:', parseError);
-      throw new Error(`Failed to parse xAI response: ${responseText.substring(0, 200)}`);
-    }
+    let data = await response.json();
 
     if (!data.choices || !data.choices[0] || !data.choices[0].message) {
       console.error('[XAI] Invalid data structure:', data);
       throw new Error('Invalid response from xAI API');
+    }
+
+    // 도구 호출 루프
+    while (data.choices[0].finish_reason === 'tool_calls' && toolExecutor) {
+      const toolCalls = data.choices[0].message.tool_calls;
+      if (!toolCalls || toolCalls.length === 0) break;
+
+      apiMessages.push(data.choices[0].message);
+
+      for (const tc of toolCalls) {
+        const input = JSON.parse(tc.function.arguments || '{}');
+        console.log(`[xAI Tool] Executing: ${tc.function.name}`, input);
+        const result = await toolExecutor(tc.function.name, input);
+        apiMessages.push({
+          role: 'tool',
+          tool_call_id: tc.id,
+          content: typeof result === 'string' ? result : JSON.stringify(result)
+        });
+      }
+
+      requestBody.messages = apiMessages;
+      response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`
+        },
+        body: JSON.stringify(requestBody)
+      });
+      data = await response.json();
+
+      if (data.error) {
+        throw new Error(data.error.message || 'xAI API error');
+      }
+      if (!data.choices || !data.choices[0]) break;
     }
 
     // xAI도 OpenAI 호환 format 사용
@@ -1565,6 +1753,8 @@ class LightningAIService extends AIService {
       systemPrompt = null,
       maxTokens = 4096,
       temperature = 0.7,
+      tools = null,
+      toolExecutor = null,
     } = options;
 
     const apiMessages = [...messages];
@@ -1582,9 +1772,19 @@ class LightningAIService extends AIService {
       temperature: temperature,
     };
 
-    console.log('[LightningAI] Request URL:', `${this.baseUrl}/chat/completions`);
+    // OpenAI 호환 도구 전달
+    if (tools && tools.length > 0) {
+      requestBody.tools = tools.map(t => ({
+        type: 'function',
+        function: {
+          name: t.name,
+          description: t.description || '',
+          parameters: t.input_schema || { type: 'object', properties: {} }
+        }
+      }));
+    }
 
-    const response = await fetch(`${this.baseUrl}/chat/completions`, {
+    let response = await fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1599,11 +1799,46 @@ class LightningAIService extends AIService {
       throw new Error(`Lightning AI API error (${response.status}): ${errorText || 'Unknown error'}`);
     }
 
-    const data = await response.json();
+    let data = await response.json();
 
     if (!data.choices || !data.choices[0] || !data.choices[0].message) {
       console.error('[LightningAI] Invalid data structure:', data);
       throw new Error('Invalid response from Lightning AI API');
+    }
+
+    // 도구 호출 루프
+    while (data.choices[0].finish_reason === 'tool_calls' && toolExecutor) {
+      const toolCalls = data.choices[0].message.tool_calls;
+      if (!toolCalls || toolCalls.length === 0) break;
+
+      apiMessages.push(data.choices[0].message);
+
+      for (const tc of toolCalls) {
+        const input = JSON.parse(tc.function.arguments || '{}');
+        console.log(`[LightningAI Tool] Executing: ${tc.function.name}`, input);
+        const result = await toolExecutor(tc.function.name, input);
+        apiMessages.push({
+          role: 'tool',
+          tool_call_id: tc.id,
+          content: typeof result === 'string' ? result : JSON.stringify(result)
+        });
+      }
+
+      requestBody.messages = apiMessages;
+      response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`
+        },
+        body: JSON.stringify(requestBody)
+      });
+      data = await response.json();
+
+      if (data.error) {
+        throw new Error(data.error.message || 'Lightning AI API error');
+      }
+      if (!data.choices || !data.choices[0]) break;
     }
 
     const usage = {
@@ -1630,6 +1865,8 @@ class OllamaService extends AIService {
       systemPrompt = null,
       maxTokens = 4096,
       temperature = 1.0,
+      tools = null,
+      toolExecutor = null,
       // Claude 전용 옵션들 - 무시되지만 경고 출력
       documents = null,
       searchResults = null,
@@ -1655,11 +1892,13 @@ class OllamaService extends AIService {
     }
 
     // Ollama는 /api/chat 엔드포인트 사용
+    const apiMessages = systemPrompt
+      ? [{ role: 'system', content: systemPrompt }, ...messages]
+      : [...messages];
+
     const requestBody = {
       model: this.modelName,
-      messages: systemPrompt
-        ? [{ role: 'system', content: systemPrompt }, ...messages]
-        : messages,
+      messages: apiMessages,
       stream: false,
       options: {
         num_predict: maxTokens,
@@ -1667,15 +1906,53 @@ class OllamaService extends AIService {
       }
     };
 
-    const response = await fetch(`${this.baseUrl}/api/chat`, {
+    // Ollama 도구 전달 (OpenAI 호환 형식)
+    if (tools && tools.length > 0) {
+      requestBody.tools = tools.map(t => ({
+        type: 'function',
+        function: {
+          name: t.name,
+          description: t.description || '',
+          parameters: t.input_schema || { type: 'object', properties: {} }
+        }
+      }));
+    }
+
+    let response = await fetch(`${this.baseUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(requestBody)
     });
 
-    const data = await response.json();
+    let data = await response.json();
 
-    // Ollama는 로컬이므로 비용이 없지만, 토큰 정보는 있을 수 있음
+    // 도구 호출 루프 (Ollama는 message.tool_calls 사용)
+    while (data.message?.tool_calls && data.message.tool_calls.length > 0 && toolExecutor) {
+      // assistant 메시지 추가
+      apiMessages.push(data.message);
+
+      for (const tc of data.message.tool_calls) {
+        const name = tc.function.name;
+        const args = tc.function.arguments || {};
+        console.log(`[Ollama Tool] Executing: ${name}`, args);
+        const result = await toolExecutor(name, args);
+        apiMessages.push({
+          role: 'tool',
+          content: typeof result === 'string' ? result : JSON.stringify(result)
+        });
+      }
+
+      requestBody.messages = apiMessages;
+      response = await fetch(`${this.baseUrl}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody)
+      });
+      data = await response.json();
+
+      if (!data.message) break;
+    }
+
     // Ollama의 prompt_eval_count(입력), eval_count(출력)
     const usage = {
       input_tokens: data.prompt_eval_count || 0,
