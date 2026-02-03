@@ -29,7 +29,8 @@ class ConversationArchiver {
     if (!basePath && !options.useFTP && !options.useNotion) {
       throw new Error('[Archiver] basePath is required. Set memory.storagePath in settings.');
     }
-    this.basePath = basePath;
+    // ~ 를 실제 홈 디렉토리로 확장
+    this.basePath = basePath ? basePath.replace(/^~/, require('os').homedir()) : basePath;
     this.conversationsPath = basePath ? path.join(basePath, 'conversations') : 'conversations';
     this.cachePath = LOCAL_CACHE_DIR; // 앱 폴더 내 고정 경로
     this.initialized = false;

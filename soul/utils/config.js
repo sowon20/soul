@@ -1,4 +1,10 @@
 const SystemConfig = require('../models/SystemConfig');
+const os = require('os');
+
+/** ~ 를 실제 홈 디렉토리로 확장 */
+function expandTilde(p) {
+  return p ? p.replace(/^~/, os.homedir()) : p;
+}
 
 /**
  * 설정 관리 클래스
@@ -194,7 +200,9 @@ class ConfigManager {
    */
   async getMemoryConfig() {
     const config = await this.readConfig();
-    return config.memory || this.defaultConfig.memory;
+    const memory = config.memory || this.defaultConfig.memory;
+    if (memory.storagePath) memory.storagePath = expandTilde(memory.storagePath);
+    return memory;
   }
 
   /**
@@ -250,16 +258,21 @@ class ConfigManager {
   async getStorageConfig() {
     const config = await this.readConfig();
     // 통합 저장소 설정이 없으면 기존 memory 설정에서 마이그레이션
+    let storage;
     if (!config.storage) {
-      return {
+      storage = {
         type: config.memory?.storageType || 'local',
         path: config.memory?.storagePath || '~/.soul',
         ftp: config.memory?.ftp || null,
         oracle: config.memory?.oracle || null,
         notion: null
       };
+    } else {
+      storage = config.storage;
     }
-    return config.storage;
+    // ~ 확장
+    storage.path = expandTilde(storage.path);
+    return storage;
   }
 
   /**
