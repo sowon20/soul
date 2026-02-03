@@ -206,7 +206,21 @@ export class ProfileSettings {
       { key: 'birthDate', label: '생년월일', type: 'date' },
       { key: 'location', label: '사는 곳', type: 'text' },
       { key: 'occupation', label: '하는 일', type: 'text' },
-      { key: 'bio', label: '자기소개', type: 'textarea' }
+      { key: 'bio', label: '자기소개', type: 'textarea' },
+      { key: 'timezone', label: '시간대', type: 'select', options: [
+        { value: 'Asia/Seoul', label: '한국 표준시 (KST)' },
+        { value: 'Asia/Tokyo', label: '일본 표준시 (JST)' },
+        { value: 'America/Los_Angeles', label: '태평양 시간 (PST)' },
+        { value: 'America/New_York', label: '동부 시간 (EST)' },
+        { value: 'Europe/London', label: '영국 시간 (GMT)' },
+        { value: 'UTC', label: '협정 세계시 (UTC)' }
+      ]},
+      { key: 'language', label: '언어', type: 'select', options: [
+        { value: 'ko', label: '한국어' },
+        { value: 'en', label: 'English' },
+        { value: 'ja', label: '日本語' },
+        { value: 'zh', label: '中文' }
+      ]}
     ];
 
     return fields.map(field => {
@@ -259,6 +273,26 @@ export class ProfileSettings {
                    placeholder="휴대전화"
                    maxlength="13"
                    inputmode="numeric">
+          </div>
+        `;
+      } else if (field.type === 'select') {
+        const displayLabel = field.options.find(o => o.value === value)?.label || value || '';
+        const optionsHtml = field.options.map(opt =>
+          `<option value="${opt.value}" ${value === opt.value ? 'selected' : ''}>${opt.label}</option>`
+        ).join('');
+
+        return `
+          <div class="neu-field ${hasValue ? 'has-value' : ''}">
+            <div class="neu-field-display">
+              <span class="neu-field-title">${field.label} : </span>
+              <span class="neu-field-value">${displayLabel}</span>
+            </div>
+            <select class="neu-field-input"
+                    data-basic-field="${field.key}"
+                    data-label="${field.label}">
+              <option value="">선택 안함</option>
+              ${optionsHtml}
+            </select>
           </div>
         `;
       } else if (field.type === 'textarea') {
@@ -459,7 +493,15 @@ export class ProfileSettings {
       }
 
       // 저장 (일반 필드용)
-      input.addEventListener('change', (e) => this.saveBasicInfoValue(e.target, apiClient));
+      input.addEventListener('change', (e) => {
+        // select의 경우 선택된 옵션 텍스트를 display에 반영
+        if (input.tagName === 'SELECT' && valueSpan) {
+          valueSpan.textContent = input.options[input.selectedIndex]?.text || input.value;
+          field.classList.toggle('has-value', input.value.length > 0);
+          field.classList.remove('editing');
+        }
+        this.saveBasicInfoValue(e.target, apiClient);
+      });
     });
 
     // 기본 정보 토글 버튼
