@@ -162,6 +162,36 @@ ${rulesText}</self_notes>\n\n`;
       console.warn('자기학습 규칙 로드 실패:', ruleError.message);
     }
 
+    // 1-3. 사용자 프로필 (autoIncludeInContext인 필드만)
+    let userProfileSection = '';
+    let userName = '';
+    try {
+      const ProfileModel = require('../models/Profile');
+      const userProfile = await ProfileModel.getOrCreateDefault('default');
+      if (userProfile) {
+        let profileLines = [];
+        const basicInfo = userProfile.basicInfo || {};
+        for (const [key, field] of Object.entries(basicInfo)) {
+          if (field?.value && field?.visibility?.autoIncludeInContext) {
+            const labels = { name: '이름', country: '국가', timezone: '시간대', language: '언어' };
+            profileLines.push(`- ${labels[key] || key}: ${field.value}`);
+            if (key === 'name') userName = field.value;
+          }
+        }
+        const customFields = userProfile.customFields || [];
+        for (const f of customFields) {
+          if (f.value) {
+            profileLines.push(`- ${f.label}: ${f.value}`);
+          }
+        }
+        if (profileLines.length > 0) {
+          userProfileSection = `<user_profile>\n${profileLines.join('\n')}\n</user_profile>\n\n`;
+        }
+      }
+    } catch (profileError) {
+      console.warn('사용자 프로필 로드 실패:', profileError.message);
+    }
+
     // 2단계: 인격/행동 지침 (하단에 배치될 것)
     let basePrompt = personality.generateSystemPrompt({
       model: routingResult.modelId,
@@ -182,10 +212,13 @@ ${rulesText}</self_notes>\n\n`;
 - 메모는 사용자에게 보이지 않음
 </instructions>`;
 
-    // 최종 조합: 컨텍스트(문서) → 인격 → 지침 순서
+    // 최종 조합: 컨텍스트(문서) → 사용자프로필 → 인격 → 지침 순서
     let systemPrompt = '';
     if (contextSection) {
       systemPrompt = contextSection;
+    }
+    if (userProfileSection) {
+      systemPrompt += userProfileSection;
     }
     systemPrompt += basePrompt;
     systemPrompt += instructionsSection;
@@ -226,27 +259,38 @@ ${rulesText}</self_notes>\n\n`;
     try {
       let serviceName, modelId;
 
+      // 모델명으로 서비스 추론하는 헬퍼
+      function inferServiceFromModel(model) {
+        const lower = model.toLowerCase();
+        if (lower.includes('claude')) return 'anthropic';
+        if (lower.includes('gpt') && !lower.includes('gpt-oss')) return 'openai';
+        if (lower.includes('gemini')) return 'google';
+        if (lower.includes('grok')) return 'xai';
+        if (lower.includes('llama') || lower.includes('meta-llama/')) return 'huggingface';
+        if (lower.includes('qwen')) return 'huggingface';
+        if (lower.includes('mistral')) return 'huggingface';
+        if (lower.includes('gpt-oss') || lower.includes('openai/')) return 'huggingface';
+        return null;
+      }
+
+      // 유효한 서비스명인지 확인
+      const VALID_SERVICES = ['anthropic', 'openai', 'google', 'xai', 'huggingface', 'ollama', 'lightning', 'vertex'];
+
       // 스마트 라우팅 결과 사용
-      if (routingResult && routingResult.modelId && routingResult.serviceId) {
+      if (routingResult && routingResult.modelId) {
+        modelId = routingResult.modelId;
         serviceName = routingResult.serviceId;
-        modelId = routingResult.modelId;
-        console.log(`[Chat] Using smart routing: ${serviceName}, model: ${modelId}`);
-      } else if (routingResult && routingResult.modelId) {
-        // serviceId 없으면 모델 이름으로 서비스 추론
-        modelId = routingResult.modelId;
-        const lowerModelId = modelId.toLowerCase();
-        serviceName = lowerModelId.includes('claude') ? 'anthropic'
-          : lowerModelId.includes('gpt') && !lowerModelId.includes('gpt-oss') ? 'openai'
-          : lowerModelId.includes('gemini') ? 'google'
-          : lowerModelId.includes('grok') ? 'xai'
-          : lowerModelId.includes('llama') ? 'huggingface'
-          : lowerModelId.includes('qwen') ? 'huggingface'
-          : lowerModelId.includes('mistral') ? 'huggingface'
-          : lowerModelId.includes('gpt-oss') ? 'huggingface'
-          : lowerModelId.includes('openai/') ? 'huggingface'
-          : lowerModelId.includes('meta-llama/') ? 'huggingface'
-          : 'anthropic';
-        console.log(`[Chat] Inferred service: ${serviceName}, model: ${modelId}`);
+
+        // serviceId가 없거나 유효하지 않으면 모델명에서 추론
+        if (!serviceName || !VALID_SERVICES.includes(serviceName)) {
+          const inferred = inferServiceFromModel(modelId);
+          if (inferred) {
+            console.log(`[Chat] Invalid serviceId "${serviceName}", inferred: ${inferred} from model: ${modelId}`);
+            serviceName = inferred;
+          }
+        }
+
+        console.log(`[Chat] Using routing: ${serviceName}, model: ${modelId}`);
       } else {
         throw new Error('No routing result or model specified');
       }

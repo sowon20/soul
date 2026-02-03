@@ -623,12 +623,15 @@ class DashboardManager {
     container.innerHTML = topModels.map(model => {
       const displayName = this.getModelDisplayName(model.modelId);
       const percentage = parseFloat(model.percentage) || 0;
+      const costStr = model.cost != null && model.cost > 0
+        ? `$${model.cost.toFixed(4)}`
+        : '-';
 
       return `
         <div class="model-usage-item">
           <div class="model-usage-header">
             <span class="model-name">${displayName}</span>
-            <span class="model-percentage">${model.percentage}</span>
+            <span class="model-percentage">${costStr}</span>
           </div>
           <div class="model-usage-bar">
             <div class="model-usage-fill" style="width: ${percentage}%"></div>

@@ -162,10 +162,51 @@ function createTables() {
       input_tokens INTEGER DEFAULT 0,
       output_tokens INTEGER DEFAULT 0,
       requests INTEGER DEFAULT 0,
-      created_at TEXT DEFAULT (datetime('now')),
-      UNIQUE(date, service, model)
+      metadata TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
     )
   `);
+
+  // 마이그레이션: UNIQUE 제약이 있는 기존 테이블 → 없는 테이블로 변경
+  // (UNIQUE 제약 때문에 같은 날 같은 모델 두 번째 요청 시 INSERT 실패)
+  try {
+    const tableInfo = db.prepare("SELECT sql FROM sqlite_master WHERE name='usage_stats'").get();
+    if (tableInfo && tableInfo.sql && tableInfo.sql.includes('UNIQUE')) {
+      db.exec(`ALTER TABLE usage_stats RENAME TO usage_stats_old`);
+      db.exec(`
+        CREATE TABLE usage_stats (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          date TEXT NOT NULL,
+          service TEXT NOT NULL,
+          model TEXT,
+          input_tokens INTEGER DEFAULT 0,
+          output_tokens INTEGER DEFAULT 0,
+          requests INTEGER DEFAULT 0,
+          metadata TEXT,
+          created_at TEXT DEFAULT (datetime('now'))
+        )
+      `);
+      db.exec(`INSERT INTO usage_stats (id, date, service, model, input_tokens, output_tokens, requests, created_at) SELECT id, date, service, model, input_tokens, output_tokens, requests, created_at FROM usage_stats_old`);
+      db.exec(`DROP TABLE usage_stats_old`);
+      console.log('[DB] Migrated usage_stats: removed UNIQUE constraint, added metadata column');
+    }
+  } catch (e) {
+    // 이미 마이그레이션 완료된 경우 무시
+  }
+
+  // 마이그레이션: metadata 컬럼 추가
+  try {
+    db.exec(`ALTER TABLE usage_stats ADD COLUMN metadata TEXT`);
+  } catch (e) {
+    // 이미 컬럼이 있으면 무시
+  }
+
+  // 마이그레이션: updated_at 컬럼 추가 (create() 호환)
+  try {
+    db.exec(`ALTER TABLE usage_stats ADD COLUMN updated_at TEXT`);
+  } catch (e) {
+    // 이미 컬럼이 있으면 무시
+  }
 
   // ScheduledMessage - 예약 메시지
   db.exec(`

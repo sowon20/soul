@@ -668,6 +668,7 @@ export class AISettings {
             id: model.id,
             name: model.name || model.id,
             service: serviceName,
+            serviceId: service.serviceId,
             type: service.type
           };
           this.availableModels.push(modelData);
@@ -3916,7 +3917,7 @@ export class AISettings {
    */
   findServiceByModelId(modelId) {
     const model = this.availableModels.find(m => m.id === modelId);
-    return model ? { serviceId: model.type, serviceName: model.service } : null;
+    return model ? { serviceId: model.serviceId, serviceName: model.service } : null;
   }
 
 

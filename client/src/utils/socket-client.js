@@ -29,12 +29,12 @@ class SoulSocketClient {
    */
   _connect() {
     // 백엔드 서버로 연결 (프론트엔드와 포트 다름)
-    // Vite dev(5173), 빌드(3080) 모두 → 백엔드(3001)
+    // Vite dev(5173) → 백엔드(4000)
     let backendUrl = window.location.origin;
     if (backendUrl.includes(':5173')) {
-      backendUrl = backendUrl.replace(':5173', ':3001');
+      backendUrl = backendUrl.replace(':5173', ':4000');
     } else if (backendUrl.includes(':3080')) {
-      backendUrl = backendUrl.replace(':3080', ':3001');
+      backendUrl = backendUrl.replace(':3080', ':4000');
     }
     console.log('🔌 Socket.io 연결 시도:', backendUrl);
     

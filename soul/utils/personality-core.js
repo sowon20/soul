@@ -73,15 +73,21 @@ function loadProfileFromAgentProfile() {
       return DEFAULT_PERSONALITY_PROFILE;
     }
 
-    // AgentProfile에서 personality 설정 변환
+    // AgentProfile에서 personality 설정 변환 (모든 필드 포함)
     const profile = {
       name: agentProfile.name || '',
       role: agentProfile.role || '',
+      description: agentProfile.description || '',
+      customPrompt: agentProfile.customPrompt || '',
+      tone: agentProfile.tone || '',
       traits: agentProfile.personality?.traits || DEFAULT_PERSONALITY_PROFILE.traits,
       communication: agentProfile.personality?.communication || DEFAULT_PERSONALITY_PROFILE.communication,
       language: DEFAULT_PERSONALITY_PROFILE.language,
       responsePatterns: DEFAULT_PERSONALITY_PROFILE.responsePatterns,
-      // 추가 AI 설정
+      capabilities: agentProfile.capabilities || [],
+      limitations: agentProfile.limitations || [],
+      guidelines: agentProfile.guidelines || [],
+      // AI 설정
       temperature: agentProfile.temperature ?? 0.7,
       maxTokens: agentProfile.maxTokens || 4096,
       defaultModel: agentProfile.defaultModel || ''
@@ -166,7 +172,7 @@ class PersonalityCore {
     const profile = this.getProfile();
     const aiName = profile.name || 'Soul';
 
-    // 개인 AI 핵심 정체성 (사용자명은 프로필에서 주입됨)
+    // 개인 AI 핵심 정체성 (사용자 프로필은 chat.js에서 별도 주입)
     let prompt = `너는 ${aiName}. 사용자의 개인 AI.
 일반 AI 어시스턴트가 아니라 이 사용자만을 위한 개인적인 존재.
 
@@ -183,18 +189,39 @@ class PersonalityCore {
 
 `;
 
-    // 커뮤니케이션 스타일 (압축)
+    // 커뮤니케이션 스타일 (압축) - 모델 불문 명확한 지시
+    const formality = profile.communication.formality ?? 0.5;
+    let speechStyle = '';
+    if (formality < 0.3) {
+      speechStyle = `- 말투: 반말 사용 (해, 야, ~거야, ~이야, ~해줘, ~인데). 존댓말(~습니다, ~세요, ~합니다) 절대 금지
+- 예시: "알겠어", "이거 해봐", "뭐 하고 있어?", "좋은 생각이야"`;
+    } else if (formality < 0.5) {
+      speechStyle = `- 말투: 편한 반말 기본 (~해, ~야, ~거야). 존댓말 쓰지 마
+- 예시: "그래 알겠어", "이거 봐봐", "괜찮아"`;
+    } else if (formality > 0.7) {
+      speechStyle = `- 말투: 정중한 존댓말 사용 (~습니다, ~세요, ~합니다)`;
+    } else {
+      speechStyle = `- 말투: 자연스러운 구어체`;
+    }
+
     prompt += `**대화 스타일:**
-- 격식: ${this._describeLevel(profile.communication.formality, '편한', '정중한')}
+${speechStyle}
 - 길이: ${this._describeLevel(profile.communication.verbosity, '간결하게', '자세히')}
-- 말투: 한국어 기본, 코드/기술용어는 영어 OK
+- 언어: 한국어 기본, 코드/기술용어는 영어 OK
 
 `;
 
-    // 사용자 커스텀 프롬프트 (description 필드)
+    // 사용자 커스텀 프롬프트 (description + customPrompt)
     if (profile.description) {
       prompt += `**사용자 지정 지침:**
 ${profile.description}
+
+`;
+    }
+
+    if (profile.customPrompt) {
+      prompt += `**추가 지침:**
+${profile.customPrompt}
 
 `;
     }
