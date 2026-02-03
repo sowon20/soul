@@ -10,7 +10,7 @@
  * 5. 메모리 필터링 + confidence 태그 후 저장
  *
  * 실행: 비동기 (응답 지연 없음)
- * LLM: Alba worker (Ollama 로컬) 우선 → OpenRouter 폴백 → 규칙 기반
+ * LLM: Alba worker (Ollama 로컬) 우선 → digest-worker 역할 폴백 → 규칙 기반
  */
 
 const { getAlbaWorker } = require('./alba-worker');
@@ -163,9 +163,9 @@ class SessionDigest {
       return await this._processChunkWithLLM(conversationText, alba);
     }
 
-    // 2) OpenRouter 폴백
-    const orResult = await this._processChunkWithOpenRouter(conversationText);
-    if (orResult) return orResult;
+    // 2) 다이제스트 워커 (역할 기반 — OpenRouter 등)
+    const digestResult = await this._processChunkWithDigestLLM(conversationText);
+    if (digestResult) return digestResult;
 
     // 3) 규칙 기반 폴백
     return this._processChunkRuleBased(chunk);
@@ -200,16 +200,16 @@ class SessionDigest {
   }
 
   /**
-   * OpenRouter LLM 청크 처리 (2차 폴백)
-   * Ollama 없을 때 OpenRouter 무료 모델로 시도
+   * 다이제스트 LLM 청크 처리 (2차 폴백)
+   * Ollama 없을 때 digest-worker 역할의 모델로 시도
    */
-  async _processChunkWithOpenRouter(conversationText) {
+  async _processChunkWithDigestLLM(conversationText) {
     const systemPrompt = `대화 조각을 분석해서 아래 JSON 형식으로만 한 줄로 응답해. 다른 텍스트 없이 JSON만.
 {"summary":"핵심 내용 2-3문장","memories":["유저에 대한 영구적 사실/취향/목표 0~5개"],"actions":["유저가 할 일/결정 0~5개, 동사로 시작"]}
 규칙: memories는 "유저는 ~" 형태만. 일시적(오늘 기분, 어제 일)은 제외. 성격/취향/습관/관계/목표만.`;
 
     try {
-      const result = await this._callOpenRouter(systemPrompt, conversationText);
+      const result = await this._callDigestLLM(systemPrompt, conversationText);
       if (!result) return null;
 
       const jsonMatch = result.match(/\{[\s\S]*\}/);
@@ -222,30 +222,44 @@ class SessionDigest {
         };
       }
     } catch (e) {
-      console.warn('[SessionDigest] OpenRouter chunk failed:', e.message);
+      console.warn('[SessionDigest] DigestLLM chunk failed:', e.message);
     }
     return null;
   }
 
   /**
-   * OpenRouter API 호출 헬퍼
-   * DB에서 OpenRouter 서비스 활성 여부 + API 키 확인 후 호출
+   * 다이제스트 전용 LLM 호출 (역할 기반)
+   * roles 테이블의 'digest-worker' 역할에서 모델/서비스 설정을 읽어 호출
    * @returns {string|null} LLM 응답 텍스트 또는 null
    */
-  async _callOpenRouter(systemPrompt, userMessage) {
+  async _callDigestLLM(systemPrompt, userMessage) {
     try {
-      // DB에서 OpenRouter 서비스 조회
-      const AIServiceModel = require('../models/AIService');
-      const orService = await AIServiceModel.findOne({ serviceId: 'openrouter' });
+      // 1) digest-worker 역할에서 모델/서비스 설정 읽기
+      const RoleModel = require('../models/Role');
+      const digestRole = await RoleModel.findOne({ roleId: 'digest-worker', isActive: 1 });
 
-      if (!orService || !orService.apiKey) {
-        return null; // OpenRouter 미설정 → 조용히 패스
+      if (!digestRole) {
+        return null; // digest-worker 역할 미설정 → 조용히 패스
       }
 
-      // 모델 선택: 설정된 모델 중 첫 번째 또는 기본값
-      const modelId = (orService.models && orService.models[0]?.id) || 'openai/gpt-oss-20b:free';
+      const modelId = digestRole.preferredModel || 'openai/gpt-oss-20b:free';
+      const roleConfig = typeof digestRole.config === 'string'
+        ? JSON.parse(digestRole.config)
+        : (digestRole.config || {});
+      const serviceId = roleConfig.serviceId || 'openrouter';
+      const temperature = roleConfig.temperature || 0.3;
+      const maxTokens = roleConfig.maxTokens || 800;
 
-      const service = AIServiceFactory.createService('openrouter', orService.apiKey, modelId);
+      // 2) 해당 서비스의 API 키 가져오기
+      const AIServiceModel = require('../models/AIService');
+      const aiService = await AIServiceModel.findOne({ serviceId });
+
+      if (!aiService || !aiService.apiKey) {
+        return null; // 서비스 미설정 or API 키 없음
+      }
+
+      // 3) 서비스 인스턴스 생성 + 호출
+      const service = AIServiceFactory.createService(serviceId, aiService.apiKey, modelId);
       if (!service) return null;
 
       const messages = [
@@ -253,14 +267,14 @@ class SessionDigest {
         { role: 'user', content: userMessage }
       ];
 
-      const response = await service.chat(messages, { temperature: 0.3, max_tokens: 800 });
+      const response = await service.chat(messages, { temperature, max_tokens: maxTokens });
 
       if (response && response.content) {
-        console.log(`[SessionDigest] OpenRouter OK (${modelId})`);
+        console.log(`[SessionDigest] DigestLLM OK (${serviceId}/${modelId})`);
         return response.content;
       }
     } catch (e) {
-      console.warn('[SessionDigest] OpenRouter call failed:', e.message);
+      console.warn('[SessionDigest] DigestLLM call failed:', e.message);
     }
     return null;
   }
@@ -349,12 +363,12 @@ class SessionDigest {
       }
     }
 
-    // 2) OpenRouter 폴백
+    // 2) 다이제스트 워커 폴백
     try {
-      const orResult = await this._callOpenRouter(systemMsg, summaryPrompt);
-      if (orResult) return orResult.trim();
+      const digestResult = await this._callDigestLLM(systemMsg, summaryPrompt);
+      if (digestResult) return digestResult.trim();
     } catch (e) {
-      console.warn('[SessionDigest] Session summary OpenRouter failed:', e.message);
+      console.warn('[SessionDigest] Session summary DigestLLM failed:', e.message);
     }
 
     // 3) 규칙 기반 폴백: 최대 500자 유지 (누적 방지)
