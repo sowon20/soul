@@ -223,6 +223,24 @@ cd client && npm run dev
 ```
 
 **포트**: 백엔드 4000, 프론트엔드 5173 (Vite 프록시로 /api → localhost:4000)
+**브라우저 접속**: http://localhost:5173 (4000 아님!)
+
+### 서버 재시작 방법
+
+코드 수정 후 반영이 필요할 때:
+
+- **프론트엔드 (CSS/JS)**: Vite HMR로 자동 반영됨. 안 되면 브라우저 새로고침
+- **백엔드 (soul/ 하위)**: 서버 재시작 필요
+
+```bash
+# 백엔드만 재시작 (프론트는 유지)
+lsof -ti :4000 | xargs kill -9; PORT=4000 node soul/server/index.js &
+
+# 전체 재시작 (백엔드 + 프론트)
+lsof -ti :4000 | xargs kill -9; lsof -ti :5173 | xargs kill -9; npm run dev &
+```
+
+**주의**: 포트가 이미 사용 중이면 kill 먼저 해야 함. `strictPort: true`라서 5173 점유 시 Vite가 안 뜸
 
 ---
 
