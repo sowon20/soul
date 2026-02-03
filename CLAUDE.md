@@ -343,3 +343,37 @@ SPACE_ID=sowon20/soul
 3. DB는 SQLite 기본
 4. Vite 캐시 문제 시: `rm -rf client/node_modules/.vite`
 5. **특정 환경 전용 코드는 메인에 넣지 말 것** - deploy/ 폴더로 분리
+
+---
+
+## 도구 시스템 구조 (2026-02-03 기준)
+
+### 내장 도구 (builtin-tools.js) - 항상 전송
+| 도구 | 설명 |
+|------|------|
+| recall_memory | 과거 대화/기억 검색 |
+| get_profile | 사용자 프로필 조회 |
+| update_profile | 사용자 정보 저장 |
+| list_my_rules | 규칙/메모 조회 |
+| add_my_rule | 규칙 저장 |
+| delete_my_rule | 규칙 삭제 |
+
+### 프로액티브 도구 (mcp-tools.js) - 토글 ON일 때만 전송
+| 도구 | 설명 |
+|------|------|
+| send_message | 즉시 메시지 전송 |
+| schedule_message | 예약 메시지 |
+| cancel_scheduled_message | 예약 취소 |
+| list_scheduled_messages | 예약 목록 |
+
+- 토글 위치: 설정 > 앱 설정 > 선제 메시지
+- API: `GET /api/notifications/proactive/status`, `POST /api/notifications/proactive/toggle`
+- 기본값: OFF (토큰 절약)
+
+### 외부 MCP 도구 (mcp-tools.js)
+- DB 설정(`mcp_servers`)에 등록된 외부 SSE 서버의 도구
+- 설정 > MCP에서 서버 추가/삭제/토글
+
+### mcp/tools/ 디렉토리
+- 현재 비어있음 (context-tool.js, self-rules-tool.js 삭제됨)
+- hub-server.js는 이 디렉토리에서 동적 로딩하지만, 도구 없으므로 MCP 설정에서 제거됨

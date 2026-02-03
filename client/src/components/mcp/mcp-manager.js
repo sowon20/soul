@@ -89,7 +89,6 @@ export class MCPManager {
    */
   renderServerCard(server) {
     const icons = {
-      'hub-server': '🔧',
       'google-home': '🏠',
       'todo': '📝'
     };

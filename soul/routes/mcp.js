@@ -68,58 +68,9 @@ async function saveServerConfig(config) {
  */
 router.get('/servers', async (req, res) => {
   try {
-    const mcpPath = path.join(__dirname, '../../mcp');
     const config = await loadServerConfig();
-    console.log('[MCP] Loaded config:', JSON.stringify(config, null, 2));
-
-    // tools 디렉토리에서 도구 목록 가져오기
-    const toolsPath = path.join(mcpPath, 'tools');
-    const toolFiles = await fs.readdir(toolsPath);
-
-    // 실제 도구 개수 세기
-    let hubTools = [];
-    for (const file of toolFiles) {
-      if (file.endsWith('.js')) {
-        try {
-          // require 캐시 삭제 후 다시 로드
-          const modulePath = path.join(toolsPath, file);
-          delete require.cache[require.resolve(modulePath)];
-          const toolModule = require(modulePath);
-          if (toolModule.tools && Array.isArray(toolModule.tools)) {
-            hubTools.push(...toolModule.tools.map(t => t.name));
-          }
-        } catch (e) {
-          console.error(`[MCP] Failed to load tool ${file}:`, e.message);
-          // axios 의존성 문제면 도구 정의만 파싱 (tools 배열 안에서만)
-          try {
-            const content = await fs.readFile(path.join(toolsPath, file), 'utf-8');
-            const toolsMatch = content.match(/tools:\s*\[([\s\S]*?)\]\s*\};/);
-            if (toolsMatch) {
-              const matches = toolsMatch[1].match(/name:\s*['"]([^'"]+)['"]/g);
-              if (matches) {
-                hubTools.push(...matches.map(m => m.match(/['"]([^'"]+)['"]/)[1]));
-              }
-            }
-          } catch {}
-        }
-      }
-    }
 
     const servers = [];
-
-    // hub-server (기본 내장 서버) - 항상 표시
-    const hubConfig = config.servers?.['hub-server'] || {};
-    servers.push({
-      id: 'hub-server',
-      name: hubConfig.name || 'Soul Hub Server',
-      description: 'Soul 내장 MCP 서버 - 외부 MCP 도구 확장용',
-      type: 'built-in',
-      enabled: hubConfig.enabled ?? true,
-      tools: hubTools,
-      icon: hubConfig.icon,
-      uiUrl: hubConfig.uiUrl,
-      showInDock: hubConfig.showInDock ?? false
-    });
 
     // 등록된 외부 서버들만 표시 (config 기반)
     if (config.externalServers) {
@@ -186,52 +137,7 @@ router.get('/servers/:id/tools', async (req, res) => {
     const { id } = req.params;
     const config = await loadServerConfig();
 
-    if (id === 'hub-server') {
-      const mcpPath = path.join(__dirname, '../../mcp');
-      const toolsPath = path.join(mcpPath, 'tools');
-      const toolFiles = await fs.readdir(toolsPath);
-
-      const tools = [];
-
-      for (const file of toolFiles) {
-        if (file.endsWith('.js')) {
-          try {
-            const modulePath = path.join(toolsPath, file);
-            delete require.cache[require.resolve(modulePath)];
-            const toolModule = require(modulePath);
-            if (toolModule.tools) {
-              tools.push(...toolModule.tools.map(t => ({
-                name: t.name,
-                description: t.description,
-                module: toolModule.name || file.replace('.js', '')
-              })));
-            }
-          } catch (error) {
-            console.error(`Error loading tool ${file}:`, error.message);
-            // 파일 파싱으로 폴백
-            try {
-              const content = await fs.readFile(path.join(toolsPath, file), 'utf-8');
-              const toolsMatch = content.match(/tools:\s*\[([\s\S]*?)\]\s*\};/);
-              if (toolsMatch) {
-                const nameMatches = toolsMatch[1].matchAll(/name:\s*['"]([^'"]+)['"]/g);
-                const descMatches = toolsMatch[1].matchAll(/description:\s*['"]([^'"]+)['"]/g);
-                const names = [...nameMatches].map(m => m[1]);
-                const descs = [...descMatches].map(m => m[1]);
-                names.forEach((name, i) => {
-                  tools.push({ name, description: descs[i] || '', module: file.replace('.js', '') });
-                });
-              }
-            } catch {}
-          }
-        }
-      }
-
-      res.json({
-        success: true,
-        server: id,
-        tools
-      });
-    } else if (config.externalServers?.[id]) {
+    if (config.externalServers?.[id]) {
       // 외부 서버 - /tools 엔드포인트에서 도구 목록 가져오기
       const serverInfo = config.externalServers[id];
       // SSE URL에서 base URL 추출 (예: https://x.com/smarthome/sse -> https://x.com/smarthome)
@@ -351,7 +257,7 @@ router.put('/servers/:id', async (req, res) => {
     // 외부 서버가 없으면 새로 생성
     if (!config.externalServers[id]) {
       // 내장 서버(google-home, todo)는 수정 불가
-      if (id === 'google-home' || id === 'todo' || id === 'hub-server') {
+      if (id === 'google-home' || id === 'todo') {
         return res.status(400).json({ success: false, error: '내장 서버는 수정할 수 없습니다' });
       }
       // 새 외부 서버 생성
