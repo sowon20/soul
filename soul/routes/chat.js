@@ -456,7 +456,7 @@ ${rulesText}</self_notes>\n\n`;
 
       // 기억/과거 관련 키워드가 있으면 Phase 1 스킵 → 바로 도구와 함께 호출
       const lastUserMsg = chatMessages.filter(m => m.role === 'user').pop()?.content || '';
-      const memoryKeywords = /기억|작년|예전|지난번|저번|과거|이전에|그때|몇\s?달\s?전|몇\s?주\s?전|어제|지난\s?주|지난\s?달|작업하던|이야기하던|recall|remember/i;
+      const memoryKeywords = /기억|작년|예전|지난번|저번|과거|이전에|그때[는넌]?|그땐|몇\s?달\s?전|몇\s?주\s?전|어제|지난\s?주|지난\s?달|작업하던|이야기하던|뭐였|뭐라고\s?불|recall|remember/i;
       const needsMemory = memoryKeywords.test(lastUserMsg);
 
       if (hasTools && contextLevel !== 'minimal') {
@@ -483,19 +483,29 @@ ${rulesText}</self_notes>\n\n`;
 
         console.log(`[Chat] Phase 1: Without tools (${chatMessages.length} messages, ~${totalChars} chars)`);
 
-        const phase1Result = await aiService.chat(chatMessages, {
-          systemPrompt: phase1Prompt,
-          maxTokens: aiSettings.maxTokens,
-          temperature: aiSettings.temperature,
-          tools: null,
-          toolExecutor: null,
-          thinking: routingResult.thinking || false,
-        });
+        let phase1Result;
+        let phase1NeedsTools = false;
 
-        const phase1Text = typeof phase1Result === 'object' ? phase1Result.text : phase1Result;
-        const phase1Usage = typeof phase1Result === 'object' ? phase1Result.usage : {};
+        try {
+          phase1Result = await aiService.chat(chatMessages, {
+            systemPrompt: phase1Prompt,
+            maxTokens: aiSettings.maxTokens,
+            temperature: aiSettings.temperature,
+            tools: null,
+            toolExecutor: null,
+            thinking: routingResult.thinking || false,
+          });
 
-        if (phase1Text && phase1Text.trim().includes(TOOL_REQUEST_TAG)) {
+          const phase1Text = typeof phase1Result === 'object' ? phase1Result.text : phase1Result;
+          // 빈 응답이면 도구가 필요한 것으로 간주
+          phase1NeedsTools = !phase1Text || !phase1Text.trim() || phase1Text.trim().includes(TOOL_REQUEST_TAG);
+        } catch (phase1Err) {
+          // 모델이 도구 없이도 도구를 호출하려 한 경우 → Phase 2로 폴백
+          console.log(`[Chat] Phase 1 failed (model tried tool call?), falling back to Phase 2: ${phase1Err.message}`);
+          phase1NeedsTools = true;
+        }
+
+        if (phase1NeedsTools) {
           // 2차 호출: 도구 포함
           console.log(`[Chat] Phase 2: AI requested tools, retrying with ${allTools.length} tools`);
           actualToolCount = allTools.length;
