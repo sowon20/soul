@@ -158,8 +158,20 @@ export class ProfileManager {
       { key: 'idNumber', label: '주민번호', type: 'text', placeholder: '000000-0000000', sensitive: true },
       { key: 'country', label: '국가', type: 'text', placeholder: '대한민국' },
       { key: 'address', label: '주소', type: 'text', placeholder: '주소를 입력하세요' },
-      { key: 'timezone', label: '타임존', type: 'select', options: ['Asia/Seoul', 'UTC', 'America/New_York', 'Europe/London'] },
-      { key: 'language', label: '언어', type: 'select', options: ['ko', 'en', 'ja', 'zh'] }
+      { key: 'timezone', label: '시간대', type: 'select', options: [
+        { value: 'Asia/Seoul', label: '한국 표준시 (KST, UTC+9)' },
+        { value: 'Asia/Tokyo', label: '일본 표준시 (JST, UTC+9)' },
+        { value: 'America/Los_Angeles', label: '태평양 시간 (PST, UTC-8)' },
+        { value: 'America/New_York', label: '동부 시간 (EST, UTC-5)' },
+        { value: 'Europe/London', label: '영국 시간 (GMT, UTC+0)' },
+        { value: 'UTC', label: '협정 세계시 (UTC)' }
+      ]},
+      { key: 'language', label: '언어', type: 'select', options: [
+        { value: 'ko', label: '한국어' },
+        { value: 'en', label: 'English' },
+        { value: 'ja', label: '日本語' },
+        { value: 'zh', label: '中文' }
+      ]}
     ];
 
     return basicFields.map(field => {
@@ -169,9 +181,11 @@ export class ProfileManager {
 
       let inputHtml = '';
       if (field.type === 'select') {
-        const options = field.options.map(opt =>
-          `<option value="${opt}" ${value === opt ? 'selected' : ''}>${opt}</option>`
-        ).join('');
+        const options = field.options.map(opt => {
+          const optValue = typeof opt === 'object' ? opt.value : opt;
+          const optLabel = typeof opt === 'object' ? opt.label : opt;
+          return `<option value="${optValue}" ${value === optValue ? 'selected' : ''}>${optLabel}</option>`;
+        }).join('');
         inputHtml = `
           <select class="profile-input" data-basic-field="${field.key}">
             <option value="">선택 안함</option>
