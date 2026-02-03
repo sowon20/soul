@@ -18,6 +18,7 @@ const contextDetector = require('./context-detector');
 const ProfileModel = require('../models/Profile');
 const { getAgentProfileManager } = require('./agent-profile');
 const { getDensityManager } = require('./density-manager');
+const { getSessionDigest } = require('./session-digest');
 
 /**
  * ConversationPipeline 클래스
@@ -171,11 +172,27 @@ class ConversationPipeline {
         }
       }
 
+      // === 세션 요약 주입 (medium/full에서만) ===
+      let sessionSummarySection = '';
+      if (earlyContextNeeds.level === 'medium' || earlyContextNeeds.level === 'full') {
+        try {
+          const digest = getSessionDigest();
+          // 토큰 예산: medium=400, full=800
+          const summaryBudget = earlyContextNeeds.level === 'full' ? 800 : 400;
+          sessionSummarySection = await digest.buildContextSummary(summaryBudget);
+        } catch (e) {
+          console.warn('[Pipeline] Session summary load failed:', e.message);
+        }
+      }
+
       // 컨텍스트를 XML로 구조화하여 단일 시스템 메시지로 병합
       let contextContent = '<context>\n';
       contextContent += systemPrompt;
       if (timePrompt) {
         contextContent += `\n\n<time_context>\n${timePrompt}\n</time_context>`;
+      }
+      if (sessionSummarySection) {
+        contextContent += '\n\n' + sessionSummarySection;
       }
       contextContent += messageTimeline;
       contextContent += '\n</context>';
@@ -560,6 +577,16 @@ class ConversationPipeline {
         // 라우팅 정보 (이전 메시지 표시용)
         routing: metadata?.routing || null
       }, userTimestamp, timezone);
+
+      // === 세션 다이제스트 트리거 (비동기 — 응답 차단 안 함) ===
+      const digest = getSessionDigest();
+      const currentMessages = this.memoryManager.shortTerm?.messages || [];
+      if (digest.shouldDigest(currentMessages)) {
+        // fire-and-forget: 응답에 영향 없음
+        digest.runDigest(currentMessages, sessionId).catch(err => {
+          console.error('[Pipeline] Digest error (non-blocking):', err.message);
+        });
+      }
 
       return {
         success: true,
