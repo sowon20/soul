@@ -39,11 +39,15 @@ class ConversationPipeline {
   /**
    * 메시지 복잡도 판단 → 컨텍스트 윈도우 크기 결정
    *
+   * 오미 피드백 반영:
+   * - full도 "전체" 금지 → 최대 60턴 캡
+   * - 각 레벨에 메모리/요약 주입 여부도 포함
+   *
    * 레벨:
-   * - minimal (3개): 감탄사, 맞장구, 이모지, 단답 ("ㅋㅋ", "ㅇㅇ", "넵", "ok", "👍")
-   * - light (8개):  짧은 질문, 일상 대화 ("밥 먹었어?", "지금 몇시야?", "오늘 날씨 어때?")
-   * - medium (20개): 보통 대화, 간단한 요청
-   * - full (전체):  복잡한 질문, 이전 대화 참조, 분석/요약/비교
+   * - minimal (3턴): 감탄사, 맞장구, 이모지, 단답
+   * - light (8턴): 짧은 질문, 일상 대화 + 메모리 3~5개
+   * - medium (20턴): 보통 대화 + 요약 400tok + 메모리 600tok
+   * - full (60턴 캡): 복잡한 질문 + 요약 800tok + 메모리 800tok
    */
   _assessContextNeeds(message) {
     if (!message) return { level: 'minimal', maxMessages: 3, reason: 'empty' };
@@ -52,32 +56,27 @@ class ConversationPipeline {
     const len = trimmed.length;
 
     // === minimal: 단답, 감탄사, 이모지 ===
-    // 5자 이하 + 특수 패턴
     if (len <= 5) {
-      // 이모지만
       if (/^[\p{Emoji}\s]+$/u.test(trimmed)) return { level: 'minimal', maxMessages: 3, reason: 'emoji' };
-      // 한글 단답: ㅋ, ㅎ, ㅇㅇ, ㄴㄴ, ㅇㅋ, ㅎㅎ, 넵, 응, 예, 네, 아, 음, 오
       if (/^[ㅋㅎㅇㄴㅂㅈㄷㅊㅌㅍ]+$/.test(trimmed)) return { level: 'minimal', maxMessages: 3, reason: 'shorthand' };
       if (/^(넵|응|예|네|아|음|오|ㅇ|굿|ok|ㅇㅋ|wow|lol|gg|thx|ty|np)$/i.test(trimmed)) {
         return { level: 'minimal', maxMessages: 3, reason: 'ack' };
       }
     }
 
-    // 10자 이하 단순 반응
     if (len <= 10) {
       if (/^(ㅋ{2,}|ㅎ{2,}|[ㅋㅎ]+[ㅋㅎ]+|하{2,}|오{2,}|와{2,}|대박|진짜|헐|레알|ㄹㅇ|맞아|그치|알겠어|알았어|좋아|고마워|감사|괜찮아)$/i.test(trimmed)) {
         return { level: 'minimal', maxMessages: 3, reason: 'reaction' };
       }
     }
 
-    // === 이전 대화 참조 → full 필요 ===
+    // === full: 이전 대화 참조, 복잡한 요청 (최대 60턴 캡!) ===
     const needsHistory = /아까|이전|방금|그때|위에|전에|앞에|말했던|말한|했던|했잖|그거|그건|그게|이어서|계속|다시|정리해|요약해|비교해|분석해|리뷰해/.test(trimmed);
-    if (needsHistory) return { level: 'full', maxMessages: 999, reason: 'reference' };
+    if (needsHistory) return { level: 'full', maxMessages: 60, reason: 'reference' };
 
-    // 복잡한 요청 패턴 (여러 단계, 긴 설명)
-    if (len > 200) return { level: 'full', maxMessages: 999, reason: 'long_message' };
+    if (len > 200) return { level: 'full', maxMessages: 60, reason: 'long_message' };
     if (/[1-9]\.\s|첫째|둘째|그리고.*그리고|또한.*또한/.test(trimmed)) {
-      return { level: 'full', maxMessages: 999, reason: 'multi_step' };
+      return { level: 'full', maxMessages: 60, reason: 'multi_step' };
     }
 
     // === light: 짧은 질문/요청 (30자 이하) ===
@@ -172,16 +171,38 @@ class ConversationPipeline {
         }
       }
 
-      // === 세션 요약 주입 (medium/full에서만) ===
+      // === 세션 요약 + 메모리 주입 (레벨별 예산표) ===
+      // 오미 피드백: 각 레벨에 요약/메모리 예산 명시
+      //   minimal: 요약 0, 메모리 0
+      //   light:   요약 0, 메모리 300tok (3~5개)
+      //   medium:  요약 400tok, 메모리 600tok
+      //   full:    요약 800tok, 메모리 800tok
       let sessionSummarySection = '';
-      if (earlyContextNeeds.level === 'medium' || earlyContextNeeds.level === 'full') {
+      let memorySection = '';
+      const level = earlyContextNeeds.level;
+
+      if (level !== 'minimal') {
         try {
           const digest = getSessionDigest();
-          // 토큰 예산: medium=400, full=800
-          const summaryBudget = earlyContextNeeds.level === 'full' ? 800 : 400;
-          sessionSummarySection = await digest.buildContextSummary(summaryBudget);
+
+          // 요약 주입 (medium/full)
+          if (level === 'medium' || level === 'full') {
+            const summaryBudget = level === 'full' ? 800 : 400;
+            sessionSummarySection = await digest.buildContextSummary(summaryBudget);
+          }
+
+          // 메모리 주입 (light/medium/full)
+          const memoryConfig = {
+            light:  { count: 5, tokens: 300 },
+            medium: { count: 8, tokens: 600 },
+            full:   { count: 10, tokens: 800 }
+          };
+          const mc = memoryConfig[level];
+          if (mc) {
+            memorySection = await digest.buildMemoryContext(mc.count, mc.tokens);
+          }
         } catch (e) {
-          console.warn('[Pipeline] Session summary load failed:', e.message);
+          console.warn('[Pipeline] Context enrichment failed:', e.message);
         }
       }
 
@@ -193,6 +214,9 @@ class ConversationPipeline {
       }
       if (sessionSummarySection) {
         contextContent += '\n\n' + sessionSummarySection;
+      }
+      if (memorySection) {
+        contextContent += '\n\n' + memorySection;
       }
       contextContent += messageTimeline;
       contextContent += '\n</context>';
