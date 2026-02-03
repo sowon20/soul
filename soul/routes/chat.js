@@ -688,7 +688,8 @@ ${rulesText}</self_notes>\n\n`;
           modelId: routingResult.modelId,
           serviceId: routingResult.serviceId,
           tier
-        }
+        },
+        toolsUsed: executedTools.length > 0 ? executedTools : undefined
       });
       console.log('[Chat] Response saved successfully');
     } catch (saveError) {
@@ -904,7 +905,9 @@ router.get('/history/:sessionId', async (req, res) => {
         content: m.text,
         timestamp: m.timestamp,
         // 라우팅 정보 (assistant 메시지용)
-        routing: m.routing || null
+        routing: m.routing || null,
+        // 도구 사용 정보 (있으면 포함)
+        toolsUsed: m.metadata?.toolsUsed || m.toolsUsed || null
       })),
       total: messages.length
     });
@@ -1152,6 +1155,43 @@ router.get('/embedding-models', async (req, res) => {
   } catch (error) {
     console.error('[embedding-models] Error:', error.message);
     res.json({ success: true, groups: [] });
+  }
+});
+
+/**
+ * POST /api/chat/ingest-memory
+ * JSONL 파일을 벌크 임베딩하여 벡터 DB에 저장
+ * body: { filePath, batchDelay?, maxChunkChars? }
+ */
+router.post('/ingest-memory', async (req, res) => {
+  try {
+    const { filePath, batchDelay, maxChunkChars } = req.body;
+
+    if (!filePath) {
+      return res.status(400).json({ success: false, error: 'filePath 필수' });
+    }
+
+    const fs = require('fs');
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ success: false, error: '파일을 찾을 수 없음: ' + filePath });
+    }
+
+    const vectorStore = require('../utils/vector-store');
+    const result = await vectorStore.ingestJsonl(filePath, {
+      batchDelay: batchDelay || 500,
+      maxChunkChars: maxChunkChars || 1500,
+      onProgress: (progress) => {
+        // SSE가 아니므로 서버 로그만
+        if (progress.current % 10 === 0) {
+          console.log(`[ingest-memory] ${progress.current}/${progress.total} (embedded: ${progress.embedded})`);
+        }
+      }
+    });
+
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('[ingest-memory] Error:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

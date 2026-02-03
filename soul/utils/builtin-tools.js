@@ -120,16 +120,16 @@ async function recallMemory({ query, timeFilter, limit = 5 }) {
 
     console.log(`[recall_memory] Search: query="${query}", time=${timeFilter}, limit=${limit}`);
 
-    // 1. 벡터 검색 (의미적 유사도) - 3초 타임아웃
+    // 1. 벡터 검색 (의미적 유사도) - 8초 타임아웃
     try {
       const vectorStore = require('./vector-store');
       const vectorResults = await Promise.race([
         vectorStore.search(query, limit * 2),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Vector search timeout')), 3000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Vector search timeout')), 8000))
       ]);
 
       if (vectorResults.length > 0) {
-        console.log(`[recall_memory] Vector: ${vectorResults.length} results`);
+        console.log(`[recall_memory] Vector: ${vectorResults.length} results, best similarity: ${(1 - vectorResults[0].distance).toFixed(3)}`);
         for (const r of vectorResults.slice(0, limit)) {
           results.push({
             source: 'conversation',
@@ -139,6 +139,8 @@ async function recallMemory({ query, timeFilter, limit = 5 }) {
             relevance: (1 - r.distance).toFixed(2)
           });
         }
+      } else {
+        console.log('[recall_memory] Vector: 0 results');
       }
     } catch (vecErr) {
       console.warn('[recall_memory] Vector search failed:', vecErr.message);

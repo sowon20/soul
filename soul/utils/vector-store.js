@@ -232,10 +232,151 @@ async function search(query, limit = 5) {
   }
 }
 
+/**
+ * JSONL 파일에서 대화를 읽어 벌크 임베딩
+ * - 대화 턴(user+assistant)을 하나의 청크로 묶어서 임베딩
+ * - 레이트리밋 대응: 요청 간 딜레이
+ * @param {string} filePath JSONL 파일 경로
+ * @param {object} options { batchDelay, maxChunkChars, onProgress }
+ * @returns {{ total, embedded, skipped, errors }}
+ */
+async function ingestJsonl(filePath, options = {}) {
+  const fs = require('fs');
+  const readline = require('readline');
+
+  const {
+    batchDelay = 500,
+    maxChunkChars = 1500,
+    onProgress = null
+  } = options;
+
+  // 1. JSONL 파싱
+  const lines = [];
+  const rl = readline.createInterface({
+    input: fs.createReadStream(filePath, { encoding: 'utf-8' }),
+    crlfDelay: Infinity
+  });
+
+  for await (const line of rl) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      lines.push(JSON.parse(trimmed));
+    } catch { /* skip malformed */ }
+  }
+
+  if (lines.length === 0) {
+    return { total: 0, embedded: 0, skipped: 0, errors: 0 };
+  }
+
+  // 2. 대화 턴 단위로 청킹 (user + assistant를 하나의 청크로)
+  const chunks = [];
+  let currentChunk = { texts: [], roles: [], timestamp: null };
+
+  for (const msg of lines) {
+    const text = (msg.text || msg.content || '').trim();
+    const role = msg.role || 'unknown';
+    if (!text || text.length < 3) continue;
+
+    // 타임스탬프 설정 (첫 메시지 기준)
+    if (!currentChunk.timestamp) {
+      currentChunk.timestamp = msg.timestamp || new Date().toISOString();
+    }
+
+    // user 메시지가 나오면 이전 청크 마무리 (이전에 뭔가 있으면)
+    if (role === 'user' && currentChunk.texts.length > 0) {
+      chunks.push({ ...currentChunk });
+      currentChunk = { texts: [], roles: [], timestamp: msg.timestamp };
+    }
+
+    // 텍스트가 너무 길면 잘라서 넣기
+    const truncated = text.length > maxChunkChars
+      ? text.substring(0, maxChunkChars) + '...'
+      : text;
+
+    currentChunk.texts.push(`[${role}] ${truncated}`);
+    currentChunk.roles.push(role);
+  }
+
+  // 마지막 청크
+  if (currentChunk.texts.length > 0) {
+    chunks.push(currentChunk);
+  }
+
+  console.log(`[VectorStore] Ingest: ${lines.length} messages → ${chunks.length} chunks`);
+
+  // 3. 벌크 임베딩
+  const db = require('../db');
+  if (!db.db) db.init();
+
+  let embedded = 0;
+  let skipped = 0;
+  let errors = 0;
+
+  // 파일명에서 소스 추출
+  const path = require('path');
+  const source = path.basename(filePath, path.extname(filePath));
+
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
+    const combinedText = chunk.texts.join('\n');
+
+    if (combinedText.length < 10) {
+      skipped++;
+      continue;
+    }
+
+    try {
+      const embedding = await embed(combinedText);
+      if (!embedding) {
+        skipped++;
+        continue;
+      }
+
+      const stmt = db.db.prepare(`
+        INSERT INTO messages (session_id, role, content, embedding, timestamp, meta)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `);
+      stmt.run(
+        'embeddings',
+        chunk.roles.includes('user') ? 'user' : 'system',
+        combinedText,
+        JSON.stringify(embedding),
+        chunk.timestamp,
+        JSON.stringify({ source, chunkIndex: i })
+      );
+
+      embedded++;
+
+      if (onProgress) {
+        onProgress({ current: i + 1, total: chunks.length, embedded, skipped, errors });
+      }
+
+      // 레이트리밋 방지 딜레이
+      if (i < chunks.length - 1) {
+        await new Promise(r => setTimeout(r, batchDelay));
+      }
+    } catch (err) {
+      errors++;
+      console.warn(`[VectorStore] Ingest chunk ${i} failed:`, err.message);
+
+      // 429 에러면 더 오래 대기
+      if (err.message.includes('429')) {
+        console.log('[VectorStore] Rate limited, waiting 5s...');
+        await new Promise(r => setTimeout(r, 5000));
+      }
+    }
+  }
+
+  console.log(`[VectorStore] Ingest complete: ${embedded} embedded, ${skipped} skipped, ${errors} errors`);
+  return { total: chunks.length, embedded, skipped, errors };
+}
+
 module.exports = {
   embed,
   addMessage,
   search,
   getEmbeddingProvider,
-  resetEmbeddingProvider
+  resetEmbeddingProvider,
+  ingestJsonl
 };

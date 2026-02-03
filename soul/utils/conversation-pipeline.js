@@ -602,6 +602,24 @@ class ConversationPipeline {
         routing: metadata?.routing || null
       }, userTimestamp, timezone);
 
+      // === 실시간 임베딩 (비동기 — 응답 차단 안 함) ===
+      try {
+        const vectorStore = require('./vector-store');
+        const provider = await vectorStore.getEmbeddingProvider();
+        if (provider) {
+          // user+assistant 한 턴을 하나의 청크로 임베딩
+          const turnText = `[user] ${userMessage}\n[assistant] ${assistantResponse.substring(0, 1500)}`;
+          vectorStore.addMessage({
+            content: turnText,
+            role: 'user',
+            sessionId: 'embeddings',
+            timestamp: userTimestamp.toISOString()
+          }).catch(err => {
+            console.warn('[Pipeline] Embedding error (non-blocking):', err.message);
+          });
+        }
+      } catch { /* embedding provider not configured, skip */ }
+
       // === 세션 다이제스트 트리거 (비동기 — 응답 차단 안 함) ===
       const digest = getSessionDigest();
       const currentMessages = this.memoryManager.shortTerm?.messages || [];
