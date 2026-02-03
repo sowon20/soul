@@ -191,19 +191,31 @@ UsageStats.getStatsByPeriod = async function(period = 'today', options = {}) {
     } catch (e) {}
   }
 
+  // 카테고리별 cost, tokens 집계
+  const categoryAgg = {};
+  for (const row of modelMetaRows) {
+    try {
+      const meta = JSON.parse(row.metadata);
+      const cat = meta.category || 'chat';
+      if (!categoryAgg[cat]) categoryAgg[cat] = { cost: 0, tokens: 0 };
+      if (meta.cost) categoryAgg[cat].cost += meta.cost;
+    } catch (e) {}
+  }
+
   const categoryUsage = Object.entries(categoryCounts).map(([category, count]) => {
-    // 카테고리별 토큰 계산
     const catTokenStmt = db.db.prepare(`
       SELECT SUM(input_tokens + output_tokens) as tokens
       FROM usage_stats
       WHERE date >= ? AND metadata LIKE ?
     `);
     const catTokenResult = catTokenStmt.get(startDate, `%"category":"${category}"%`);
+    const agg = categoryAgg[category] || {};
     return {
       category,
       count,
       percentage: Math.round((count / totalReqs) * 100) + '%',
-      totalTokens: catTokenResult?.tokens || 0
+      totalTokens: catTokenResult?.tokens || 0,
+      totalCost: agg.cost || 0
     };
   });
 

@@ -148,9 +148,11 @@ class DashboardManager {
         options.forEach(o => o.classList.remove('active'));
         opt.classList.add('active');
 
-        // 비용 업데이트
+        // 비용 업데이트 (전체)
         this.updateCostDisplay();
         this.updateLastRequestCost();
+        if (this._cachedModelUsage) this.renderModelUsage(this._cachedModelUsage);
+        if (this._cachedCategoryUsage) this.renderCategoryUsage(this._cachedCategoryUsage);
 
         // DB에 저장
         await this.saveCurrencyPreference(currency);
@@ -232,6 +234,18 @@ class DashboardManager {
     costEl.textContent = this.currentCurrency === 'KRW'
       ? `₩${krw.toLocaleString()}`
       : `$${usd.toFixed(4)}`;
+  }
+
+  /**
+   * USD 비용을 현재 화폐 설정에 맞게 포맷
+   */
+  formatCost(usdAmount) {
+    if (!usdAmount || usdAmount <= 0) return '-';
+    if (this.currentCurrency === 'KRW' && this.exchangeRate) {
+      const krw = usdAmount * this.exchangeRate;
+      return `₩${Math.round(krw).toLocaleString()}`;
+    }
+    return `$${usdAmount.toFixed(4)}`;
   }
 
   /**
@@ -396,8 +410,10 @@ class DashboardManager {
         this.updateStat('stat-latency', latency ? latency.toFixed(0) + 'ms' : '-');
 
         this.renderTokenUsage(stats);
-        this.renderModelUsage(stats.modelUsage || []);
-        this.renderCategoryUsage(stats.categoryUsage || []);
+        this._cachedModelUsage = stats.modelUsage || [];
+        this._cachedCategoryUsage = stats.categoryUsage || [];
+        this.renderModelUsage(this._cachedModelUsage);
+        this.renderCategoryUsage(this._cachedCategoryUsage);
       }
     } catch (error) {
       console.error('Failed to load routing stats:', error);
@@ -623,9 +639,7 @@ class DashboardManager {
     container.innerHTML = topModels.map(model => {
       const displayName = this.getModelDisplayName(model.modelId);
       const percentage = parseFloat(model.percentage) || 0;
-      const costStr = model.cost != null && model.cost > 0
-        ? `$${model.cost.toFixed(4)}`
-        : '-';
+      const costStr = this.formatCost(model.cost);
 
       return `
         <div class="model-usage-item">
@@ -678,7 +692,7 @@ class DashboardManager {
       const name = categoryNames[cat.category] || cat.category;
       const color = categoryColors[cat.category] || '#607D8B';
       const percentage = parseFloat(cat.percentage) || 0;
-      const cost = cat.totalCost ? '$' + cat.totalCost.toFixed(4) : '-';
+      const cost = this.formatCost(cat.totalCost);
 
       return `
         <div class="category-usage-item">
