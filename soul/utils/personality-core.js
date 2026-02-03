@@ -191,6 +191,14 @@ class PersonalityCore {
 
 `;
 
+    // 사용자 커스텀 프롬프트 (description 필드)
+    if (profile.description) {
+      prompt += `**사용자 지정 지침:**
+${profile.description}
+
+`;
+    }
+
     // 모델 전환 컨텍스트
     if (this.conversationContext.previousModel &&
         this.conversationContext.previousModel !== model) {

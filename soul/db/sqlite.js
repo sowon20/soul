@@ -89,6 +89,7 @@ function createTables() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS profiles (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT UNIQUE,
       profile_key TEXT UNIQUE NOT NULL,
       value TEXT,
       visibility TEXT,
@@ -96,6 +97,20 @@ function createTables() {
       updated_at TEXT DEFAULT (datetime('now'))
     )
   `);
+
+  // 마이그레이션: user_id 컬럼이 없으면 추가
+  try {
+    db.exec(`ALTER TABLE profiles ADD COLUMN user_id TEXT`);
+  } catch (e) {
+    // 이미 컬럼이 있으면 무시
+  }
+
+  // 마이그레이션: profile_image 컬럼이 없으면 추가
+  try {
+    db.exec(`ALTER TABLE profiles ADD COLUMN profile_image TEXT`);
+  } catch (e) {
+    // 이미 컬럼이 있으면 무시
+  }
 
   // AgentProfile - 에이전트 프로필
   db.exec(`

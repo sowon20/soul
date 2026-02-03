@@ -509,7 +509,6 @@ export class ProfileSettings {
 
       // UI 새로고침
       await this.render(this.container, this.apiClient);
-      this.showSaveStatus('프로필 사진 저장됨', 'success');
 
       // 메인 화면 아바타도 업데이트
       this.updateMainAvatar(imageData);
@@ -517,6 +516,7 @@ export class ProfileSettings {
     } catch (error) {
       console.error('프로필 사진 업로드 실패:', error);
       this.showSaveStatus('업로드 실패', 'error');
+      setTimeout(() => this.hideSaveStatus(), 3000);
     }
   }
 

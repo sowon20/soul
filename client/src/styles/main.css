@@ -3675,6 +3675,11 @@ body {
   color: #991b1b;
 }
 
+.last-req-tier-badge.single {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
 .last-req-model-name {
   flex: 1;
   font-size: 11px;

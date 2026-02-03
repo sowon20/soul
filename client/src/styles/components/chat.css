@@ -144,6 +144,12 @@
   color: #ef4444;
 }
 
+.routing-info .routing-tier.single,
+.routing-info[data-tier="single"] .routing-tier {
+  background: rgba(99, 102, 241, 0.2);
+  color: #6366f1;
+}
+
 /* 모델명 (사용자 메시지 시간과 같은 스타일) */
 .routing-info .routing-model {
   font-size: 11px;
