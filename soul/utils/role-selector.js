@@ -222,7 +222,9 @@ ${rolesDescription}
     try {
       // 활성화된 AI 서비스 사용
       const AIServiceModel = require('../models/AIService');
-      const activeService = await AIServiceModel.findOne({ isActive: true, apiKey: { $ne: null } }).select('+apiKey');
+      // SQLite 호환: MongoDB 스타일 $ne 사용 불가
+      const allActive = await AIServiceModel.find({ isActive: true });
+      const activeService = allActive.find(s => s.apiKey);
 
       let serviceName = 'anthropic';
       let modelId = 'claude-3-5-haiku-20241022';

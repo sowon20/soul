@@ -538,7 +538,7 @@ class DashboardManager {
     const tierEl = document.getElementById('lastReqTier');
     if (tierEl) {
       const tier = meta?.tier || '-';
-      const tierLabels = { light: '경량', medium: '중간', heavy: '고성능' };
+      const tierLabels = { light: '경량', medium: '중간', heavy: '고성능', single: '단일' };
       tierEl.textContent = tierLabels[tier] || tier;
       tierEl.className = 'last-req-tier-badge ' + tier;
     }

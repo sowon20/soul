@@ -493,11 +493,15 @@ function parseRow(row) {
 
 /**
  * 값 직렬화 (객체/배열 → JSON)
+ * SQLite는 numbers, strings, bigints, buffers, null만 바인드 가능
  */
 function serializeValue(value) {
   if (value === null || value === undefined) return null;
+  if (typeof value === 'boolean') return value ? 1 : 0;
   if (typeof value === 'object') return JSON.stringify(value);
-  return value;
+  if (typeof value === 'number' || typeof value === 'string' || typeof value === 'bigint') return value;
+  // 그 외 타입은 문자열로 변환
+  return String(value);
 }
 
 /**

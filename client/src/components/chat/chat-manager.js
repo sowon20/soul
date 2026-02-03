@@ -424,16 +424,20 @@ export class ChatManager {
           const tierLabels = {
             light: '경량',
             medium: '중간',
-            heavy: '고성능'
+            heavy: '고성능',
+            single: '단일'
           };
 
-          // modelId에서 tier 추정
-          const modelId = message.routing.modelId.toLowerCase();
-          let tier = 'medium';
-          if (modelId.includes('haiku') || modelId.includes('mini') || modelId.includes('fast') || modelId.includes('nano') || modelId.includes('flash-lite')) {
-            tier = 'light';
-          } else if (modelId.includes('opus') || modelId.includes('pro') || modelId.includes('gpt-5') || modelId.includes('o3') || modelId.includes('o1')) {
-            tier = 'heavy';
+          // 서버에서 내려준 tier 사용, 없으면 modelId에서 추정
+          let tier = message.routing.tier;
+          if (!tier) {
+            const modelId = message.routing.modelId.toLowerCase();
+            tier = 'medium';
+            if (modelId.includes('haiku') || modelId.includes('mini') || modelId.includes('fast') || modelId.includes('nano') || modelId.includes('flash-lite')) {
+              tier = 'light';
+            } else if (modelId.includes('opus') || modelId.includes('pro') || modelId.includes('gpt-5') || modelId.includes('o3') || modelId.includes('o1')) {
+              tier = 'heavy';
+            }
           }
 
           const tierLabel = tierLabels[tier] || tierLabels.medium;

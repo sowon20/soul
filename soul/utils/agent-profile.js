@@ -25,8 +25,8 @@ class AgentProfile {
 
     // AI 동작 설정
     this.defaultModel = options.defaultModel || '';
-    this.temperature = options.temperature ?? 0.7;
-    this.maxTokens = options.maxTokens || 4096;
+    this.temperature = options.temperature ?? null;
+    this.maxTokens = options.maxTokens ?? null;
     this.tone = options.tone || 'friendly';
     this.customPrompt = options.customPrompt || '';
     this.personality = options.personality || {
@@ -330,22 +330,34 @@ class AgentProfileManager {
 
   /**
    * MongoDB 문서를 AgentProfile 인스턴스로 변환
+   * config 필드에서 role, description 등을 추출
    */
   _docToProfile(doc) {
+    // config가 문자열이면 파싱
+    const config = typeof doc.config === 'string'
+      ? JSON.parse(doc.config)
+      : (doc.config || {});
+
+    // personality가 문자열이면 파싱
+    const personality = typeof doc.personality === 'string'
+      ? JSON.parse(doc.personality)
+      : doc.personality;
+
     return new AgentProfile({
       id: doc.profileId,
       name: doc.name,
-      role: doc.role,
-      description: doc.description,
-      defaultModel: doc.defaultModel,
-      temperature: doc.temperature,
-      maxTokens: doc.maxTokens,
-      tone: doc.tone,
-      customPrompt: doc.customPrompt,
-      personality: doc.personality,
-      capabilities: doc.capabilities,
-      limitations: doc.limitations,
-      guidelines: doc.guidelines,
+      // config에서 개별 필드 추출 (우선순위: doc 필드 > config 필드)
+      role: doc.role || config.role,
+      description: doc.description || config.description,
+      defaultModel: doc.defaultModel || config.defaultModel,
+      temperature: doc.temperature ?? config.temperature,
+      maxTokens: doc.maxTokens || config.maxTokens,
+      tone: doc.tone || config.tone,
+      customPrompt: doc.customPrompt || config.customPrompt,
+      personality: personality,
+      capabilities: doc.capabilities || config.capabilities,
+      limitations: doc.limitations || config.limitations,
+      guidelines: doc.guidelines || config.guidelines,
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt
     });

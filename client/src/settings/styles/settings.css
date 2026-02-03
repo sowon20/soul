@@ -1471,6 +1471,21 @@ textarea.settings-field-input {
   cursor: pointer;
 }
 
+/* 미설정 상태 슬라이더 */
+.timeline-range.unset {
+  opacity: 0.4;
+}
+
+.timeline-range.unset::-webkit-slider-thumb {
+  background: linear-gradient(145deg, #ccc, #aaa);
+  border: 1px dashed rgba(160, 140, 120, 0.6);
+}
+
+.timeline-range.unset::-moz-range-thumb {
+  background: linear-gradient(145deg, #ccc, #aaa);
+  border: 1px dashed rgba(160, 140, 120, 0.6);
+}
+
 /* 타임라인 셀렉트 */
 .timeline-select-wrapper {
   position: relative;

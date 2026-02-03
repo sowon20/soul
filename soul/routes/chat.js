@@ -224,9 +224,6 @@ ${rulesText}</self_notes>\n\n`;
     // 토큰 분류 정보 (대시보드용)
     let tokenBreakdown = { messages: 0, system: 0, tools: 0, toolCount: 0 };
     try {
-      // 활성화된 AI 서비스 조회 (UI에서 설정한 서비스)
-      const activeService = await AIServiceModel.findOne({ isActive: true, apiKey: { $ne: null } }).select('+apiKey');
-
       let serviceName, modelId;
 
       // 스마트 라우팅 결과 사용
@@ -234,20 +231,24 @@ ${rulesText}</self_notes>\n\n`;
         serviceName = routingResult.serviceId;
         modelId = routingResult.modelId;
         console.log(`[Chat] Using smart routing: ${serviceName}, model: ${modelId}`);
-      } else if (activeService && activeService.models && activeService.models.length > 0) {
-        // Fallback: 활성 서비스의 첫 번째 모델
-        serviceName = activeService.serviceId;
-        modelId = activeService.models[0].id;
-        console.log(`[Chat] Fallback to active service: ${serviceName}, model: ${modelId}`);
-      } else {
-        // Fallback: 라우팅 결과 기반 서비스 선택 (모델 이름으로 서비스 추론)
-        serviceName = routingResult.modelId.includes('claude') ? 'anthropic'
-          : routingResult.modelId.includes('gpt') ? 'openai'
-          : routingResult.modelId.includes('gemini') ? 'google'
-          : routingResult.modelId.includes('grok') ? 'xai'
-          : 'anthropic';
+      } else if (routingResult && routingResult.modelId) {
+        // serviceId 없으면 모델 이름으로 서비스 추론
         modelId = routingResult.modelId;
-        console.log(`[Chat] Fallback to routing (inferred): ${serviceName}, model: ${modelId}`);
+        const lowerModelId = modelId.toLowerCase();
+        serviceName = lowerModelId.includes('claude') ? 'anthropic'
+          : lowerModelId.includes('gpt') && !lowerModelId.includes('gpt-oss') ? 'openai'
+          : lowerModelId.includes('gemini') ? 'google'
+          : lowerModelId.includes('grok') ? 'xai'
+          : lowerModelId.includes('llama') ? 'huggingface'
+          : lowerModelId.includes('qwen') ? 'huggingface'
+          : lowerModelId.includes('mistral') ? 'huggingface'
+          : lowerModelId.includes('gpt-oss') ? 'huggingface'
+          : lowerModelId.includes('openai/') ? 'huggingface'
+          : lowerModelId.includes('meta-llama/') ? 'huggingface'
+          : 'anthropic';
+        console.log(`[Chat] Inferred service: ${serviceName}, model: ${modelId}`);
+      } else {
+        throw new Error('No routing result or model specified');
       }
 
       const aiService = await AIServiceFactory.createService(serviceName, modelId);
@@ -554,7 +555,7 @@ ${rulesText}</self_notes>\n\n`;
 
     // 9. 사용 통계 준비
     const latency = Date.now() - startTime;
-    const tier = determineTier(routingResult.modelId);
+    const tier = determineTier(routingResult.modelId, routingResult.tier);
 
     // 10. 응답 저장 (라우팅 정보 포함)
     try {
@@ -660,6 +661,8 @@ ${rulesText}</self_notes>\n\n`;
       routing: {
         selectedModel: routingResult.modelName,
         modelId: routingResult.modelId,
+        serviceId: routingResult.serviceId,
+        tier: tier,
         reason: routingResult.reason,
         confidence: routingResult.confidence,
         estimatedCost: routingResult.estimatedCost,
@@ -1027,8 +1030,15 @@ router.post('/personality/preference', (req, res) => {
 
 /**
  * 모델 ID로 티어 결정
+ * @param {string} modelId - 모델 ID
+ * @param {string} routingTier - 라우팅 결과의 tier (선택)
  */
-function determineTier(modelId) {
+function determineTier(modelId, routingTier = null) {
+  // 단일 모델 모드면 'single' 반환
+  if (routingTier === 'single') {
+    return 'single';
+  }
+
   if (!modelId) return 'medium';
 
   const id = modelId.toLowerCase();

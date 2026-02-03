@@ -196,35 +196,35 @@ export class AISettings {
                         <span>캐주얼</span>
                         <span>격식</span>
                       </div>
-                      <input type="range" class="timeline-range" data-field="formality" min="0" max="1" step="0.1" value="${this.agentProfile?.personality?.communication?.formality ?? 0.5}">
+                      <input type="range" class="timeline-range${this.agentProfile?.personality?.communication?.formality == null ? ' unset' : ''}" data-field="formality" min="0" max="1" step="0.1" value="${this.agentProfile?.personality?.communication?.formality ?? 0.5}">
                     </div>
                     <div class="timeline-slider-item">
                       <div class="slider-labels">
                         <span>간결</span>
                         <span>상세</span>
                       </div>
-                      <input type="range" class="timeline-range" data-field="verbosity" min="0" max="1" step="0.1" value="${this.agentProfile?.personality?.communication?.verbosity ?? 0.5}">
+                      <input type="range" class="timeline-range${this.agentProfile?.personality?.communication?.verbosity == null ? ' unset' : ''}" data-field="verbosity" min="0" max="1" step="0.1" value="${this.agentProfile?.personality?.communication?.verbosity ?? 0.5}">
                     </div>
                     <div class="timeline-slider-item">
                       <div class="slider-labels">
                         <span>진지</span>
                         <span>유머</span>
                       </div>
-                      <input type="range" class="timeline-range" data-field="humor" min="0" max="1" step="0.1" value="${this.agentProfile?.personality?.communication?.humor ?? 0.5}">
+                      <input type="range" class="timeline-range${this.agentProfile?.personality?.communication?.humor == null ? ' unset' : ''}" data-field="humor" min="0" max="1" step="0.1" value="${this.agentProfile?.personality?.communication?.humor ?? 0.5}">
                     </div>
                     <div class="timeline-slider-item">
                       <div class="slider-labels">
                         <span>기계적</span>
                         <span>공감적</span>
                       </div>
-                      <input type="range" class="timeline-range" data-field="empathy" min="0" max="1" step="0.1" value="${this.agentProfile?.personality?.traits?.empathetic ?? 0.5}">
+                      <input type="range" class="timeline-range${this.agentProfile?.personality?.traits?.empathetic == null ? ' unset' : ''}" data-field="empathy" min="0" max="1" step="0.1" value="${this.agentProfile?.personality?.traits?.empathetic ?? 0.5}">
                     </div>
                     <div class="timeline-slider-item">
                       <div class="slider-labels">
                         <span>정확</span>
                         <span>창의</span>
                       </div>
-                      <input type="range" class="timeline-range" data-field="temperature" min="0" max="1" step="0.1" value="${this.agentProfile?.temperature ?? 0.7}">
+                      <input type="range" class="timeline-range${this.agentProfile?.temperature == null ? ' unset' : ''}" data-field="temperature" min="0" max="1" step="0.1" value="${this.agentProfile?.temperature ?? 0.5}">
                     </div>
                   </div>
                 </div>
@@ -637,6 +637,13 @@ export class AISettings {
   collectAvailableModels() {
     this.availableModels = [];
     this.modelsByService = {}; // 서비스별 그룹화
+
+    console.log('[collectAvailableModels] services:', this.services.map(s => ({
+      name: s.name,
+      isActive: s.isActive,
+      hasApiKey: s.hasApiKey,
+      modelsCount: s.models?.length
+    })));
 
     this.services.forEach(service => {
       // Vertex AI는 projectId로, Ollama는 API 키 선택적(있으면 사용, 없어도 OK), 나머지는 apiKey 필수
@@ -2556,6 +2563,8 @@ export class AISettings {
     container.addEventListener('change', async (e) => {
       // 타임라인 슬라이더 변경 저장
       if (e.target.classList.contains('timeline-range')) {
+        // 미설정 상태 해제
+        e.target.classList.remove('unset');
         const field = e.target.dataset.field;
         const value = parseFloat(e.target.value);
         const section = e.target.closest('.timeline-item')?.dataset.section;
@@ -4090,8 +4099,9 @@ export class AISettings {
       if (field.value.trim()) filledFields++;
     });
 
-    // 슬라이더가 하나라도 있으면 완료 처리 (기본값도 유효)
-    if (sliders.length > 0) filledFields++;
+    // 슬라이더 중 unset이 아닌 것이 있으면 완료 처리
+    const setSliders = Array.from(sliders).filter(s => !s.classList.contains('unset'));
+    if (setSliders.length > 0) filledFields++;
 
     const progress = totalFields > 0 ? filledFields / totalFields : 0;
     const circumference = 62.83; // 2 * PI * r (r=10)
@@ -4274,6 +4284,10 @@ export class AISettings {
         if (field === 'empathy') {
           this.agentProfile.personality.traits.empathetic = value;
           updateData.personality = this.agentProfile.personality;
+        } else if (field === 'temperature') {
+          // temperature는 personality 섹션에 있지만 별도 필드로 저장
+          updateData.temperature = value;
+          this.agentProfile.temperature = value;
         } else {
           this.agentProfile.personality.communication[field] = value;
           updateData.personality = this.agentProfile.personality;
@@ -4284,7 +4298,8 @@ export class AISettings {
           formality: 'soulFormality',
           verbosity: 'soulVerbosity',
           humor: 'soulHumor',
-          empathy: 'soulEmpathy'
+          empathy: 'soulEmpathy',
+          temperature: 'soulCreativity'
         };
         const oldSlider = document.getElementById(sliderMap[field]);
         if (oldSlider) oldSlider.value = value;
@@ -4335,26 +4350,13 @@ export class AISettings {
 
   /**
    * 성격 슬라이더가 기본값에서 변경되었는지 확인
-   * 화면의 슬라이더 값을 실시간으로 체크
+   * unset 클래스가 없는 슬라이더만 "설정됨"으로 판단
    */
   hasPersonalitySliderChanged() {
-    // 기본값 (슬라이더 중앙)
-    const defaults = {
-      formality: 0.5,
-      verbosity: 0.5,
-      humor: 0.5,
-      empathy: 0.5,
-      temperature: 0.7
-    };
-
-    const round = (v) => Math.round(v * 10) / 10;
-
-    // 화면의 슬라이더 값 직접 확인
     const sliders = document.querySelectorAll('.timeline-item[data-section="personality"] .timeline-range');
     for (const slider of sliders) {
-      const field = slider.dataset.field;
-      const value = round(parseFloat(slider.value));
-      if (defaults[field] !== undefined && value !== defaults[field]) {
+      // unset 클래스가 없으면 사용자가 값을 설정한 것
+      if (!slider.classList.contains('unset')) {
         return true;
       }
     }

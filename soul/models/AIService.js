@@ -66,6 +66,19 @@ async function initializeBuiltinServices() {
       models: [],
       isActive: 0,  // 서버 연결 확인 전까지 비활성
       config: { isLocal: true }
+    },
+    {
+      serviceId: 'huggingface',
+      name: 'HuggingFace',
+      baseUrl: 'https://router.huggingface.co/v1',
+      models: [
+        { id: 'openai/gpt-oss-20b', name: 'GPT-OSS-20B', contextWindow: 32000 },
+        { id: 'openai/gpt-oss-120b', name: 'GPT-OSS-120B', contextWindow: 32000 },
+        { id: 'meta-llama/Llama-3.3-70B-Instruct', name: 'Llama 3.3 70B', contextWindow: 128000 },
+        { id: 'Qwen/Qwen2.5-72B-Instruct', name: 'Qwen 2.5 72B', contextWindow: 128000 }
+      ],
+      isActive: 0,
+      config: {}
     }
   ];
 

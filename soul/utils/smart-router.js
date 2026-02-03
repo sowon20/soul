@@ -124,13 +124,13 @@ class SmartRouter {
 
     // 1.5. 단일 모델 모드
     if (this.config.mode === 'single' && this.config.singleModel) {
-      this.stats.routingDecisions.medium++; // 단일 모델은 medium으로 통계 집계
       return {
         modelId: this.config.singleModel.modelId,
         serviceId: this.config.singleModel.serviceId || null,
         thinking: this.config.singleModel.thinking || false,
         modelName: 'Single Model',
         reason: 'Single model mode',
+        tier: 'single',
         confidence: 1.0
       };
     }

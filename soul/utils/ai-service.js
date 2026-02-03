@@ -1115,6 +1115,109 @@ JSON만 응답하고 다른 설명은 하지 마.`
 }
 
 /**
+ * HuggingFace Inference API 서비스
+ * OpenAI 호환 API 사용 (gpt-oss-20b 등)
+ */
+class HuggingFaceService extends AIService {
+  constructor(apiKey, modelName = 'openai/gpt-oss-20b') {
+    super(apiKey);
+    this.modelName = modelName;
+    this.baseUrl = 'https://router.huggingface.co/v1';
+  }
+
+  async chat(messages, options = {}) {
+    const {
+      systemPrompt = null,
+      maxTokens = 4096,
+      temperature = 0.7,
+    } = options;
+
+    const apiMessages = [...messages];
+    if (systemPrompt) {
+      apiMessages.unshift({
+        role: 'system',
+        content: systemPrompt
+      });
+    }
+
+    const requestBody = {
+      model: this.modelName,
+      messages: apiMessages,
+      max_tokens: maxTokens,
+      temperature: temperature
+    };
+
+    const response = await fetch(`${this.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.apiKey}`
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    const data = await response.json();
+
+    if (data.error) {
+      throw new Error(data.error.message || 'HuggingFace API error');
+    }
+
+    if (!data.choices || !data.choices[0]) {
+      throw new Error('Invalid response from HuggingFace API');
+    }
+
+    const usage = {
+      input_tokens: data.usage?.prompt_tokens || 0,
+      output_tokens: data.usage?.completion_tokens || 0
+    };
+
+    return { text: data.choices[0].message.content, usage };
+  }
+
+  async analyzeConversation(messages) {
+    const conversationText = messages
+      .map(msg => `${msg.sender}: ${msg.text}`)
+      .join('\n');
+
+    const result = await this.chat([{
+      role: 'user',
+      content: `다음 대화를 분석해서 JSON으로 응답해줘:
+
+${conversationText}
+
+형식:
+{
+  "topics": ["주제1", "주제2"],
+  "tags": ["태그1", "태그2"],
+  "category": "카테고리",
+  "importance": 5
+}
+
+JSON만 응답해.`
+    }], { maxTokens: 500 });
+
+    try {
+      const jsonMatch = result.text.match(/\{[\s\S]*\}/);
+      return jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async testConnection() {
+    try {
+      const response = await fetch(`${this.baseUrl}/models`, {
+        headers: { 'Authorization': `Bearer ${this.apiKey}` }
+      });
+      return response.ok;
+    } catch (error) {
+      console.error('HuggingFace connection test failed:', error);
+      return false;
+    }
+  }
+}
+
+/**
  * Google Gemini 서비스
  */
 class GoogleService extends AIService {
@@ -1941,7 +2044,7 @@ class AIServiceFactory {
     // 1. AIService 모델에서 조회 (UI에서 설정한 키)
     try {
       const AIServiceModel = require('../models/AIService');
-      const serviceDoc = await AIServiceModel.findOne({ serviceId: service }).select('+apiKey');
+      const serviceDoc = await AIServiceModel.findOne({ serviceId: service });
       if (serviceDoc && serviceDoc.apiKey) {
         console.log(`[APIKey] Loaded ${service} key from UI settings`);
         return serviceDoc.apiKey;
@@ -2041,6 +2144,15 @@ class AIServiceFactory {
           model
         );
         break;
+
+      case 'huggingface': {
+        const apiKey = await this.getApiKey('huggingface');
+        if (!apiKey) {
+          throw new Error('HUGGINGFACE_API_KEY not configured. Please save it in Settings.');
+        }
+        serviceInstance = new HuggingFaceService(apiKey, model);
+        break;
+      }
 
       case 'vertex': {
         // Vertex AI는 API 키 대신 projectId와 region 필요
@@ -2146,6 +2258,18 @@ class AIServiceFactory {
         case 'ollama':
           // Ollama는 API 키가 필요 없음
           return { valid: true, message: 'Ollama는 API 키가 필요하지 않습니다' };
+
+        case 'huggingface':
+          // HuggingFace whoami API로 토큰 검증
+          const hfResponse = await fetch('https://huggingface.co/api/whoami-v2', {
+            headers: { 'Authorization': `Bearer ${apiKey}` }
+          });
+
+          if (!hfResponse.ok) {
+            throw new Error('HuggingFace API 인증 실패');
+          }
+
+          return { valid: true, message: 'API 키가 유효합니다' };
 
         case 'vertex':
           // Vertex AI는 API 키 대신 Google Cloud 인증 사용
@@ -2367,6 +2491,17 @@ class AIServiceFactory {
           }));
           return { success: true, models: ollamaModels };
 
+        case 'huggingface':
+          // HuggingFace에서 사용 가능한 모델 (고정 목록)
+          const hfModels = [
+            { id: 'openai/gpt-oss-20b', name: 'GPT-OSS-20B', description: 'OpenAI 오픈소스 20B 모델' },
+            { id: 'openai/gpt-oss-120b', name: 'GPT-OSS-120B', description: 'OpenAI 오픈소스 120B 모델' },
+            { id: 'meta-llama/Llama-3.3-70B-Instruct', name: 'Llama 3.3 70B', description: 'Meta Llama 3.3' },
+            { id: 'mistralai/Mistral-7B-Instruct-v0.3', name: 'Mistral 7B', description: 'Mistral AI 7B' },
+            { id: 'Qwen/Qwen2.5-72B-Instruct', name: 'Qwen 2.5 72B', description: 'Alibaba Qwen 2.5' },
+          ];
+          return { success: true, models: hfModels };
+
         case 'vertex':
           // Vertex AI에서 사용 가능한 Claude 모델 (고정 목록)
           // https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude
@@ -2499,6 +2634,7 @@ module.exports = {
   XAIService,
   LightningAIService,
   OllamaService,
+  HuggingFaceService,
   VertexAIService,
   AIServiceFactory
 };

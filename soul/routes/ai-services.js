@@ -302,8 +302,8 @@ router.post('/:id/refresh-models', async (req, res) => {
           error: 'Vertex AI Project ID가 설정되지 않았습니다'
         });
       }
-    } else if (!service.apiKey && serviceType !== 'ollama') {
-      // API 키 확인 (Ollama와 Vertex 제외)
+    } else if (!service.apiKey && serviceType !== 'ollama' && serviceType !== 'huggingface') {
+      // API 키 확인 (Ollama, Vertex, HuggingFace 제외 - HF는 고정 목록 사용)
       return res.status(400).json({
         success: false,
         error: 'API 키가 설정되지 않았습니다'
