@@ -114,21 +114,20 @@ body {
 @media (max-width: 899px) {
   .left-card {
     position: fixed;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: calc(100% - 76px); /* center-card 64px + gap 12px */
+    left: 8px;
+    top: 8px;
+    bottom: 8px;
+    width: calc(100% - 100px); /* 8px좌 + gap12 + center76 + 4px우 */
     min-width: 0;
     max-width: none;
     z-index: 101;
     flex-shrink: 0;
-    border-radius: 0;
     transition: transform 0.3s ease;
     transform: translateX(0);
   }
 
   .left-card.hide {
-    transform: translateX(-100%);
+    transform: translateX(calc(-100vw));
     pointer-events: none;
   }
 }
@@ -179,20 +178,22 @@ body {
   padding: 16px 8px;
 }
 
-/* 900px 미만: center-group 슬라이드 */
+/* 900px 미만: center-group을 left-card 오른쪽에 붙여서 같이 슬라이드 */
 @media (max-width: 899px) {
   .center-group {
     position: fixed;
-    right: 0;
-    top: 0;
+    right: 4px;
+    top: 8px;
+    bottom: 8px;
     z-index: 100;
     overflow: visible;
     transition: transform 0.3s ease;
     transform: translateX(0);
+    gap: 12px;
   }
 
   .center-group.hide {
-    transform: translateX(100%);
+    transform: translateX(calc(-100vw));
     pointer-events: none;
   }
 
@@ -202,8 +203,7 @@ body {
 
   .center-card {
     width: 76px;
-    height: 100vh;
-    border-radius: 0;
+    height: 100%;
   }
 }
 
