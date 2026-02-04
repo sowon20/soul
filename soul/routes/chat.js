@@ -23,7 +23,7 @@ const { loadMCPTools, executeMCPTool, callJinaTool } = require('../utils/mcp-too
 const { builtinTools, executeBuiltinTool, isBuiltinTool } = require('../utils/builtin-tools');
 const { isProactiveActive } = require('../utils/proactive-messenger');
 const configManager = require('../utils/config');
-const { getAlbaWorker } = require('../utils/alba-worker');
+// alba-worker는 더 이상 사용하지 않음 (도구 선택은 tool-worker 알바가 {need} 단계에서 처리)
 
 // JSONL 대화 저장소 (lazy init)
 let _conversationStore = null;
@@ -366,30 +366,8 @@ ${rulesText}</self_notes>\n\n`;
       debugLog(`Tool names: ${allTools.map(t => t.name).join(', ')}`);
       console.log('[Chat] Total tools available:', allTools.length);
 
-      // 도구 선택: 알바가 있으면 MCP 도구 필터링, 없으면 전부 제공
-      const builtinToolNames = builtinTools.map(t => t.name);
-      const builtinOnly = allTools.filter(t => builtinToolNames.includes(t.name));
-      const mcpTools = allTools.filter(t => !builtinToolNames.includes(t.name));
-
-      if (mcpTools.length > 0) {
-        try {
-          const alba = await getAlbaWorker();
-          if (alba.initialized) {
-            // 알바 있음 → 필요한 MCP 도구만 선별 (토큰 절약)
-            const budget = Math.max(12 - builtinOnly.length, 5);
-            const selected = await alba.selectTools(message, mcpTools, budget);
-            if (selected && selected.length > 0) {
-              allTools = [...builtinOnly, ...selected];
-              console.log('[Chat] Alba selected tools:', selected.map(t => t.name).join(', '));
-            }
-            // 알바가 고르지 못하면 전체 유지
-          }
-          // 알바 없음 → allTools 그대로 (builtin + MCP 전부)
-        } catch (e) {
-          // 알바 오류 → allTools 그대로 (builtin + MCP 전부)
-          console.warn('[Chat] Alba error, using all tools:', e.message);
-        }
-      }
+      // 도구 필터링은 {need} 단계의 tool-worker 알바에게 위임
+      // 여기서는 전체 도구를 전달하고, AI가 {need}로 요청하면 tool-worker가 선별
       console.log('[Chat] Using tools:', allTools.map(t => t.name).join(', '));
       
       // 도구 이름 파싱 헬퍼 (mcp_123__server__tool → server > tool)
@@ -887,7 +865,8 @@ ${toolCatalog}`;
         aiResponse = '🔑 API 인증에 문제가 발생했어요. 관리자에게 API 키 설정을 확인해달라고 요청해주세요.';
         console.error('❌ API 키 인증 오류 - .env 파일의 ANTHROPIC_API_KEY 또는 해당 서비스 API 키를 확인하세요.');
       } else if (statusCode === 402 || statusCode === 429 || errorMessage.includes('spend limit') || errorMessage.includes('insufficient') || errorMessage.includes('rate_limit') || errorMessage.includes('rate-limit')) {
-        aiResponse = '⏳ 무료 모델이 일시적으로 불안정해요 (재시도 3회 실패). 잠시 후 다시 시도하거나, 다른 모델로 전환해보세요.';
+        const modelName = routingResult.modelId || '현재 모델';
+        aiResponse = `⏳ ${modelName} 요청 한도에 도달했어요. 잠시 후 다시 시도하거나, 다른 모델로 전환해보세요.`;
       } else if (statusCode === 500 || statusCode === 502 || statusCode === 503) {
         aiResponse = '🔧 AI 서버에 일시적인 문제가 발생했어요. 잠시 후 다시 시도해주세요.';
       } else if (errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
