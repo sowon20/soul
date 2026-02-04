@@ -946,6 +946,89 @@ class SoulApp {
 
       swiping = false;
     }, { passive: true });
+
+    // 풀업 새로고침: 대화창 맨 아래에서 위로 끌어올리기
+    this.initPullUpRefresh();
+  }
+
+  initPullUpRefresh() {
+    const scrollContainer = document.querySelector('.right-card-top');
+    const messagesArea = document.getElementById('messagesArea');
+    if (!scrollContainer || !messagesArea) return;
+
+    let pullStartY = 0;
+    let pulling = false;
+    let indicator = null;
+
+    const createIndicator = () => {
+      if (indicator) return indicator;
+      indicator = document.createElement('div');
+      indicator.id = 'pullUpIndicator';
+      indicator.style.cssText = 'position: fixed; bottom: 120px; left: 50%; transform: translateX(-50%); z-index: 200; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-size: 18px; opacity: 0; transition: opacity 0.2s, transform 0.2s; pointer-events: none;';
+      indicator.textContent = '↻';
+      document.body.appendChild(indicator);
+      return indicator;
+    };
+
+    const removeIndicator = () => {
+      if (indicator) {
+        indicator.remove();
+        indicator = null;
+      }
+    };
+
+    scrollContainer.addEventListener('touchstart', (e) => {
+      if (window.innerWidth >= 900) return;
+      // 스크롤이 맨 아래인지 확인
+      const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+      const atBottom = scrollHeight - scrollTop - clientHeight < 10;
+      if (atBottom) {
+        pullStartY = e.touches[0].clientY;
+        pulling = true;
+      }
+    }, { passive: true });
+
+    scrollContainer.addEventListener('touchmove', (e) => {
+      if (!pulling || window.innerWidth >= 900) return;
+      const diffY = pullStartY - e.touches[0].clientY;
+      if (diffY > 10) {
+        // 쭈욱 따라오되, 고무줄처럼 점점 늘어나기 힘들게
+        const raw = diffY - 10;
+        const pullAmount = 100 * Math.log10(1 + raw / 30);
+        const progress = Math.min(raw / 100, 1);
+        // 대화 메시지를 위로 쭈욱 밀어올리기
+        messagesArea.style.transform = `translateY(-${pullAmount}px)`;
+        messagesArea.style.transition = 'none';
+        // 새로고침 아이콘
+        const ind = createIndicator();
+        ind.style.opacity = progress.toString();
+        ind.style.transform = `translateX(-50%) rotate(${raw * 3}deg)`;
+      }
+    }, { passive: true });
+
+    scrollContainer.addEventListener('touchend', (e) => {
+      if (!pulling || window.innerWidth >= 900) return;
+      const diffY = pullStartY - e.changedTouches[0].clientY;
+      if (diffY > 100) {
+        // 새로고침 - 쭈욱 올라가고 reload
+        const raw = diffY - 10;
+        const currentY = 100 * Math.log10(1 + raw / 30);
+        // 고무줄 놓듯이 탕 하고 원위치로 튕김
+        messagesArea.style.transition = 'transform 0.3s cubic-bezier(0.6, 0, 0.5, 1)';
+        messagesArea.style.transform = 'translateY(0)';
+        if (indicator) {
+          indicator.style.transition = 'opacity 0.2s';
+          indicator.style.opacity = '0';
+        }
+        setTimeout(() => window.location.reload(), 350);
+      } else {
+        // 취소 - 부드럽게 원위치
+        messagesArea.style.transition = 'transform 0.4s cubic-bezier(0.25, 0.1, 0.25, 1)';
+        messagesArea.style.transform = '';
+        removeIndicator();
+      }
+      pulling = false;
+    }, { passive: true });
   }
 
   initCenterMenuButtons() {
