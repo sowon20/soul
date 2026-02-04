@@ -19,7 +19,7 @@ const Role = require('../models/Role');
 const UsageStats = require('../models/UsageStats');
 const Message = require('../models/Message');
 const ConversationStore = require('../utils/conversation-store');
-const { loadMCPTools, executeMCPTool } = require('../utils/mcp-tools');
+const { loadMCPTools, executeMCPTool, callJinaTool } = require('../utils/mcp-tools');
 const { builtinTools, executeBuiltinTool, isBuiltinTool } = require('../utils/builtin-tools');
 const { isProactiveActive } = require('../utils/proactive-messenger');
 const configManager = require('../utils/config');
@@ -435,6 +435,64 @@ ${rulesText}</self_notes>\n\n`;
         }
       };
 
+      // 검색 결과 중복 제거 후처리
+      const SEARCH_TOOLS = new Set(['search_web', 'search_arxiv', 'search_ssrn', 'search_jina_blog', 'search_bibtex',
+        'parallel_search_web', 'parallel_search_arxiv', 'parallel_search_ssrn']);
+      const IMAGE_TOOLS = new Set(['search_images']);
+
+      async function deduplicateToolResult(toolName, result) {
+        if (!result) return result;
+        const resultStr = typeof result === 'string' ? result : (result.result || '');
+        if (!resultStr || resultStr.length < 500) return result; // 짧으면 스킵
+
+        try {
+          // 텍스트 검색 결과 → deduplicate_strings
+          if (SEARCH_TOOLS.has(toolName)) {
+            // snippet 줄 단위로 분리 (title: ...\nsnippet: ... 패턴)
+            const lines = resultStr.split('\n').filter(l => l.trim());
+            if (lines.length < 5) return result; // 항목이 적으면 스킵
+
+            console.log(`[Dedup] ${toolName}: ${lines.length}줄 → deduplicate_strings 호출`);
+            const deduped = await callJinaTool('deduplicate_strings', { strings: lines });
+            if (deduped) {
+              const parsed = typeof deduped === 'string' ? deduped : JSON.stringify(deduped);
+              const originalLen = resultStr.length;
+              const newLen = parsed.length;
+              console.log(`[Dedup] 결과: ${originalLen} → ${newLen} chars (${Math.round((1 - newLen / originalLen) * 100)}% 절감)`);
+              if (typeof result === 'object') {
+                return { ...result, result: parsed };
+              }
+              return parsed;
+            }
+          }
+
+          // 이미지 검색 결과 → deduplicate_images
+          if (IMAGE_TOOLS.has(toolName)) {
+            // base64 이미지나 URL 추출
+            const urlPattern = /https?:\/\/[^\s"'<>]+\.(?:jpg|jpeg|png|gif|webp|svg)[^\s"'<>]*/gi;
+            const imageUrls = resultStr.match(urlPattern);
+            if (imageUrls && imageUrls.length >= 3) {
+              console.log(`[Dedup] ${toolName}: ${imageUrls.length}개 이미지 → deduplicate_images 호출`);
+              const deduped = await callJinaTool('deduplicate_images', { images: imageUrls });
+              if (deduped) {
+                const dedupedUrls = typeof deduped === 'string' ? deduped : JSON.stringify(deduped);
+                console.log(`[Dedup] 이미지: ${imageUrls.length}개 → 중복 제거 완료`);
+                // 중복 제거된 URL 목록을 결과에 추가
+                const appendNote = `\n\n[중복 제거된 고유 이미지]\n${dedupedUrls}`;
+                if (typeof result === 'object') {
+                  return { ...result, result: resultStr + appendNote };
+                }
+                return resultStr + appendNote;
+              }
+            }
+          }
+        } catch (e) {
+          console.error(`[Dedup] 후처리 실패 (원본 유지):`, e.message);
+        }
+
+        return result; // 실패 시 원본 그대로
+      }
+
       // 통합 도구 실행기 (소켓 이벤트 포함)
       const toolExecutor = async (toolName, input) => {
         const parsed = parseToolName(toolName);
@@ -455,11 +513,21 @@ ${rulesText}</self_notes>\n\n`;
         
         let result;
         try {
+          // 검색 도구: num 기본값 20으로 제한
+          const searchTools = ['search_web', 'search_arxiv', 'search_ssrn', 'search_jina_blog', 'search_images', 'search_bibtex'];
+          const actualToolName = parsed.tool || toolName;
+          if (searchTools.includes(actualToolName) && !input.num) {
+            input.num = 20;
+          }
+
           if (isBuiltinTool(toolName)) {
             result = await executeBuiltinTool(toolName, input);
           } else {
             result = await executeMCPTool(toolName, input);
           }
+
+          // 검색 결과 후처리: 중복 제거 (Jina deduplicate 활용)
+          result = await deduplicateToolResult(actualToolName, result);
           
           // 실행된 도구 기록
           executedTools.push({

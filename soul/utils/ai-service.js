@@ -524,19 +524,31 @@ class AnthropicService extends AIService {
     while (response.stop_reason === 'tool_use' && toolExecutor) {
       const toolUseBlocks = response.content.filter(block => block.type === 'tool_use');
 
-      // 도구 실행 결과 수집
+      // 도구 실행 결과 수집 (같은 도구 중복 호출 방지: 도구당 1회만 실행)
       const toolResults = [];
+      const executedToolNames = new Set();
       for (const toolUse of toolUseBlocks) {
+        if (executedToolNames.has(toolUse.name)) {
+          console.log(`[Tool] Skipped duplicate: ${toolUse.name} (already executed this turn)`);
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: toolUse.id,
+            content: '이미 이번 턴에서 실행됨. 결과를 확인한 뒤 추가 호출이 필요하면 다음 턴에서 호출하세요.'
+          });
+          continue;
+        }
+        executedToolNames.add(toolUse.name);
+
         console.log(`[Tool] Executing: ${toolUse.name}`, toolUse.input);
         const result = await toolExecutor(toolUse.name, toolUse.input);
-        
+
         // 도구 사용 정보 저장
         toolUsageInfo.push({
           name: toolUse.name,
           input: toolUse.input,
           result: typeof result === 'string' ? result : JSON.stringify(result)
         });
-        
+
         toolResults.push({
           type: 'tool_result',
           tool_use_id: toolUse.id,
@@ -1084,7 +1096,14 @@ class OpenAIService extends AIService {
 
       apiMessages.push(data.choices[0].message);
 
+      const executedNames = new Set();
       for (const tc of toolCalls) {
+        if (executedNames.has(tc.function.name)) {
+          console.log(`[OpenAI Tool] Skipped duplicate: ${tc.function.name}`);
+          apiMessages.push({ role: 'tool', tool_call_id: tc.id, content: '이미 이번 턴에서 실행됨. 결과를 확인 후 필요하면 다음 턴에서 호출하세요.' });
+          continue;
+        }
+        executedNames.add(tc.function.name);
         const input = JSON.parse(tc.function.arguments || '{}');
         console.log(`[OpenAI Tool] Executing: ${tc.function.name}`, input);
         const result = await toolExecutor(tc.function.name, input);
@@ -1253,8 +1272,15 @@ class HuggingFaceService extends AIService {
       // assistant 메시지 추가 (tool_calls 포함)
       apiMessages.push(data.choices[0].message);
 
-      // 도구 실행 및 결과 추가
+      // 도구 실행 및 결과 추가 (같은 도구 중복 호출 방지)
+      const executedNames = new Set();
       for (const tc of toolCalls) {
+        if (executedNames.has(tc.function.name)) {
+          console.log(`[HF Tool] Skipped duplicate: ${tc.function.name}`);
+          apiMessages.push({ role: 'tool', tool_call_id: tc.id, content: '이미 이번 턴에서 실행됨. 결과를 확인 후 필요하면 다음 턴에서 호출하세요.' });
+          continue;
+        }
+        executedNames.add(tc.function.name);
         const input = JSON.parse(tc.function.arguments || '{}');
         console.log(`[HF Tool] Executing: ${tc.function.name}`, input);
         const result = await toolExecutor(tc.function.name, input);
@@ -1460,10 +1486,19 @@ class GoogleService extends AIService {
         parts: parts
       });
 
-      // 도구 실행 및 결과 추가
+      // 도구 실행 및 결과 추가 (같은 도구 중복 호출 방지)
       const functionResponses = [];
+      const executedNames = new Set();
       for (const fc of functionCalls) {
         const { name, args } = fc.functionCall;
+        if (executedNames.has(name)) {
+          console.log(`[Google Tool] Skipped duplicate: ${name}`);
+          functionResponses.push({
+            functionResponse: { name, response: { result: '이미 이번 턴에서 실행됨. 결과를 확인 후 필요하면 다음 턴에서 호출하세요.' } }
+          });
+          continue;
+        }
+        executedNames.add(name);
         console.log(`[Google Tool] Executing: ${name}`, args);
         const result = await toolExecutor(name, args || {});
         functionResponses.push({
@@ -1692,7 +1727,14 @@ class XAIService extends AIService {
 
       apiMessages.push(data.choices[0].message);
 
+      const executedNames = new Set();
       for (const tc of toolCalls) {
+        if (executedNames.has(tc.function.name)) {
+          console.log(`[xAI Tool] Skipped duplicate: ${tc.function.name}`);
+          apiMessages.push({ role: 'tool', tool_call_id: tc.id, content: '이미 이번 턴에서 실행됨. 결과를 확인 후 필요하면 다음 턴에서 호출하세요.' });
+          continue;
+        }
+        executedNames.add(tc.function.name);
         const input = JSON.parse(tc.function.arguments || '{}');
         console.log(`[xAI Tool] Executing: ${tc.function.name}`, input);
         const result = await toolExecutor(tc.function.name, input);
@@ -1883,7 +1925,14 @@ class OpenRouterService extends AIService {
 
       apiMessages.push(data.choices[0].message);
 
+      const executedNames = new Set();
       for (const tc of toolCalls) {
+        if (executedNames.has(tc.function.name)) {
+          console.log(`[OpenRouter Tool] Skipped duplicate: ${tc.function.name}`);
+          apiMessages.push({ role: 'tool', tool_call_id: tc.id, content: '이미 이번 턴에서 실행됨. 결과를 확인 후 필요하면 다음 턴에서 호출하세요.' });
+          continue;
+        }
+        executedNames.add(tc.function.name);
         const input = JSON.parse(tc.function.arguments || '{}');
         console.log(`[OpenRouter Tool] Executing: ${tc.function.name}`, input);
         const result = await toolExecutor(tc.function.name, input);
@@ -2023,7 +2072,14 @@ class LightningAIService extends AIService {
 
       apiMessages.push(data.choices[0].message);
 
+      const executedNames = new Set();
       for (const tc of toolCalls) {
+        if (executedNames.has(tc.function.name)) {
+          console.log(`[LightningAI Tool] Skipped duplicate: ${tc.function.name}`);
+          apiMessages.push({ role: 'tool', tool_call_id: tc.id, content: '이미 이번 턴에서 실행됨. 결과를 확인 후 필요하면 다음 턴에서 호출하세요.' });
+          continue;
+        }
+        executedNames.add(tc.function.name);
         const input = JSON.parse(tc.function.arguments || '{}');
         console.log(`[LightningAI Tool] Executing: ${tc.function.name}`, input);
         const result = await toolExecutor(tc.function.name, input);
@@ -2141,9 +2197,16 @@ class OllamaService extends AIService {
       // assistant 메시지 추가
       apiMessages.push(data.message);
 
+      const executedNames = new Set();
       for (const tc of data.message.tool_calls) {
         const name = tc.function.name;
         const args = tc.function.arguments || {};
+        if (executedNames.has(name)) {
+          console.log(`[Ollama Tool] Skipped duplicate: ${name}`);
+          apiMessages.push({ role: 'tool', content: '이미 이번 턴에서 실행됨. 결과를 확인 후 필요하면 다음 턴에서 호출하세요.' });
+          continue;
+        }
+        executedNames.add(name);
         console.log(`[Ollama Tool] Executing: ${name}`, args);
         const result = await toolExecutor(name, args);
         apiMessages.push({
