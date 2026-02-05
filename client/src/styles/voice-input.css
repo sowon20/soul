@@ -9,6 +9,7 @@
   gap: 24px;
   max-width: 400px;
   margin: 0 auto;
+  overflow: hidden;
 }
 
 .voice-panel-title {
@@ -168,15 +169,13 @@
 }
 
 .voice-transcript {
-  min-height: 80px;
+  min-height: 40px;
   max-height: 150px;
   overflow-y: auto;
-  padding: 16px;
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 8px 0;
   font-size: 1rem;
   line-height: 1.6;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .voice-placeholder {
@@ -360,4 +359,300 @@
 .voice-record-btn.realtime-active {
   background: linear-gradient(145deg, #4a3a5a, #3a2a4a);
   border: 2px solid rgba(74, 158, 255, 0.5);
+}
+
+/* ========== Soul Orb (CSS Magical Glow) ========== */
+.voice-orb-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  min-height: 220px;
+}
+
+.soul-orb {
+  position: relative;
+  width: 160px;
+  height: 160px;
+  cursor: pointer;
+}
+
+/* 중앙 글로우 */
+.soul-orb .glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-radius: 50%;
+  animation: soul-glow 3s linear 0s infinite alternate;
+}
+
+/* 파티클 컨테이너 */
+.soul-orb .particles {
+  position: absolute;
+  top: calc(50% - 50px);
+  left: calc(50% - 50px);
+  width: 100px;
+  height: 100px;
+}
+
+.soul-orb .rotate {
+  position: absolute;
+  top: calc(50% - 5px);
+  left: calc(50% - 5px);
+  width: 10px;
+  height: 10px;
+  animation: soul-rotate 20s linear 0s infinite alternate;
+}
+
+.soul-orb .angle {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.soul-orb .size {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.soul-orb .position {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.soul-orb .pulse {
+  position: absolute;
+  top: 0;
+  left: 0;
+  animation: soul-pulse 1.5s linear 0s infinite alternate;
+}
+
+.soul-orb .particle {
+  position: absolute;
+  top: calc(50% - 5px);
+  left: calc(50% - 5px);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+/* 파티클 1 */
+.soul-orb .rotate .angle:nth-child(1) {
+  animation: soul-angle 10s steps(5) 0s infinite;
+}
+.soul-orb .rotate .angle:nth-child(1) .size {
+  animation: soul-size 10s steps(5) 0s infinite;
+}
+.soul-orb .rotate .angle:nth-child(1) .particle {
+  animation: soul-particle 6s linear infinite alternate;
+}
+.soul-orb .rotate .angle:nth-child(1) .position {
+  animation: soul-position 2s linear 0s infinite;
+}
+
+/* 파티클 2 */
+.soul-orb .rotate .angle:nth-child(2) {
+  animation: soul-angle 4.95s steps(3) -1.65s infinite;
+}
+.soul-orb .rotate .angle:nth-child(2) .size {
+  animation: soul-size 4.95s steps(3) -1.65s infinite alternate;
+}
+.soul-orb .rotate .angle:nth-child(2) .particle {
+  animation: soul-particle 4.95s linear -3.3s infinite alternate;
+}
+.soul-orb .rotate .angle:nth-child(2) .position {
+  animation: soul-position 1.65s linear 0s infinite;
+}
+
+/* 파티클 3 */
+.soul-orb .rotate .angle:nth-child(3) {
+  animation: soul-angle 13.76s steps(8) -6.88s infinite;
+}
+.soul-orb .rotate .angle:nth-child(3) .size {
+  animation: soul-size 6.88s steps(4) -5.16s infinite alternate;
+}
+.soul-orb .rotate .angle:nth-child(3) .particle {
+  animation: soul-particle 5.16s linear -1.72s infinite alternate;
+}
+.soul-orb .rotate .angle:nth-child(3) .position {
+  animation: soul-position 1.72s linear 0s infinite;
+}
+
+/* 파동 웨이브 */
+.orb-waves {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 0;
+  height: 0;
+  z-index: 0;
+  overflow: visible;
+}
+.orb-wave {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 60px;
+  height: 60px;
+  margin-top: -30px;
+  margin-left: -30px;
+  border-radius: 50%;
+  transform: scale(0);
+  opacity: 0;
+  background: transparent;
+  border: 2px solid rgba(255,255,255,0.2);
+  filter: blur(3px);
+}
+
+/* 녹음 중일 때만 파동 */
+.soul-orb.recording .orb-wave {
+  animation: orb-wave-out 3s ease-out infinite;
+}
+.soul-orb.recording .orb-wave:nth-child(2) {
+  animation-delay: 1s;
+}
+.soul-orb.recording .orb-wave:nth-child(3) {
+  animation-delay: 2s;
+}
+
+/* 호버 효과 */
+.soul-orb:hover .glow {
+  animation: soul-glow-hover 2s linear 0s infinite alternate;
+}
+
+/* 녹음 중 - 글로우 더 강하게 */
+.soul-orb.recording .glow {
+  animation: soul-glow-recording 1.5s linear 0s infinite alternate;
+}
+.soul-orb.recording .rotate {
+  animation: soul-rotate 8s linear 0s infinite alternate;
+}
+
+/* ===== 키프레임 ===== */
+
+/* 중앙 글로우 - 민트 + 보라 + 흰색 (선명하게) */
+@keyframes soul-glow {
+  0% {
+    transform: rotate(0deg);
+    box-shadow: 0 0 40px 25px #7c3aed, 20px 15px 30px 12px #2dd4bf, -6px -20px 25px 8px rgba(255,255,255,0.7);
+  }
+  33% {
+    transform: rotate(2deg);
+    box-shadow: 0 0 60px 32px #2dd4bf, 28px 20px 35px 13px rgba(255,255,255,0.8), -18px -25px 35px 12px #7c3aed;
+  }
+  66% {
+    transform: rotate(4deg);
+    box-shadow: 0 0 65px 34px rgba(255,255,255,0.6), 32px 22px 30px 12px #7c3aed, -25px -28px 38px 14px #2dd4bf;
+  }
+  100% {
+    transform: rotate(5deg);
+    box-shadow: 0 0 45px 28px #7c3aed, 30px 22px 28px 12px #2dd4bf, -25px -28px 28px 8px rgba(255,255,255,0.7);
+  }
+}
+
+@keyframes soul-glow-hover {
+  0% {
+    transform: rotate(0deg);
+    box-shadow: 0 0 55px 30px #7c3aed, 25px 18px 40px 15px #2dd4bf, -8px -28px 35px 10px rgba(255,255,255,0.8);
+  }
+  50% {
+    transform: rotate(3deg);
+    box-shadow: 0 0 65px 33px #2dd4bf, 30px 22px 35px 13px rgba(255,255,255,0.9), -28px -30px 38px 12px #7c3aed;
+  }
+  100% {
+    transform: rotate(5deg);
+    box-shadow: 0 0 60px 32px #7c3aed, 35px 25px 32px 14px #2dd4bf, -32px -32px 35px 10px rgba(255,255,255,0.8);
+  }
+}
+
+@keyframes soul-glow-recording {
+  0% {
+    transform: rotate(0deg);
+    box-shadow: 0 0 70px 35px #8b5cf6, 30px 20px 50px 18px #5eead4, -10px -28px 40px 12px rgba(255,255,255,0.9);
+  }
+  50% {
+    transform: rotate(4deg);
+    box-shadow: 0 0 85px 40px #5eead4, 38px 25px 45px 15px rgba(255,255,255,1), -35px -35px 48px 15px #8b5cf6;
+  }
+  100% {
+    transform: rotate(8deg);
+    box-shadow: 0 0 80px 38px #8b5cf6, 42px 28px 42px 16px #5eead4, -38px -38px 45px 12px rgba(255,255,255,0.9);
+  }
+}
+
+/* 파티클 회전 */
+@keyframes soul-rotate {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* 파티클 각도 */
+@keyframes soul-angle {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* 파티클 크기 */
+@keyframes soul-size {
+  0% { transform: scale(.2); }
+  100% { transform: scale(.6); }
+}
+
+/* 파티클 위치 (날아감 + 페이드아웃) */
+@keyframes soul-position {
+  0% {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(100px, 100px, 0);
+    opacity: 0;
+  }
+}
+
+/* 파티클 펄스 */
+@keyframes soul-pulse {
+  0% { transform: scale(1); }
+  100% { transform: scale(.5); }
+}
+
+/* 파티클 글로우 색상 - 민트 + 보라 + 흰색 */
+@keyframes soul-particle {
+  0% {
+    box-shadow: inset 0 0 25px 25px #7c3aed, 0 0 70px 15px #7c3aed, inset 0 0 90px 90px #a78bfa;
+  }
+  33.33% {
+    box-shadow: inset 0 0 25px 25px #7c3aed, 0 0 160px 15px #7c3aed, inset 0 0 60px 60px #a78bfa;
+  }
+  33.34% {
+    box-shadow: inset 0 0 25px 25px #2dd4bf, 0 0 70px 15px #2dd4bf, inset 0 0 90px 90px #5eead4;
+  }
+  66.66% {
+    box-shadow: inset 0 0 25px 25px #2dd4bf, 0 0 160px 15px #2dd4bf, inset 0 0 60px 60px #5eead4;
+  }
+  66.67% {
+    box-shadow: inset 0 0 25px 25px rgba(255,255,255,0.8), 0 0 70px 15px rgba(255,255,255,0.6), inset 0 0 90px 90px rgba(255,255,255,0.9);
+  }
+  100% {
+    box-shadow: inset 0 0 25px 25px rgba(255,255,255,0.8), 0 0 160px 15px rgba(255,255,255,0.6), inset 0 0 60px 60px rgba(255,255,255,0.9);
+  }
+}
+
+/* 파동 웨이브 - 녹음 시 퍼져나감 */
+@keyframes orb-wave-out {
+  0% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(6);
+    opacity: 0;
+  }
 }

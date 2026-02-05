@@ -1866,6 +1866,12 @@ class SoulApp {
                   </div>
                   ` : ''}
                 </div>
+                <!-- 도구 목록 토글 -->
+                <div class="canvas-mcp-tools-toggle" data-id="${s.id}" style="margin-top: 8px; cursor: pointer; display: flex; align-items: center; gap: 4px; font-size: 0.75rem; color: rgba(255,255,255,0.5);">
+                  <span class="tools-arrow" style="transition: transform 0.2s;">▶</span>
+                  <span>도구 목록</span>
+                </div>
+                <div class="canvas-mcp-tools-list" data-id="${s.id}" style="display: none; margin-top: 8px;"></div>
               </div>
             `).join('')}
           </div>
@@ -1909,6 +1915,90 @@ class SoulApp {
           const server = servers.find(s => s.id === serverId);
           if (server) {
             this.showMcpEditModal(server, container);
+          }
+        });
+      });
+
+      // 도구 목록 토글 이벤트
+      container.querySelectorAll('.canvas-mcp-tools-toggle').forEach(toggle => {
+        toggle.addEventListener('click', async () => {
+          const serverId = toggle.dataset.id;
+          const listEl = container.querySelector(`.canvas-mcp-tools-list[data-id="${serverId}"]`);
+          const arrow = toggle.querySelector('.tools-arrow');
+          if (!listEl) return;
+
+          const isOpen = listEl.style.display !== 'none';
+          if (isOpen) {
+            listEl.style.display = 'none';
+            if (arrow) arrow.style.transform = 'rotate(0deg)';
+            return;
+          }
+
+          // 열기
+          listEl.style.display = 'block';
+          if (arrow) arrow.style.transform = 'rotate(90deg)';
+
+          // 이미 로드됨?
+          if (listEl.dataset.loaded) return;
+
+          listEl.innerHTML = '<div style="font-size: 0.75rem; color: rgba(255,255,255,0.4); padding: 4px 0;">불러오는 중...</div>';
+          try {
+            const res = await fetch(`/api/mcp/servers/${serverId}/tools`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            const tools = data.tools || [];
+
+            if (tools.length === 0) {
+              listEl.innerHTML = '<div style="font-size: 0.75rem; color: rgba(255,255,255,0.35); padding: 4px 0;">도구 없음</div>';
+            } else {
+              // 도구 설명 한글 매핑
+              const koDesc = {
+                show_api_key: 'API 키 확인 (디버그용)',
+                primer: '현재 세션 정보 (시간, 위치, 네트워크)',
+                guess_datetime_url: '웹페이지 게시/수정 날짜 추정',
+                capture_screenshot_url: '웹페이지 스크린샷 캡처',
+                read_url: '웹페이지를 마크다운으로 추출',
+                search_web: '웹 검색',
+                expand_query: '검색어 확장 및 재작성',
+                search_arxiv: 'arXiv 논문 검색',
+                search_ssrn: 'SSRN 사회과학 논문 검색',
+                search_jina_blog: 'Jina AI 블로그/뉴스 검색',
+                search_images: '이미지 검색',
+                parallel_search_web: '병렬 웹 검색',
+                parallel_search_arxiv: '병렬 arXiv 논문 검색',
+                parallel_search_ssrn: '병렬 SSRN 논문 검색',
+                parallel_read_url: '여러 웹페이지 동시 읽기',
+                sort_by_relevance: '문서 관련성 재정렬 (리랭커)',
+                deduplicate_strings: '텍스트 중복 제거',
+                deduplicate_images: '이미지 중복 제거',
+                search_bibtex: '학술 논문 BibTeX 인용 검색',
+                extract_pdf: 'PDF에서 그림/표/수식 추출',
+                // 내장 도구
+                recall_memory: '과거 대화/기억 검색',
+                get_profile: '사용자 프로필 조회',
+                update_profile: '사용자 정보 저장',
+                list_my_rules: '규칙/메모 조회',
+                add_my_rule: '규칙 저장',
+                delete_my_rule: '규칙 삭제',
+                send_message: '즉시 메시지 전송',
+                schedule_message: '예약 메시지',
+                cancel_scheduled_message: '예약 취소',
+                list_scheduled_messages: '예약 목록',
+              };
+              // 토글 텍스트에 개수 표시
+              toggle.querySelector('span:last-child').textContent = `도구 ${tools.length}개`;
+              listEl.innerHTML = tools.map(t => {
+                const desc = koDesc[t.name] || t.description || '';
+                return `
+                <div style="padding: 5px 8px; margin-bottom: 3px; border-radius: 6px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06);">
+                  <div style="font-size: 0.78rem; font-weight: 500; color: rgba(255,255,255,0.85); font-family: 'SF Mono', 'Fira Code', monospace;">${t.name}</div>
+                  ${desc ? `<div style="font-size: 0.7rem; color: rgba(255,255,255,0.45); margin-top: 2px; line-height: 1.4;">${desc}</div>` : ''}
+                </div>`;
+              }).join('');
+            }
+            listEl.dataset.loaded = 'true';
+          } catch (e) {
+            listEl.innerHTML = `<div style="font-size: 0.75rem; color: rgba(255,100,100,0.6); padding: 4px 0;">로드 실패: ${e.message}</div>`;
           }
         });
       });
@@ -2158,7 +2248,7 @@ class SoulApp {
     const panel = document.getElementById('canvasPanel');
     const tabsContainer = document.getElementById('canvasTabs');
     const content = document.getElementById('canvasContent');
-    
+
     if (!panel || !tabsContainer || !content) {
       console.log('❌ 캔버스 패널 없음');
       return;
@@ -2178,18 +2268,33 @@ class SoulApp {
 
     // 새 탭 추가
     this.canvasTabs.push({ type, title, url });
-    
-    // iframe 생성
+
+    // 컨테이너 생성 (도구 목록 + iframe)
+    const container = document.createElement('div');
+    container.className = 'canvas-iframe canvas-mcp-container';
+    container.id = `canvas-iframe-${type}`;
+
+    // 도구 목록 영역
+    const toolsSection = document.createElement('div');
+    toolsSection.className = 'canvas-tools-section';
+    toolsSection.innerHTML = '<div class="canvas-tools-loading">도구 불러오는 중...</div>';
+    container.appendChild(toolsSection);
+
+    // iframe (MCP UI)
     const iframe = document.createElement('iframe');
-    iframe.className = 'canvas-iframe';
-    iframe.id = `canvas-iframe-${type}`;
+    iframe.className = 'canvas-mcp-iframe';
     iframe.src = url;
-    content.appendChild(iframe);
+    container.appendChild(iframe);
+
+    content.appendChild(container);
+
+    // 도구 목록 비동기 로드
+    this.loadCanvasTools(type, toolsSection);
 
     // 탭 활성화
     this.activateCanvasTab(type);
     this.renderCanvasTabs();
-    
+
     // 패널 열기
     panel.classList.remove('hide');
     this.movCanvasPanelForMobile();
@@ -2197,11 +2302,47 @@ class SoulApp {
   }
 
   /**
+   * 캔버스 패널에 MCP 도구 목록 로드
+   */
+  async loadCanvasTools(serverId, container) {
+    try {
+      console.log('🔧 도구 로드 시도:', serverId);
+      const res = await fetch(`/api/mcp/servers/${serverId}/tools`);
+      if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+      const data = await res.json();
+      const tools = data.tools || [];
+      console.log('🔧 도구 로드 결과:', tools.length, '개');
+
+      if (tools.length === 0) {
+        container.innerHTML = '<div class="canvas-tools-empty">등록된 도구가 없습니다</div>';
+        return;
+      }
+
+      container.innerHTML = `
+        <div class="canvas-tools-header">
+          <span class="canvas-tools-title">도구 ${tools.length}개</span>
+        </div>
+        <div class="canvas-tools-list">
+          ${tools.map(t => `
+            <div class="canvas-tool-item">
+              <div class="canvas-tool-name">${t.name}</div>
+              ${t.description ? `<div class="canvas-tool-desc">${t.description}</div>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      `;
+    } catch (e) {
+      console.warn('도구 목록 로드 실패:', e.message);
+      container.innerHTML = '<div class="canvas-tools-empty">도구 목록을 불러올 수 없습니다</div>';
+    }
+  }
+
+  /**
    * 탭 활성화
    */
   activateCanvasTab(type) {
     this.activeCanvasTab = type;
-    
+
     // 모든 iframe 숨기고 선택된 것만 표시
     document.querySelectorAll('.canvas-iframe').forEach(iframe => {
       iframe.classList.remove('active');
@@ -2216,7 +2357,7 @@ class SoulApp {
       activeIframe = document.getElementById(`canvas-iframe-${type}`);
     }
     if (activeIframe) activeIframe.classList.add('active');
-    
+
     this.renderCanvasTabs();
   }
 
@@ -2303,7 +2444,7 @@ class SoulApp {
     // 음성 입력 UI 렌더링
     this.renderVoiceInputPanel(voiceContainer);
 
-    this.canvasTabs.push({ type: 'voice-input', title: '음성 입력' });
+    this.canvasTabs.push({ type: 'voice-input', title: '음성 대화' });
     this.activateCanvasTab('voice-input');
     panel.classList.remove('hide');
     this.movCanvasPanelForMobile();
@@ -2318,7 +2459,6 @@ class SoulApp {
 
     container.innerHTML = `
       <div class="voice-input-panel">
-        <h3 class="voice-panel-title">음성 입력</h3>
 
         ${!isSupported ? `
           <div class="voice-not-supported">
@@ -2326,36 +2466,37 @@ class SoulApp {
             <p>Chrome, Edge, Safari를 사용해주세요.</p>
           </div>
         ` : `
-          <!-- 녹음 버튼 -->
-          <div class="voice-record-section">
-            <button class="voice-record-btn" id="voiceRecordBtn">
-              <div class="voice-record-icon">
-                <svg viewBox="0 0 24 24" fill="currentColor" width="48" height="48">
-                  <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
-                  <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
-                </svg>
+          <!-- Soul 캡슐 + 오브 -->
+          <div class="soul-capsule" id="soulCapsule">
+            <div class="soul-orb" id="voiceRecordBtn">
+              <div class="glow"></div>
+              <div class="particles">
+                <div class="rotate">
+                  <div class="angle"><div class="size"><div class="position"><div class="pulse"><div class="particle"></div></div></div></div></div>
+                  <div class="angle"><div class="size"><div class="position"><div class="pulse"><div class="particle"></div></div></div></div></div>
+                  <div class="angle"><div class="size"><div class="position"><div class="pulse"><div class="particle"></div></div></div></div></div>
+                </div>
               </div>
-              <div class="voice-record-pulse"></div>
-            </button>
-            <p class="voice-record-hint" id="voiceRecordHint">클릭하여 음성 인식 시작</p>
-          </div>
-
-          <!-- 파형 애니메이션 -->
-          <div class="voice-waveform" id="voiceWaveform">
-            <div class="waveform-bar"></div>
-            <div class="waveform-bar"></div>
-            <div class="waveform-bar"></div>
-            <div class="waveform-bar"></div>
-            <div class="waveform-bar"></div>
+            </div>
+            <div class="capsule-soul">
+              <div class="capsule-dust dust-1"></div>
+              <div class="capsule-dust dust-2"></div>
+              <div class="capsule-dust dust-3"></div>
+              <div class="capsule-dust dust-4"></div>
+              <div class="capsule-dust dust-5"></div>
+              <div class="capsule-dust dust-6"></div>
+              <div class="capsule-dust dust-7"></div>
+              <div class="capsule-dust dust-8"></div>
+              <div class="capsule-dust dust-9"></div>
+              <div class="capsule-dust dust-10"></div>
+              <div class="capsule-dust dust-11"></div>
+              <div class="capsule-dust dust-12"></div>
+            </div>
+            <img class="capsule-glass" src="/assets/glasscapsule.png" alt="" />
           </div>
 
           <!-- 실시간 텍스트 -->
-          <div class="voice-transcript-section">
-            <label class="voice-label">인식된 텍스트</label>
-            <div class="voice-transcript" id="voiceTranscript">
-              <span class="voice-placeholder">음성을 인식하면 여기에 표시됩니다...</span>
-            </div>
-          </div>
+          <div class="voice-transcript" id="voiceTranscript"></div>
 
           <!-- 액션 버튼 -->
           <div class="voice-actions" id="voiceActions" style="display: none;">
@@ -2406,7 +2547,6 @@ class SoulApp {
     const voiceInput = getVoiceInput();
     const recordBtn = container.querySelector('#voiceRecordBtn');
     const hint = container.querySelector('#voiceRecordHint');
-    const waveform = container.querySelector('#voiceWaveform');
     const transcript = container.querySelector('#voiceTranscript');
     const actions = container.querySelector('#voiceActions');
     const cancelBtn = container.querySelector('#voiceCancelBtn');
@@ -2423,12 +2563,10 @@ class SoulApp {
     voiceInput.setOnStateChange((state, error) => {
       if (state === 'listening') {
         recordBtn.classList.add('recording');
-        waveform.classList.add('active');
-        hint.textContent = realtimeMode ? '말하세요... (자동 전송됨)' : '듣고 있어요... 클릭하여 중지';
+        hint.textContent = realtimeMode ? '말하세요...' : '듣고 있어요...';
       } else {
         recordBtn.classList.remove('recording');
-        waveform.classList.remove('active');
-        hint.textContent = '클릭하여 음성 인식 시작';
+        hint.textContent = '';
 
         if (error) {
           hint.textContent = `오류: ${error}`;
@@ -2475,7 +2613,7 @@ class SoulApp {
       voiceInput.stop();
       if (pendingSend) clearTimeout(pendingSend);
       currentText = '';
-      transcript.innerHTML = '<span class="voice-placeholder">음성을 인식하면 여기에 표시됩니다...</span>';
+      transcript.innerHTML = '';
       actions.style.display = 'none';
     });
 
@@ -2494,7 +2632,7 @@ class SoulApp {
         this.closeCanvasTab('voice-input');
       }
       currentText = '';
-      transcript.innerHTML = '<span class="voice-placeholder">음성을 인식하면 여기에 표시됩니다...</span>';
+      transcript.innerHTML = '';
       actions.style.display = 'none';
     });
 
@@ -2511,11 +2649,17 @@ class SoulApp {
     // 실시간 대화 모드 토글
     realtimeCheck.addEventListener('change', (e) => {
       realtimeMode = e.target.checked;
-      actions.style.display = 'none'; // 실시간 모드에선 액션 버튼 숨김
+      actions.style.display = 'none';
       if (realtimeMode) {
-        hint.textContent = '실시간 모드 활성화 - 마이크를 클릭하세요';
         continuousCheck.checked = true;
         voiceInput.recognition.continuous = true;
+        if (!voiceInput.isListening) {
+          voiceInput.start();
+        }
+      } else {
+        if (voiceInput.isListening) {
+          voiceInput.stop();
+        }
       }
       this.updateMicDockStatus(realtimeMode);
     });
