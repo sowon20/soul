@@ -19,9 +19,30 @@ router.get('/fireworks', async (req, res) => {
     const balanceMatch = stdout.match(/Balance:\s*USD\s*([\d.]+)/i);
     const balance = balanceMatch ? parseFloat(balanceMatch[1]) : null;
 
+    // 초기 크레딧 자동 감지 (처음 조회 시 현재 잔액을 저장)
+    const AIServiceModel = require('../models/AIService');
+    const fireworksService = await AIServiceModel.findOne({ serviceId: 'fireworks' });
+
+    let initialCredits = fireworksService?.metadata?.initialCredits || null;
+
+    // 초기 크레딧이 없고 잔액이 있으면 → 첫 조회, 현재 잔액을 초기값으로 저장
+    if (initialCredits === null && balance !== null) {
+      initialCredits = balance;
+      await AIServiceModel.updateOne(
+        { serviceId: 'fireworks' },
+        { $set: { 'metadata.initialCredits': balance } }
+      );
+    }
+
+    const usedCredits = (balance !== null && initialCredits !== null)
+      ? initialCredits - balance
+      : null;
+
     res.json({
       service: 'fireworks',
       balance,
+      initialCredits,
+      usedCredits,
       raw: stdout
     });
   } catch (error) {

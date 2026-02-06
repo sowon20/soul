@@ -1,0 +1,4 @@
+email,start_time,end_time,usage_type,accelerator_type,accelerator_seconds,base_model_name,model_bucket,parameter_count,prompt_tokens,completion_tokens
+sopoong.sowon@gmail.com,2026-02-06 05:39:17 UTC,2026-02-06 05:39:17 UTC,TEXT_COMPLETION_INFERENCE_USAGE,,,accounts/cogito/models/cogito-671b-v2-p1,MoE 56.1B - 176B,671019752960,3911,195
+sopoong.sowon@gmail.com,2026-02-06 05:22:58 UTC,2026-02-06 05:22:58 UTC,TEXT_COMPLETION_INFERENCE_USAGE,,,accounts/cogito/models/cogito-671b-v2-p1,MoE 56.1B - 176B,671019752960,2251,86
+sopoong.sowon@gmail.com,2026-02-06 05:08:40 UTC,2026-02-06 05:08:40 UTC,TEXT_COMPLETION_INFERENCE_USAGE,,,accounts/cogito/models/cogito-671b-v2-p1,MoE 56.1B - 176B,671019752960,3776,40

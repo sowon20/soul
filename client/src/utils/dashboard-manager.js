@@ -788,7 +788,7 @@ class DashboardManager {
       const icon = serviceIcons[svc.serviceId] || '🔹';
       const todayCostStr = svc.todayCost > 0
         ? this.formatCost(svc.todayCost)
-        : (this.currentCurrency === 'KRW' ? '₩0' : '$0.00');
+        : '';  // 0이면 표시 안 함
       const topModelName = svc.topModel
         ? this.getModelDisplayName(svc.topModel)
         : '-';
