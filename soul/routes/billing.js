@@ -20,18 +20,29 @@ router.get('/fireworks', async (req, res) => {
     const balance = balanceMatch ? parseFloat(balanceMatch[1]) : null;
 
     // 초기 크레딧 자동 감지 (처음 조회 시 현재 잔액을 저장)
-    const AIServiceModel = require('../models/AIService');
-    const fireworksService = await AIServiceModel.findOne({ serviceId: 'fireworks' });
+    const db = require('../db');
+    if (!db.db) db.init();
 
-    let initialCredits = fireworksService?.metadata?.initialCredits || null;
+    const fireworksService = db.db.prepare(
+      'SELECT config FROM ai_services WHERE service_id = ?'
+    ).get('fireworks');
+
+    let config = {};
+    try {
+      config = fireworksService?.config ? JSON.parse(fireworksService.config) : {};
+    } catch (e) {
+      config = {};
+    }
+
+    let initialCredits = config.initialCredits || null;
 
     // 초기 크레딧이 없고 잔액이 있으면 → 첫 조회, 현재 잔액을 초기값으로 저장
     if (initialCredits === null && balance !== null) {
       initialCredits = balance;
-      await AIServiceModel.updateOne(
-        { serviceId: 'fireworks' },
-        { $set: { 'metadata.initialCredits': balance } }
-      );
+      config.initialCredits = balance;
+      db.db.prepare(
+        'UPDATE ai_services SET config = ? WHERE service_id = ?'
+      ).run(JSON.stringify(config), 'fireworks');
     }
 
     const usedCredits = (balance !== null && initialCredits !== null)
@@ -60,10 +71,14 @@ router.get('/fireworks', async (req, res) => {
  */
 router.get('/openai', async (req, res) => {
   try {
-    const AIServiceModel = require('../models/AIService');
-    const openaiService = await AIServiceModel.findOne({ serviceId: 'openai' });
+    const db = require('../db');
+    if (!db.db) db.init();
 
-    if (!openaiService || !openaiService.apiKey) {
+    const openaiService = db.db.prepare(
+      'SELECT api_key FROM ai_services WHERE service_id = ? AND is_active = 1'
+    ).get('openai');
+
+    if (!openaiService || !openaiService.api_key) {
       return res.status(404).json({ success: false, error: 'OpenAI API key not found' });
     }
 
@@ -76,7 +91,7 @@ router.get('/openai', async (req, res) => {
       `https://api.openai.com/v1/usage?date=${startDate.toISOString().split('T')[0]}`,
       {
         headers: {
-          'Authorization': `Bearer ${openaiService.apiKey}`
+          'Authorization': `Bearer ${openaiService.api_key}`
         }
       }
     );
@@ -117,10 +132,14 @@ router.get('/openai', async (req, res) => {
  */
 router.get('/anthropic', async (req, res) => {
   try {
-    const AIServiceModel = require('../models/AIService');
-    const anthropicService = await AIServiceModel.findOne({ serviceId: 'anthropic' });
+    const db = require('../db');
+    if (!db.db) db.init();
 
-    if (!anthropicService || !anthropicService.apiKey) {
+    const anthropicService = db.db.prepare(
+      'SELECT api_key FROM ai_services WHERE service_id = ? AND is_active = 1'
+    ).get('anthropic');
+
+    if (!anthropicService || !anthropicService.api_key) {
       return res.status(404).json({ success: false, error: 'Anthropic API key not found' });
     }
 
@@ -146,16 +165,20 @@ router.get('/anthropic', async (req, res) => {
  */
 router.get('/openrouter', async (req, res) => {
   try {
-    const AIServiceModel = require('../models/AIService');
-    const openrouterService = await AIServiceModel.findOne({ serviceId: 'openrouter' });
-    
-    if (!openrouterService || !openrouterService.apiKey) {
+    const db = require('../db');
+    if (!db.db) db.init();
+
+    const openrouterService = db.db.prepare(
+      'SELECT api_key FROM ai_services WHERE service_id = ? AND is_active = 1'
+    ).get('openrouter');
+
+    if (!openrouterService || !openrouterService.api_key) {
       return res.status(404).json({ success: false, error: 'OpenRouter API key not found' });
     }
 
     const response = await fetch('https://openrouter.ai/api/v1/auth/key', {
       headers: {
-        'Authorization': `Bearer ${openrouterService.apiKey}`
+        'Authorization': `Bearer ${openrouterService.api_key}`
       }
     });
 
