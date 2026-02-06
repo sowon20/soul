@@ -2482,22 +2482,15 @@ class SoulApp {
                   <div class="angle"><div class="size"><div class="position"><div class="pulse"><div class="particle"></div></div></div></div></div>
                 </div>
               </div>
+              <div class="particles particles-outer">
+                <div class="rotate">
+                  <div class="angle"><div class="size"><div class="position"><div class="pulse"><div class="particle"></div></div></div></div></div>
+                  <div class="angle"><div class="size"><div class="position"><div class="pulse"><div class="particle"></div></div></div></div></div>
+                  <div class="angle"><div class="size"><div class="position"><div class="pulse"><div class="particle"></div></div></div></div></div>
+                </div>
+              </div>
             </div>
-            <div class="capsule-soul">
-              <div class="capsule-dust dust-1"></div>
-              <div class="capsule-dust dust-2"></div>
-              <div class="capsule-dust dust-3"></div>
-              <div class="capsule-dust dust-4"></div>
-              <div class="capsule-dust dust-5"></div>
-              <div class="capsule-dust dust-6"></div>
-              <div class="capsule-dust dust-7"></div>
-              <div class="capsule-dust dust-8"></div>
-              <div class="capsule-dust dust-9"></div>
-              <div class="capsule-dust dust-10"></div>
-              <div class="capsule-dust dust-11"></div>
-              <div class="capsule-dust dust-12"></div>
-            </div>
-            <img class="capsule-glass" src="/assets/glasscapsule.png" alt="" />
+            <img class="capsule-image" src="/assets/capsule.png" alt=".soul" />
           </div>
 
           <!-- 실시간 텍스트 -->
