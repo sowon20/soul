@@ -456,18 +456,32 @@ class SessionDigest {
         let isDuplicate = false;
         let bestMatch = null;
         let bestSimilarity = 0;
+        let newEmbedding = null;
 
         // 1) 임베딩 기반 중복 체크 시도
         try {
-          const newEmbedding = await vectorStore.embed(memText);
+          newEmbedding = await vectorStore.embed(memText);
 
           if (newEmbedding && newEmbedding.length > 0) {
-            // 기존 메모리와 코사인 유사도 비교
+            // 기존 메모리와 코사인 유사도 비교 (저장된 임베딩 재사용)
             for (const existing of allActive) {
               const existingText = existing.rule || '';
               if (existingText.length < 10) continue;
 
-              const existingEmbedding = await vectorStore.embed(existingText);
+              // 저장된 임베딩 사용 (없으면 스킵)
+              let existingEmbedding = null;
+              if (existing.embedding) {
+                try {
+                  existingEmbedding = JSON.parse(existing.embedding);
+                } catch (e) {
+                  // 파싱 실패 시 스킵
+                  continue;
+                }
+              } else {
+                // 임베딩 없으면 스킵 (새로 생성하지 않음)
+                continue;
+              }
+
               if (!existingEmbedding || existingEmbedding.length === 0) continue;
 
               const similarity = this._cosineSimilarity(newEmbedding, existingEmbedding);
@@ -531,12 +545,14 @@ class SessionDigest {
         // confidence: 영구적 표현이 있으면 높게
         const confidence = /항상|매일|늘|주로|좋아하|싫어하|관심/.test(memText) ? 0.9 : 0.7;
 
+        // 메모리 저장 (임베딩 포함)
         await SelfRule.create({
           rule: memText,
           category,
           priority: Math.round(confidence * 10),  // 0.9 → 9, 0.7 → 7
           context: `digest:auto (${new Date().toLocaleDateString('ko-KR')}) conf=${confidence}`,
-          tokenCount: Math.ceil(memText.length / 4)
+          tokenCount: Math.ceil(memText.length / 4),
+          embedding: newEmbedding ? JSON.stringify(newEmbedding) : null
         });
 
         saved.push({ text: memText, category, confidence });

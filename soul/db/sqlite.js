@@ -232,10 +232,18 @@ function createTables() {
       is_active INTEGER DEFAULT 1,
       use_count INTEGER DEFAULT 0,
       last_used TEXT,
+      embedding TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     )
   `);
+
+  // 마이그레이션: embedding 컬럼이 없으면 추가
+  try {
+    db.exec(`ALTER TABLE self_rules ADD COLUMN embedding TEXT`);
+  } catch (e) {
+    // 이미 컬럼이 있으면 무시
+  }
 
   // Memory - 장기 메모리
   db.exec(`
