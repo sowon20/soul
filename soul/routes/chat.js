@@ -1681,7 +1681,6 @@ router.get('/service-billing', async (req, res) => {
         }
       }
 
-      // Fireworks: firectl 기반 잔액 조회
       // Fireworks: firectl account get으로 잔액 조회
       if (sid === 'fireworks') {
         try {
@@ -1689,13 +1688,29 @@ router.get('/service-billing', async (req, res) => {
           if (billingResp.ok) {
             const billingData = await billingResp.json();
             entry.balance = {
-              total_credits: billingData.balance,    // 남은 크레딧
-              total_usage: 0,                        // 사용량 (알 수 없음)
-              remaining: billingData.balance         // 잔액
+              total_credits: billingData.balance,
+              total_usage: billingData.usedCredits || 0,
+              remaining: billingData.balance
             };
           }
         } catch (e) {
           console.warn('[Billing] Fireworks balance fetch failed:', e.message);
+        }
+      }
+
+      // OpenAI: 사용량 조회
+      if (sid === 'openai') {
+        try {
+          const billingResp = await fetch('http://localhost:5041/api/billing/openai');
+          if (billingResp.ok) {
+            const billingData = await billingResp.json();
+            entry.balance = {
+              total_usage: billingData.total_usage,
+              daily_data: billingData.daily_data
+            };
+          }
+        } catch (e) {
+          console.warn('[Billing] OpenAI usage fetch failed:', e.message);
         }
       }
 

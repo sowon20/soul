@@ -55,6 +55,92 @@ router.get('/fireworks', async (req, res) => {
 });
 
 /**
+ * GET /api/billing/openai
+ * OpenAI 사용량 조회 (현재 청구 기간)
+ */
+router.get('/openai', async (req, res) => {
+  try {
+    const AIServiceModel = require('../models/AIService');
+    const openaiService = await AIServiceModel.findOne({ serviceId: 'openai' });
+
+    if (!openaiService || !openaiService.apiKey) {
+      return res.status(404).json({ success: false, error: 'OpenAI API key not found' });
+    }
+
+    // 현재 달의 시작일과 종료일 (UTC 기준)
+    const now = new Date();
+    const startDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const endDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0));
+
+    const response = await fetch(
+      `https://api.openai.com/v1/usage?date=${startDate.toISOString().split('T')[0]}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${openaiService.apiKey}`
+        }
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`OpenAI API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    // total_usage 계산 (모든 일별 사용량 합산)
+    let totalUsage = 0;
+    if (data.data && Array.isArray(data.data)) {
+      totalUsage = data.data.reduce((sum, day) => {
+        return sum + (day.n_context_tokens_total || 0) * 0.00001; // 대략적인 비용 계산
+      }, 0);
+    }
+
+    res.json({
+      service: 'openai',
+      total_usage: totalUsage,
+      daily_data: data.data,
+      raw: data
+    });
+  } catch (error) {
+    console.error('[Billing] OpenAI usage fetch failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/billing/anthropic
+ * Anthropic (Claude) 사용량 조회
+ * Note: Anthropic은 공식 잔액 API가 없음. Organization usage만 제공.
+ */
+router.get('/anthropic', async (req, res) => {
+  try {
+    const AIServiceModel = require('../models/AIService');
+    const anthropicService = await AIServiceModel.findOne({ serviceId: 'anthropic' });
+
+    if (!anthropicService || !anthropicService.apiKey) {
+      return res.status(404).json({ success: false, error: 'Anthropic API key not found' });
+    }
+
+    // Anthropic은 organization usage API가 있지만 organization ID가 필요
+    // 현재는 API 키만으로는 잔액 조회 불가
+    res.json({
+      service: 'anthropic',
+      message: 'Anthropic does not provide public balance API. Check dashboard at console.anthropic.com',
+      balance: null
+    });
+  } catch (error) {
+    console.error('[Billing] Anthropic check failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
  * GET /api/billing/openrouter
  * OpenRouter 크레딧 정보 조회
  */
