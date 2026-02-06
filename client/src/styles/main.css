@@ -1129,11 +1129,6 @@ body {
 }
 
 /* 통화 드롭다운 */
-.stat-cost-wrapper {
-  position: relative;
-  display: inline-block;
-}
-
 .currency-dropdown {
   position: absolute;
   top: 100%;
@@ -1150,9 +1145,6 @@ body {
   z-index: 10;
 }
 
-.stat-cost-item:hover .currency-dropdown {
-  display: flex;
-}
 
 .currency-option {
   background: none;
@@ -1649,6 +1641,31 @@ body {
   color: rgba(0, 0, 0, 0.35);
   font-size: 11px;
   padding: 12px 0;
+}
+
+.billing-others-toggle {
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 11px;
+  color: rgba(0, 0, 0, 0.45);
+  user-select: none;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  margin-top: 4px;
+  padding-top: 8px;
+}
+
+.billing-others-toggle:hover {
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.billing-others-list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.billing-others-list .service-billing-item {
+  opacity: 0.7;
 }
 
 .service-billing-item {
@@ -4289,11 +4306,6 @@ body {
 
 .last-request-stats .last-stat strong {
   color: #3b82f6;
-  font-weight: 600;
-}
-
-.last-request-stats #lastReqCost {
-  color: #059669;
   font-weight: 600;
 }
 

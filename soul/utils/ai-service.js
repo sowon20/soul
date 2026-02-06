@@ -2119,6 +2119,16 @@ class LightningAIService extends AIService {
 /**
  * Fireworks AI 서비스 (OpenAI 호환)
  */
+/**
+ * DeepSeek 서비스 (OpenAI 호환 API)
+ */
+class DeepSeekService extends OpenAIService {
+  constructor(apiKey, modelName = 'deepseek-chat') {
+    super(apiKey, modelName);
+    this.baseUrl = 'https://api.deepseek.com';
+  }
+}
+
 class FireworksAIService extends AIService {
   constructor(apiKey, modelName = 'accounts/fireworks/models/llama-v3p3-70b-instruct') {
     super(apiKey);
@@ -2807,6 +2817,15 @@ class AIServiceFactory {
         break;
       }
 
+      case 'deepseek': {
+        const apiKey = await this.getApiKey('deepseek');
+        if (!apiKey) {
+          throw new Error('DEEPSEEK_API_KEY not configured. Please save it in Settings.');
+        }
+        serviceInstance = new DeepSeekService(apiKey, model);
+        break;
+      }
+
       case 'fireworks': {
         const apiKey = await this.getApiKey('fireworks');
         if (!apiKey) {
@@ -2942,6 +2961,18 @@ class AIServiceFactory {
 
           return { valid: true, message: 'API 키가 유효합니다' };
 
+        case 'deepseek':
+          const deepseekResponse = await fetch('https://api.deepseek.com/models', {
+            headers: { 'Authorization': `Bearer ${apiKey}` }
+          });
+
+          if (!deepseekResponse.ok) {
+            const errorData = await deepseekResponse.json().catch(() => ({}));
+            throw new Error(errorData.error?.message || 'DeepSeek API 인증 실패');
+          }
+
+          return { valid: true, message: 'API 키가 유효합니다' };
+
         case 'fireworks':
           // Fireworks AI Models API 호출
           const fireworksResponse = await fetch('https://api.fireworks.ai/inference/v1/models', {
@@ -2979,6 +3010,22 @@ class AIServiceFactory {
 
           if (!hfResponse.ok) {
             throw new Error('HuggingFace API 인증 실패');
+          }
+
+          return { valid: true, message: 'API 키가 유효합니다' };
+
+        case 'cartesia':
+          // Cartesia Voices API로 검증
+          const cartesiaResponse = await fetch('https://api.cartesia.ai/voices', {
+            headers: {
+              'X-API-Key': apiKey,
+              'Cartesia-Version': '2024-06-10'
+            }
+          });
+
+          if (!cartesiaResponse.ok) {
+            const errorData = await cartesiaResponse.json().catch(() => ({}));
+            throw new Error(errorData.error?.message || 'Cartesia API 인증 실패');
           }
 
           return { valid: true, message: 'API 키가 유효합니다' };
@@ -3113,11 +3160,10 @@ class AIServiceFactory {
 
           const googleModels = googleData.models
             .filter(m => {
-              // 'generateContent' 메서드를 지원하고 gemini를 포함하는 모델만 필터링
-              const hasGenerateContent = m.supportedGenerationMethods &&
-                                        m.supportedGenerationMethods.includes('generateContent');
-              const isGemini = m.name.includes('gemini');
-              return isGemini && hasGenerateContent;
+              // 생성 메서드가 있는 모든 모델 (Native Audio 등 포함)
+              const hasMethods = m.supportedGenerationMethods &&
+                               m.supportedGenerationMethods.length > 0;
+              return hasMethods;
             })
             .map(m => ({
               id: m.name.replace('models/', ''),
@@ -3161,6 +3207,11 @@ class AIServiceFactory {
             }));
           return { success: true, models: xaiModels };
 
+        case 'cartesia':
+          // Cartesia는 TTS 전용 서비스로, 모델 목록을 API로 제공하지 않음
+          // 사용자가 설정에서 직접 입력한 모델만 사용
+          return { success: true, models: [] };
+
         case 'lightning':
           // Lightning AI 모델 목록
           const lightningResponse = await fetch('https://lightning.ai/api/v1/models', {
@@ -3182,6 +3233,13 @@ class AIServiceFactory {
             description: m.description || ''
           }));
           return { success: true, models: lightningModels };
+
+        case 'deepseek':
+          const deepseekModels = [
+            { id: 'deepseek-chat', name: 'DeepSeek V3', description: 'DeepSeek V3.2 (Non-thinking)' },
+            { id: 'deepseek-reasoner', name: 'DeepSeek R1', description: 'DeepSeek V3.2 (Thinking)' },
+          ];
+          return { success: true, models: deepseekModels };
 
         case 'fireworks':
           // Fireworks AI 모델 목록

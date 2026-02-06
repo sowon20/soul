@@ -200,4 +200,53 @@ router.get('/openrouter', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/billing/deepseek
+ * DeepSeek 잔액 조회
+ */
+router.get('/deepseek', async (req, res) => {
+  try {
+    const db = require('../db');
+    if (!db.db) db.init();
+
+    const deepseekService = db.db.prepare(
+      'SELECT api_key FROM ai_services WHERE service_id = ? AND is_active = 1'
+    ).get('deepseek');
+
+    if (!deepseekService || !deepseekService.api_key) {
+      return res.status(404).json({ success: false, error: 'DeepSeek API key not found' });
+    }
+
+    const response = await fetch('https://api.deepseek.com/user/balance', {
+      headers: {
+        'Authorization': `Bearer ${deepseekService.api_key}`,
+        'Accept': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`DeepSeek API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    // balance_infos에서 잔액 추출 (잔액이 있는 통화 우선)
+    const balanceInfo = data.balance_infos?.find(b => parseFloat(b.total_balance) > 0) || data.balance_infos?.[0] || {};
+
+    res.json({
+      service: 'deepseek',
+      is_available: data.is_available,
+      currency: balanceInfo.currency || 'CNY',
+      balance: parseFloat(balanceInfo.total_balance) || 0,
+      granted_balance: parseFloat(balanceInfo.granted_balance) || 0,
+      topped_up_balance: parseFloat(balanceInfo.topped_up_balance) || 0
+    });
+  } catch (error) {
+    console.error('[Billing] DeepSeek balance fetch failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;

@@ -48,6 +48,10 @@ export class AISettings {
       type: 'regex',
       alwaysLoad: []
     };
+    this.voiceConfig = {
+      model: ''
+    };
+    this.voiceModels = null; // 음성 모델 목록 (API에서 로드)
   }
 
   /**
@@ -56,7 +60,13 @@ export class AISettings {
   async render(container, apiClient) {
     this.apiClient = apiClient;
 
+    // 디버깅을 위해 전역 변수로 노출
+    window.aiSettings = this;
+
     try {
+      // 사용자 프로필 로드 (언어 정보 필요)
+      await this.loadUserProfile();
+
       // AI 서비스 목록 로드
       await this.loadServices();
 
@@ -86,6 +96,12 @@ export class AISettings {
 
       // Tool Search 설정 로드
       await this.loadToolSearchConfig();
+
+      // TTS 모델 목록 로드
+      await this.loadTTSModels();
+
+      // 음성 설정 로드
+      await this.loadVoiceConfig();
 
       // UI 렌더링
       container.innerHTML = `
@@ -122,8 +138,8 @@ export class AISettings {
           <div class="soul-timeline">
             <!-- 정체성 -->
             <div class="timeline-item expanded" data-section="identity" style="--timeline-color-from: #a8998a; --timeline-color-to: #8a9a9a;">
-              <div class="timeline-icon" style="background: linear-gradient(145deg, #b8a899, #a8998a);">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5a524a" stroke-width="2">
+              <div class="timeline-icon" style="background: linear-gradient(145deg, #aa9a8a, #9a8a7a);">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5a4a3a" stroke-width="2">
                   <circle cx="12" cy="8" r="4"/>
                   <path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
                 </svg>
@@ -159,8 +175,8 @@ export class AISettings {
 
             <!-- 성격 -->
             <div class="timeline-item" data-section="personality" style="--timeline-color-from: #8a9a9a; --timeline-color-to: #9a8a7a;">
-              <div class="timeline-icon" style="background: linear-gradient(145deg, #9aaaa8, #8a9a9a);">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4a5a5a" stroke-width="2">
+              <div class="timeline-icon" style="background: linear-gradient(145deg, #aa9a8a, #9a8a7a);">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5a4a3a" stroke-width="2">
                   <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                 </svg>
               </div>
@@ -319,9 +335,12 @@ export class AISettings {
                       <!-- Step 2a: 단일 모델 선택 -->
                       <div class="brain-wizard-panel brain-wizard-panel--single" data-panel="2a">
                         <div class="brain-wizard-form">
-                          <select class="brain-routing-select" id="routingSingleModel">
-                            ${this.renderModelOptions(this.routingConfig.singleModel || this.routingConfig.medium)}
-                          </select>
+                          <div class="brain-single-model-row">
+                            <select class="brain-routing-select" id="routingSingleModel">
+                              ${this.renderModelOptions(this.routingConfig.singleModel || this.routingConfig.medium)}
+                            </select>
+                            ${this.renderThinkingToggle('Single', this.routingConfig.singleThinking)}
+                          </div>
                         </div>
                         <button type="button" class="brain-wizard-confirm" data-confirm="single">확인</button>
                       </div>
@@ -415,6 +434,42 @@ export class AISettings {
                     </svg>
                     알바 추가
                   </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 목소리 -->
+            <div class="timeline-item" data-section="voice">
+              <div class="timeline-icon" style="background: linear-gradient(145deg, #8a9aaa, #7a8a9a);">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5a6a7a" stroke-width="2">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                  <line x1="12" y1="19" x2="12" y2="23"/>
+                  <line x1="8" y1="23" x2="16" y2="23"/>
+                </svg>
+              </div>
+              <div class="timeline-main">
+                <div class="timeline-header">
+                  <div class="timeline-content">
+                    <div class="timeline-title">목소리 <span class="timeline-subtitle">대화, 음성</span></div>
+                    <div class="timeline-summary timeline-summary--voice"></div>
+                  </div>
+                </div>
+                <div class="section-empty-hint">음성을 선택해보세요</div>
+                <div class="timeline-body">
+                  <div class="neu-field-group">
+                    <!-- 통합 목소리 선택 -->
+                    <div class="neu-field">
+                      <select class="neu-field-input" id="voiceSelect">
+                        ${this.renderVoiceOptions()}
+                      </select>
+                    </div>
+
+                    <!-- Cartesia WebSocket 설정 (Cartesia 선택 시에만 표시) -->
+                    <div id="cartesiaDetailFields" style="display: none; margin-top: 12px;">
+                      <div class="soul-form" id="cartesiaSoulForm"></div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -586,6 +641,14 @@ export class AISettings {
 
       // 이벤트 리스너 등록
       this.attachEventListeners(container);
+
+      // Cartesia 필드 복원 (DOM 생성 후 has-value 클래스 추가)
+      this.restoreCartesiaFields();
+
+      // 음성 요약 업데이트 (DOM 생성 후 실행)
+      console.log('[render] 음성 요약 업데이트 호출 직전');
+      this.updateVoiceSummary();
+      console.log('[render] 음성 요약 업데이트 호출 완료');
     } catch (error) {
       console.error('Failed to load AI services:', error);
       container.innerHTML = `
@@ -641,6 +704,9 @@ export class AISettings {
     })));
 
     this.services.forEach(service => {
+      // TTS 전용 서비스 제외 (채팅 모델 드롭다운에는 표시 안 함)
+      if (service.serviceId === 'cartesia') return;
+
       // Vertex AI는 projectId로, Ollama는 API 키 선택적(있으면 사용, 없어도 OK), 나머지는 apiKey 필수
       let hasKey;
       if (service.type === 'vertex' || service.serviceId === 'vertex') {
@@ -659,6 +725,23 @@ export class AISettings {
         }
 
         service.models.forEach(model => {
+          const modelId = model.id.toLowerCase();
+          const modelName = (model.name || '').toLowerCase();
+          const modelDesc = (model.description || '').toLowerCase();
+
+          // TTS/음성 모델 제외 (채팅 모델만)
+          const isTTSModel =
+            modelId.includes('tts') ||
+            modelId.includes('whisper') ||
+            modelId.includes('realtime') ||
+            modelId.includes('audio') ||
+            modelId.includes('speech') ||
+            modelId.includes('sonic') ||
+            modelName.includes('voice') ||
+            modelDesc.includes('text-to-speech');
+
+          if (isTTSModel) return;
+
           const modelData = {
             id: model.id,
             name: model.name || model.id,
@@ -2172,6 +2255,7 @@ export class AISettings {
       'google': '🔵',
       'ollama': '🦙',
       'fireworks': '🎆',
+      'deepseek': '🐋',
       'custom': '⚙️'
     };
     return icons[(type || 'custom').toLowerCase()] || '🤖';
@@ -2370,11 +2454,15 @@ export class AISettings {
         displayName: 'OpenRouter'
       },
       'fireworks': {
-        bg: 'linear-gradient(135deg, #ff6b35 0%, #f7931e 50%, #ffd700 100%)',
+        bg: 'linear-gradient(135deg, #c48a5a 0%, #b89a6a 50%, #c4a870 100%)',
         displayName: 'Fireworks'
       },
+      'deepseek': {
+        bg: 'linear-gradient(135deg, #4a7ab5 0%, #5a8ac5 100%)',
+        displayName: 'DeepSeek'
+      },
       'cartesia': {
-        bg: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+        bg: 'linear-gradient(135deg, #7a9ab0 0%, #6a9aa8 100%)',
         displayName: 'Cartesia'
       },
       'custom': {
@@ -2861,7 +2949,7 @@ export class AISettings {
     // 모든 라우팅 드롭다운에 change 이벤트 추가
     routingSelects.forEach(select => {
       select.addEventListener('change', () => {
-        this.saveRoutingSettings();
+        this.saveRoutingSettings({ silent: true });
         this.updateTimelineProgress('brain');
         // 두뇌 요약 업데이트
         updateBrainWizard();
@@ -2871,7 +2959,7 @@ export class AISettings {
     // 생각 토글에도 change 이벤트 추가
     thinkingToggles.forEach(toggle => {
       toggle.addEventListener('change', () => {
-        this.saveRoutingSettings();
+        this.saveRoutingSettings({ silent: true });
         this.updateTimelineProgress('brain');
       });
     });
@@ -3020,7 +3108,7 @@ export class AISettings {
     brainModeRadios.forEach(radio => {
       radio.addEventListener('change', () => {
         updateBrainWizard();
-        this.saveRoutingSettings();
+        this.saveRoutingSettings({ silent: true });
         this.updateTimelineProgress('brain');
       });
     });
@@ -3029,7 +3117,7 @@ export class AISettings {
     routerTypeRadios.forEach(radio => {
       radio.addEventListener('change', () => {
         updateBrainWizard();
-        this.saveRoutingSettings();
+        this.saveRoutingSettings({ silent: true });
         this.updateTimelineProgress('brain');
       });
     });
@@ -3228,6 +3316,9 @@ export class AISettings {
 
         this.adjustCapsuleHeight(item, item.classList.contains('expanded'));
       });
+
+      // 음성 요약 초기화
+      this.updateVoiceSummary();
     }, 100);
 
     // 라우팅 통계 버튼
@@ -3259,6 +3350,12 @@ export class AISettings {
     const addAlbaBtn = container.querySelector('#addAlbaBtn');
     if (addAlbaBtn) {
       addAlbaBtn.addEventListener('click', () => this.addAlba());
+    }
+
+    // 통합 목소리 선택
+    const voiceSelect = container.querySelector('#voiceSelect');
+    if (voiceSelect) {
+      voiceSelect.addEventListener('change', (e) => this.handleVoiceSelect(e.target.value));
     }
 
     // 알바 활성화 토글 (타임라인용)
@@ -4174,7 +4271,7 @@ export class AISettings {
     }
 
     // 값들 수집 (입력 중에도 실시간 표시 - 모든 필드 포함)
-    const summaryEl = item.querySelector('.timeline-summary:not(.timeline-summary--personality):not(.timeline-summary--brain)');
+    const summaryEl = item.querySelector('.timeline-summary:not(.timeline-summary--personality):not(.timeline-summary--brain):not(.timeline-summary--voice)');
     const allFieldValues = [];
     let hasAnyValue = false;
     fields.forEach(field => {
@@ -5608,6 +5705,7 @@ export class AISettings {
           else if (groupLabel.includes('ollama')) serviceId = 'ollama';
           else if (groupLabel.includes('hugging')) serviceId = 'huggingface';
           else if (groupLabel.includes('fireworks')) serviceId = 'fireworks';
+          else if (groupLabel.includes('deepseek')) serviceId = 'deepseek';
         }
       }
 
@@ -5634,6 +5732,7 @@ export class AISettings {
               else if (gl.includes('ollama')) fbServiceId = 'ollama';
               else if (gl.includes('hugging')) fbServiceId = 'huggingface';
               else if (gl.includes('fireworks')) fbServiceId = 'fireworks';
+              else if (gl.includes('deepseek')) fbServiceId = 'deepseek';
             }
             return { modelId: select.value, serviceId: fbServiceId };
           }).filter(fb => fb.modelId);
@@ -6406,6 +6505,776 @@ export class AISettings {
     setTimeout(() => {
       statusEl.style.display = 'none';
     }, 3000);
+  }
+
+  /**
+   * 음성 모델 옵션 렌더링 (TTS/STT 지원 모델만)
+   */
+
+  /**
+   * 서비스 라벨 가져오기
+   */
+  getServiceLabel(serviceId) {
+    const labels = {
+      'anthropic': 'Anthropic',
+      'openai': 'OpenAI',
+      'google': 'Google',
+      'cartesia': 'Cartesia',
+      'huggingface': 'HuggingFace',
+      'xai': 'xAI',
+      'openrouter': 'OpenRouter',
+      'lightning': 'Lightning AI',
+      'fireworks': 'Fireworks AI',
+      'deepseek': 'DeepSeek',
+      'ollama': 'Ollama',
+      'vertex': 'Vertex AI'
+    };
+    return labels[serviceId] || serviceId;
+  }
+
+  /**
+   * 음성 모델 저장
+   */
+  /**
+   * 통합 목소리 드롭다운 렌더링
+   */
+  renderVoiceOptions() {
+    if (!this.ttsModels || this.ttsModels.length === 0) {
+      return '<option value="">TTS 모델 로딩 중...</option>';
+    }
+
+    let html = '<option value="">모델 선택</option>';
+
+    // 서비스별로 그룹화
+    const grouped = {};
+    this.ttsModels.forEach(model => {
+      if (!grouped[model.service]) {
+        grouped[model.service] = {
+          label: model.serviceLabel,
+          models: []
+        };
+      }
+      grouped[model.service].models.push(model);
+    });
+
+    // 각 서비스별로 optgroup 생성
+    for (const [serviceId, group] of Object.entries(grouped)) {
+      html += `<optgroup label="${group.label}">`;
+
+      group.models.forEach(model => {
+        html += `<option value="${model.id}">${model.name}</option>`;
+      });
+
+      html += '</optgroup>';
+    }
+
+    return html;
+  }
+
+  /**
+   * 모델 선택 핸들러
+   */
+  handleVoiceSelect(value) {
+    const detailFields = document.getElementById('cartesiaDetailFields');
+
+    if (!value) {
+      if (detailFields) detailFields.style.display = 'none';
+      this.voiceConfig = {};
+      this.updateVoiceSummary();
+      this.saveVoiceConfig();
+      return;
+    }
+
+    if (value === 'cartesia:custom') {
+      // 기존 cartesia 설정이 없을 때만 초기화
+      if (!this.voiceConfig?.cartesia || this.voiceConfig.service !== 'cartesia') {
+        this.voiceConfig = {
+          service: 'cartesia',
+          cartesia: {}
+        };
+      }
+      // 폼 렌더링 (DOM 생성 + 이벤트 바인딩)
+      this.restoreCartesiaFields();
+    } else {
+      // 다른 서비스 모델 선택 → 폼 숨기고 저장
+      if (detailFields) detailFields.style.display = 'none';
+
+      const [service, modelId] = value.split(':');
+      this.voiceConfig = {
+        service: service,
+        model: modelId
+      };
+
+      this.updateVoiceSummary();
+      this.saveVoiceConfig();
+    }
+  }
+
+  /**
+   * Cartesia 필드 변경 핸들러 (통합)
+   */
+  handleCartesiaModelChange(value) { this.handleCartesiaFieldChange('model', value); }
+  handleCartesiaVoiceChange(value) { this.handleCartesiaFieldChange('voice', value); }
+
+  handleCartesiaFieldChange(fieldName, value) {
+    if (!this.voiceConfig) this.voiceConfig = { service: 'cartesia' };
+    if (!this.voiceConfig.cartesia) this.voiceConfig.cartesia = {};
+
+    this.voiceConfig.cartesia[fieldName] = value;
+
+    // UI 업데이트: has-value + 디스플레이 텍스트
+    const inputId = `cartesia${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)}Input`;
+    const input = document.getElementById(inputId);
+    if (input) {
+      const field = input.closest('.neu-field');
+      if (field) {
+        if (value && value.trim()) {
+          field.classList.add('has-value');
+        } else {
+          field.classList.remove('has-value');
+        }
+        const valueSpan = field.querySelector('.neu-field-value');
+        if (valueSpan) valueSpan.textContent = value || '';
+      }
+    }
+
+    this.saveVoiceConfig();
+    this.updateVoiceSummary();
+  }
+
+  /**
+   * TTS 모델 목록 로드
+   */
+  async loadTTSModels() {
+    try {
+      const response = await fetch('/api/tts/tts-models');
+      if (!response.ok) {
+        this.ttsModels = [];
+        return;
+      }
+
+      const data = await response.json();
+      this.ttsModels = data.models || [];
+    } catch (error) {
+      console.error('Failed to load TTS models:', error);
+      this.ttsModels = [];
+    }
+  }
+
+  /**
+   * Cartesia voice 목록 로드
+   */
+  async loadCartesiaVoices() {
+    try {
+      const response = await fetch('/api/tts/voices?service=cartesia');
+
+      if (!response.ok) {
+        throw new Error('Cartesia voice 목록을 가져올 수 없습니다.');
+      }
+
+      const data = await response.json();
+      const voices = data.voices || [];
+
+      // Voice 드롭다운 업데이트
+      const voiceSelect = document.getElementById('cartesiaVoiceSelect');
+      if (voiceSelect) {
+        voiceSelect.innerHTML = '<option value="">선택...</option>' +
+          voices.map(v => `<option value="${v.id}">${v.name}${v.description ? ` - ${v.description}` : ''}</option>`).join('');
+
+        // 기존 선택값 복원
+        if (this.voiceConfig?.cartesia?.voice) {
+          voiceSelect.value = this.voiceConfig.cartesia.voice;
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load Cartesia voices:', error);
+    }
+  }
+
+  /**
+   * 음성 설정 저장
+   */
+  async saveVoiceConfig(showNotification = false) {
+    try {
+      const response = await fetch('/api/config/preferences', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ voiceConfig: this.voiceConfig })
+      });
+
+      if (!response.ok) {
+        throw new Error('음성 설정에 실패했습니다.');
+      }
+
+      // 타임라인 요약 및 진행률 업데이트
+      this.updateVoiceSummary();
+      this.updateTimelineProgress('voice');
+
+      if (showNotification) {
+        this.showSaveStatus('음성 설정이 저장되었습니다.', 'success');
+      }
+    } catch (error) {
+      console.error('Failed to save voice config:', error);
+      this.showSaveStatus('음성 설정 저장에 실패했습니다.', 'error');
+    }
+  }
+
+  /**
+   * 사용자 프로필 로드
+   */
+  async loadUserProfile() {
+    try {
+      const response = await fetch('/api/profile');
+      if (!response.ok) return;
+
+      this.profile = await response.json();
+    } catch (error) {
+      console.error('Failed to load user profile:', error);
+      this.profile = { language: 'ko' }; // 기본값
+    }
+  }
+
+  /**
+   * 음성 설정 로드
+   */
+  async loadVoiceConfig() {
+    try {
+      // 현재 설정된 음성 설정 로드
+      const response = await fetch('/api/config/preferences');
+      if (!response.ok) return;
+
+      const config = await response.json();
+      this.voiceConfig = config.voiceConfig || {};
+
+      // UI에 설정 반영
+      const voiceSelect = document.getElementById('voiceSelect');
+      const detailFields = document.getElementById('cartesiaDetailFields');
+
+      if (voiceSelect && this.voiceConfig.service) {
+        if (this.voiceConfig.service === 'cartesia' && this.voiceConfig.cartesia) {
+          // Cartesia 복원
+          voiceSelect.value = 'cartesia:custom';
+          if (detailFields) {
+            detailFields.style.display = 'block';
+          }
+        } else if (this.voiceConfig.model) {
+          // 다른 서비스 모델 복원
+          voiceSelect.value = `${this.voiceConfig.service}:${this.voiceConfig.model}`;
+          if (detailFields) {
+            detailFields.style.display = 'none';
+          }
+        }
+      }
+
+      // 초기 로드 후 요약 업데이트
+      this.updateVoiceSummary();
+    } catch (error) {
+      console.error('Failed to load voice config:', error);
+    }
+  }
+
+  /**
+   * Cartesia 필드 복원 (DOM 생성 후 실행)
+   */
+  /**
+   * Cartesia WebSocket 폼 렌더링 + 복원
+   * 정체성 섹션과 동일한 soul-form 패턴
+   */
+  /**
+   * Cartesia WebSocket 폼 렌더링
+   */
+  restoreCartesiaFields() {
+    const soulForm = document.getElementById('cartesiaSoulForm');
+    if (!soulForm) return;
+
+    const isCartesia = this.voiceConfig?.service === 'cartesia';
+
+    if (isCartesia) {
+      const voiceSelect = document.getElementById('voiceSelect');
+      const detailFields = document.getElementById('cartesiaDetailFields');
+      if (voiceSelect) voiceSelect.value = 'cartesia:custom';
+      if (detailFields) detailFields.style.display = 'block';
+    }
+
+    const cart = this.voiceConfig?.cartesia || {};
+
+    // model_id: 텍스트 입력 (soul-form 패턴)
+    const modelVal = cart.model || '';
+    const modelHasValue = modelVal ? 'has-value' : '';
+
+    // voice: 드롭다운 (API에서 불러오기)
+    const voiceVal = cart.voice || '';
+
+    // language: 드롭다운
+    const langVal = cart.language || this.profile?.language || 'ko';
+    const languages = [
+      { value: 'ko', label: '한국어' },
+      { value: 'en', label: 'English' },
+      { value: 'ja', label: '日本語' },
+      { value: 'zh', label: '中文' },
+      { value: 'fr', label: 'Français' },
+      { value: 'de', label: 'Deutsch' },
+    ];
+
+    // speed: 숫자 배율 (0.6 ~ 1.5, 기본 1.0)
+    const speedVal = cart.speed || '1.0';
+    const speeds = [
+      { value: '0.6', label: '0.6x 매우 느림' },
+      { value: '0.8', label: '0.8x 느림' },
+      { value: '1.0', label: '1.0x 보통' },
+      { value: '1.2', label: '1.2x 빠름' },
+      { value: '1.5', label: '1.5x 매우 빠름' },
+    ];
+
+    // volume: 숫자 배율 (0.5 ~ 2.0, 기본 1.0)
+    const volumeVal = cart.volume || '1.0';
+    const volumes = [
+      { value: '0.5', label: '0.5x 매우 작게' },
+      { value: '0.75', label: '0.75x 작게' },
+      { value: '1.0', label: '1.0x 보통' },
+      { value: '1.5', label: '1.5x 크게' },
+      { value: '2.0', label: '2.0x 매우 크게' },
+    ];
+
+    // emotion: 감정 (beta)
+    const emotionVal = cart.emotion || 'neutral';
+    const emotions = [
+      { value: 'neutral', label: '기본' },
+      { value: 'happy', label: '행복' },
+      { value: 'excited', label: '신남' },
+      { value: 'calm', label: '차분' },
+      { value: 'content', label: '만족' },
+      { value: 'curious', label: '호기심' },
+      { value: 'affectionate', label: '다정' },
+      { value: 'sad', label: '슬픔' },
+      { value: 'angry', label: '화남' },
+      { value: 'scared', label: '공포' },
+      { value: 'sarcastic', label: '비꼼' },
+      { value: 'surprised', label: '놀람' },
+    ];
+
+    const langOptions = languages.map(l =>
+      `<option value="${l.value}" ${l.value === langVal ? 'selected' : ''}>${l.label}</option>`
+    ).join('');
+
+    const speedOptions = speeds.map(s =>
+      `<option value="${s.value}" ${s.value === speedVal ? 'selected' : ''}>${s.label}</option>`
+    ).join('');
+
+    const volumeOptions = volumes.map(v =>
+      `<option value="${v.value}" ${v.value === volumeVal ? 'selected' : ''}>${v.label}</option>`
+    ).join('');
+
+    const emotionOptions = emotions.map(e =>
+      `<option value="${e.value}" ${e.value === emotionVal ? 'selected' : ''}>${e.label}</option>`
+    ).join('');
+
+    let html = `
+      <div class="neu-field has-badge ${modelHasValue}">
+        <span class="cartesia-badge cartesia-badge--required">필수</span>
+        <div class="neu-field-body">
+          <div class="neu-field-display">
+            <span class="neu-field-title">model_id : </span>
+            <span class="neu-field-value">${modelVal}</span>
+          </div>
+          <input type="text" class="neu-field-input" id="cartesiaModelInput" placeholder="model_id" value="${modelVal}">
+        </div>
+      </div>
+
+      <div class="neu-field has-badge ${voiceVal ? 'has-value' : ''}">
+        <span class="cartesia-badge cartesia-badge--required">필수</span>
+        <div class="neu-field-body">
+          <div class="neu-field-display">
+            <span class="neu-field-title">voice : </span>
+            <span class="neu-field-value" id="cartesiaVoiceLabel">로딩...</span>
+          </div>
+          <select class="neu-field-input" id="cartesiaVoiceSelect">
+            <option value="">목소리 선택</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="neu-field has-badge has-value">
+        <span class="cartesia-badge cartesia-badge--required">필수</span>
+        <div class="neu-field-body">
+          <div class="neu-field-display">
+            <span class="neu-field-title">language : </span>
+            <span class="neu-field-value">${languages.find(l => l.value === langVal)?.label || langVal}</span>
+          </div>
+          <select class="neu-field-input" id="cartesiaLanguageSelect">
+            ${langOptions}
+          </select>
+        </div>
+      </div>
+
+      <div class="cartesia-advanced-toggle" id="cartesiaAdvancedToggle">고급 설정</div>
+      <div class="cartesia-advanced-panel" id="cartesiaAdvancedPanel" style="display: none;">
+        <div class="neu-field has-badge has-value">
+          <span class="cartesia-badge cartesia-badge--optional">선택</span>
+          <div class="neu-field-body">
+            <div class="neu-field-display">
+              <span class="neu-field-title">speed : </span>
+              <span class="neu-field-value">${speeds.find(s => s.value === speedVal)?.label || speedVal}</span>
+            </div>
+            <select class="neu-field-input" id="cartesiaSpeedSelect">
+              ${speedOptions}
+            </select>
+          </div>
+        </div>
+
+        <div class="neu-field has-badge has-value">
+          <span class="cartesia-badge cartesia-badge--optional">선택</span>
+          <div class="neu-field-body">
+            <div class="neu-field-display">
+              <span class="neu-field-title">volume : </span>
+              <span class="neu-field-value">${volumes.find(v => v.value === volumeVal)?.label || volumeVal}</span>
+            </div>
+            <select class="neu-field-input" id="cartesiaVolumeSelect">
+              ${volumeOptions}
+            </select>
+          </div>
+        </div>
+
+        <div class="neu-field has-badge has-value">
+          <span class="cartesia-badge cartesia-badge--optional">선택</span>
+          <div class="neu-field-body">
+            <div class="neu-field-display">
+              <span class="neu-field-title">emotion : </span>
+              <span class="neu-field-value">${emotions.find(e => e.value === emotionVal)?.label || emotionVal}</span>
+            </div>
+            <select class="neu-field-input" id="cartesiaEmotionSelect">
+              ${emotionOptions}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="cartesia-btn-group">
+        <button type="button" class="cartesia-btn cartesia-btn--preview" id="cartesiaPreviewBtn">목소리 미리듣기</button>
+        <button type="button" class="cartesia-btn cartesia-btn--save" id="cartesiaSaveBtn">저장</button>
+      </div>`;
+
+    soulForm.innerHTML = html;
+    this.attachCartesiaEvents();
+
+    // 즉시 요약 업데이트 (model, language는 동기적으로 표시 가능)
+    this.updateVoiceSummary();
+
+    // 목소리 목록 로드 (완료 후 voice 이름 포함하여 요약 재업데이트)
+    this.loadCartesiaVoices(voiceVal);
+  }
+
+  /**
+   * Cartesia 이벤트 바인딩
+   */
+  attachCartesiaEvents() {
+    // model_id 텍스트 입력
+    const modelInput = document.getElementById('cartesiaModelInput');
+    if (modelInput) {
+      modelInput.addEventListener('focus', (e) => { e.target.dataset.originalValue = e.target.value; });
+      modelInput.addEventListener('blur', (e) => {
+        const value = e.target.value.trim();
+        if (value !== (e.target.dataset.originalValue || '')) {
+          this.handleCartesiaFieldChange('model', value);
+        }
+      });
+      modelInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
+      });
+    }
+
+    // voice 드롭다운
+    const voiceSelect = document.getElementById('cartesiaVoiceSelect');
+    if (voiceSelect) {
+      voiceSelect.addEventListener('change', (e) => {
+        const value = e.target.value;
+        const label = e.target.selectedOptions[0]?.text || '';
+        this.handleCartesiaFieldChange('voice', value);
+        const voiceLabel = document.getElementById('cartesiaVoiceLabel');
+        if (voiceLabel) voiceLabel.textContent = label || '선택 안됨';
+        const field = e.target.closest('.neu-field');
+        if (field) {
+          field.classList.remove('editing');
+          if (value) { field.classList.add('has-value'); }
+          else { field.classList.remove('has-value'); }
+        }
+      });
+    }
+
+    // language 드롭다운
+    const langSelect = document.getElementById('cartesiaLanguageSelect');
+    if (langSelect) {
+      langSelect.addEventListener('change', (e) => {
+        const value = e.target.value;
+        const label = e.target.selectedOptions[0]?.text || '';
+        this.handleCartesiaFieldChange('language', value);
+        const valueSpan = e.target.closest('.neu-field')?.querySelector('.neu-field-value');
+        if (valueSpan) valueSpan.textContent = label;
+        const field = e.target.closest('.neu-field');
+        if (field) field.classList.remove('editing');
+      });
+    }
+
+    // speed 드롭다운
+    const speedSelect = document.getElementById('cartesiaSpeedSelect');
+    if (speedSelect) {
+      speedSelect.addEventListener('change', (e) => {
+        const value = e.target.value;
+        const label = e.target.selectedOptions[0]?.text || '';
+        this.handleCartesiaFieldChange('speed', value);
+        const valueSpan = e.target.closest('.neu-field')?.querySelector('.neu-field-value');
+        if (valueSpan) valueSpan.textContent = label;
+        const field = e.target.closest('.neu-field');
+        if (field) field.classList.remove('editing');
+      });
+    }
+
+    // 고급 설정 토글
+    const advToggle = document.getElementById('cartesiaAdvancedToggle');
+    const advPanel = document.getElementById('cartesiaAdvancedPanel');
+    if (advToggle && advPanel) {
+      advToggle.addEventListener('click', () => {
+        const open = advPanel.style.display !== 'none';
+        advPanel.style.display = open ? 'none' : 'block';
+        advToggle.classList.toggle('open', !open);
+      });
+    }
+
+    // volume 드롭다운
+    const volumeSelect = document.getElementById('cartesiaVolumeSelect');
+    if (volumeSelect) {
+      volumeSelect.addEventListener('change', (e) => {
+        const value = e.target.value;
+        const label = e.target.selectedOptions[0]?.text || '';
+        this.handleCartesiaFieldChange('volume', value);
+        const valueSpan = e.target.closest('.neu-field')?.querySelector('.neu-field-value');
+        if (valueSpan) valueSpan.textContent = label;
+        const field = e.target.closest('.neu-field');
+        if (field) field.classList.remove('editing');
+      });
+    }
+
+    // emotion 드롭다운
+    const emotionSelect = document.getElementById('cartesiaEmotionSelect');
+    if (emotionSelect) {
+      emotionSelect.addEventListener('change', (e) => {
+        const value = e.target.value;
+        const label = e.target.selectedOptions[0]?.text || '';
+        this.handleCartesiaFieldChange('emotion', value);
+        const valueSpan = e.target.closest('.neu-field')?.querySelector('.neu-field-value');
+        if (valueSpan) valueSpan.textContent = label;
+        const field = e.target.closest('.neu-field');
+        if (field) field.classList.remove('editing');
+      });
+    }
+
+    // 미리듣기 버튼
+    const previewBtn = document.getElementById('cartesiaPreviewBtn');
+    if (previewBtn) previewBtn.addEventListener('click', () => this.testCartesiaTTS());
+
+    // 저장 버튼
+    const saveBtn = document.getElementById('cartesiaSaveBtn');
+    if (saveBtn) saveBtn.addEventListener('click', () => this.saveCartesiaConfig());
+  }
+
+  /**
+   * Cartesia 목소리 목록 로드
+   */
+  async loadCartesiaVoices(selectedVoiceId) {
+    const voiceSelect = document.getElementById('cartesiaVoiceSelect');
+    const voiceLabel = document.getElementById('cartesiaVoiceLabel');
+    if (!voiceSelect) return;
+
+    try {
+      const res = await fetch('/api/tts/voices?service=cartesia');
+      if (!res.ok) throw new Error('Failed to load voices');
+      const data = await res.json();
+
+      voiceSelect.innerHTML = '<option value="">목소리 선택</option>';
+      (data.voices || []).forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v.id;
+        opt.textContent = v.name;
+        if (v.id === selectedVoiceId) opt.selected = true;
+        voiceSelect.appendChild(opt);
+      });
+
+      // 디스플레이 라벨 업데이트
+      if (selectedVoiceId && voiceLabel) {
+        const selected = voiceSelect.selectedOptions[0];
+        voiceLabel.textContent = (selected && selected.value) ? selected.text : selectedVoiceId;
+      } else if (voiceLabel) {
+        voiceLabel.textContent = '선택 안됨';
+      }
+      this.updateVoiceSummary();
+    } catch (err) {
+      console.error('[Cartesia] Failed to load voices:', err);
+      if (voiceLabel) voiceLabel.textContent = selectedVoiceId || '로드 실패';
+      this.updateVoiceSummary();
+    }
+  }
+
+  /**
+   * 음성 타임라인 요약 렌더링 (초기 HTML 생성용)
+   */
+  renderVoiceSummary() {
+    const model = this.voiceConfig?.model || '';
+    if (!model) return '';
+
+    const modelInfo = this.voiceModels?.find(m => m.id === model);
+    const label = modelInfo ? modelInfo.name : model;
+    return `<div><span class="summary-label">음성</span><span class="summary-text">${label}</span></div>`;
+  }
+
+  /**
+   * 음성 타임라인 요약 업데이트 (DOM 업데이트용)
+   */
+  updateVoiceSummary() {
+    const summaryEl = document.querySelector('.timeline-summary--voice');
+    if (!summaryEl) return;
+
+    const service = this.voiceConfig?.service || '';
+    const voiceSection = document.querySelector('[data-section="voice"]');
+    const emptyHint = voiceSection?.querySelector('.section-empty-hint');
+
+    if (service && this.voiceConfig) {
+      let badgeLabel = service.charAt(0).toUpperCase() + service.slice(1);
+      let summaryText = '';
+
+      if (service === 'cartesia' && this.voiceConfig.cartesia) {
+        const cart = this.voiceConfig.cartesia;
+        const parts = [];
+        parts.push(cart.model || '-');
+        if (cart.voice) {
+          const voiceSelect = document.getElementById('cartesiaVoiceSelect');
+          const voiceName = voiceSelect?.selectedOptions[0]?.text || '';
+          let voicePart = voiceName || cart.voice;
+          if (cart.language) voicePart += ` (${cart.language})`;
+          parts.push(voicePart);
+        } else if (cart.language) {
+          parts.push(`(${cart.language})`);
+        }
+        summaryText = parts.join(' / ');
+      } else if (this.voiceConfig.model) {
+        const modelId = `${service}:${this.voiceConfig.model}`;
+        const modelInfo = this.ttsModels?.find(m => m.id === modelId);
+        summaryText = modelInfo?.name || this.voiceConfig.model;
+      }
+
+      const html = summaryText
+        ? `<div><span class="summary-label">${badgeLabel}</span><span class="summary-text">${summaryText}</span></div>`
+        : '';
+      summaryEl.innerHTML = html;
+      summaryEl.style.display = summaryText ? 'block' : '';
+
+      if (emptyHint) emptyHint.style.display = summaryText ? 'none' : 'block';
+    } else {
+      summaryEl.innerHTML = '';
+      summaryEl.style.display = '';
+      if (emptyHint) emptyHint.style.display = 'block';
+    }
+  }
+
+  /**
+   * Cartesia TTS 테스트
+   */
+  async testCartesiaTTS() {
+    const previewBtn = document.getElementById('cartesiaPreviewBtn');
+
+    const model = document.getElementById('cartesiaModelInput')?.value?.trim();
+    const voice = document.getElementById('cartesiaVoiceSelect')?.value;
+    const language = document.getElementById('cartesiaLanguageSelect')?.value;
+    const speed = document.getElementById('cartesiaSpeedSelect')?.value;
+    const volume = document.getElementById('cartesiaVolumeSelect')?.value;
+    const emotion = document.getElementById('cartesiaEmotionSelect')?.value;
+
+    if (!model || !voice) {
+      alert('Model과 Voice를 모두 입력해주세요.');
+      return;
+    }
+
+    try {
+      previewBtn.disabled = true;
+      previewBtn.textContent = '재생 중...';
+
+      // 감정별 미리듣기 문장
+      const emotionPreviews = {
+        'neutral': '안녕하세요. 소울입니다.',
+        'happy': '오늘 진짜 좋은 일이 있었어! [laughter] 너무 기분 좋다!',
+        'excited': '대박! [laughter] 이거 진짜야? 완전 신난다!',
+        'calm': '괜찮아, 천천히 하면 돼. 내가 도와줄게.',
+        'content': '오늘 하루도 좋았어. 이렇게 편안한 게 좋아.',
+        'curious': '어? 그거 뭐야? 좀 더 자세히 알려줘!',
+        'affectionate': '고마워, 진짜. 네가 있어서 다행이야.',
+        'sad': '그랬구나... 많이 힘들었겠다.',
+        'angry': '아 진짜 너무하다. 그건 좀 아니지 않아?',
+        'scared': '헐... 진짜? 무섭다 그거...',
+        'sarcastic': '와, 정말 대단하시네. 진짜 감동이다.',
+        'surprised': '헐! 진짜? [laughter] 말도 안 돼!'
+      };
+      const previewText = emotionPreviews[emotion] || emotionPreviews['neutral'];
+
+      // 폼의 현재 값을 직접 백엔드에 전달 (저장 전에도 미리듣기 가능)
+      const res = await fetch('/api/tts/speak', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: previewText,
+          model, voice, language, speed, volume, emotion
+        })
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `TTS 실패: ${res.status}`);
+      }
+
+      const wavBuffer = await res.arrayBuffer();
+      if (wavBuffer.byteLength < 44) throw new Error('오디오 데이터 없음');
+
+      // 오디오 재생
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const decoded = await audioCtx.decodeAudioData(wavBuffer);
+      const source = audioCtx.createBufferSource();
+      source.buffer = decoded;
+      source.connect(audioCtx.destination);
+      source.start(0);
+
+      source.onended = () => {
+        previewBtn.textContent = '✓ 완료';
+        setTimeout(() => {
+          previewBtn.textContent = '목소리 미리듣기';
+          previewBtn.disabled = false;
+        }, 1500);
+        audioCtx.close();
+      };
+    } catch (error) {
+      console.error('TTS test failed:', error);
+      alert(`TTS 테스트 실패: ${error.message}`);
+      previewBtn.textContent = '목소리 미리듣기';
+      previewBtn.disabled = false;
+    }
+  }
+
+  async saveCartesiaConfig() {
+    const saveBtn = document.getElementById('cartesiaSaveBtn');
+    try {
+      saveBtn.disabled = true;
+      saveBtn.textContent = '저장 중...';
+
+      await this.saveVoiceConfig(true);
+
+      saveBtn.textContent = '✓ 저장됨';
+      setTimeout(() => {
+        saveBtn.textContent = '저장';
+        saveBtn.disabled = false;
+      }, 2000);
+    } catch (error) {
+      console.error('Voice config save failed:', error);
+      alert(`저장 실패: ${error.message}`);
+      saveBtn.textContent = '저장';
+      saveBtn.disabled = false;
+    }
   }
 
 }

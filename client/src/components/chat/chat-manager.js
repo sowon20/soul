@@ -373,6 +373,9 @@ export class ChatManager {
       
       // tool_use 태그 분리
       displayContent = displayContent.replace(/<tool_use>[\s\S]*?<\/tool_use>/g, '').trim();
+
+      // TTS 전용 태그 제거 (화면에서 숨김, TTS는 원본 사용)
+      displayContent = displayContent.replace(/\[laughter\]/gi, '').replace(/\s{2,}/g, ' ').trim();
       
       // marked 전처리: **...** 닫힘 직후 한글이 오면 marked가 bold 인식 못함 → 직접 변환
       if (window.marked) {
@@ -1193,7 +1196,6 @@ export class ChatManager {
 
       // Add assistant response
       const content = response.reply || response.message || '응답을 받지 못했습니다.';
-      console.log('[Chat] Adding assistant message:', content);
       this.addMessage({
         role: 'assistant',
         content: content,

@@ -105,6 +105,17 @@ async function initializeBuiltinServices() {
       ],
       isActive: 0,
       config: {}
+    },
+    {
+      serviceId: 'deepseek',
+      name: 'DeepSeek',
+      baseUrl: 'https://api.deepseek.com',
+      models: [
+        { id: 'deepseek-chat', name: 'DeepSeek V3', contextWindow: 65536 },
+        { id: 'deepseek-reasoner', name: 'DeepSeek R1', contextWindow: 65536 }
+      ],
+      isActive: 0,
+      config: {}
     }
   ];
 

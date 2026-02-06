@@ -82,16 +82,17 @@
     inset -1px -1px 3px rgba(255, 248, 240, 0.6);
 }
 
-/* 값이 있으면 인풋 숨김 (타임라인 내부 제외) */
+/* 값이 있으면 인풋 숨김 */
 .neu-field.has-value:not(.editing) .neu-field-input {
   display: none;
 }
 
-.timeline-body .neu-field.has-value:not(.editing) .neu-field-input {
-  display: block;
+/* soul-form 안에서는 정체성 섹션처럼 동작 (타임라인 안에 있어도) */
+.soul-form .neu-field.has-value:not(.editing) .neu-field-display {
+  display: block !important;
 }
 
-.timeline-body .neu-field-display {
+.soul-form .neu-field.has-value:not(.editing) .neu-field-input {
   display: none !important;
 }
 
@@ -958,6 +959,111 @@ textarea.settings-field-input {
   gap: 6px;
 }
 
+/* Cartesia 고급 설정 토글 */
+/* Cartesia 뱃지 레이아웃 */
+.neu-field.has-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.neu-field.has-badge .neu-field-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.cartesia-badge {
+  padding: 2px 6px;
+  font-size: 0.62rem;
+  font-weight: 600;
+  border-radius: 3px;
+  flex-shrink: 0;
+  letter-spacing: 0.02em;
+}
+
+.cartesia-badge--required {
+  background: rgba(255, 255, 255, 0.6);
+  color: rgba(90, 80, 70, 0.6);
+}
+
+.cartesia-badge--optional {
+  background: rgba(90, 80, 70, 0.15);
+  color: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.cartesia-advanced-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0.4rem 0;
+  font-size: 0.8rem;
+  color: rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  user-select: none;
+}
+
+.cartesia-advanced-toggle::after {
+  content: '❯';
+  font-size: 0.65rem;
+  transform: rotate(90deg);
+  transition: transform 0.2s ease;
+}
+
+.cartesia-advanced-toggle.open::after {
+  transform: rotate(-90deg);
+}
+
+.cartesia-advanced-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Cartesia 버튼 그룹 */
+.cartesia-btn-group {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.cartesia-btn {
+  flex: 1;
+  padding: 8px 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  white-space: nowrap;
+}
+
+.cartesia-btn--preview {
+  color: rgba(90, 80, 70, 0.7);
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(120, 110, 100, 0.15);
+}
+
+.cartesia-btn--preview:hover {
+  background: rgba(255, 255, 255, 0.8);
+  color: rgba(90, 80, 70, 0.9);
+}
+
+.cartesia-btn--save {
+  color: #fff;
+  background: linear-gradient(135deg, #e8a87c, #d4956a);
+}
+
+.cartesia-btn--save:hover {
+  background: linear-gradient(135deg, #d4956a, #c4855a);
+}
+
+.cartesia-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* 비어있는 상태 (움푹) */
 .soul-input {
   width: 100%;
@@ -1260,12 +1366,15 @@ textarea.settings-field-input {
   font-size: 0.7rem;
   font-weight: 500;
   flex-shrink: 0;
-  margin-top: 2px;
+  display: inline-flex;
+  align-items: center;
 }
 
 .timeline-summary .summary-text {
   font-size: 0.8rem;
   color: #5a5550;
+  display: inline-flex;
+  align-items: center;
 }
 
 /* 텍스트 2줄 제한 + 말줄임표 */
@@ -1277,15 +1386,17 @@ textarea.settings-field-input {
   text-overflow: ellipsis;
 }
 
-/* 성격/두뇌 요약 스타일 - 세로 레이아웃 (정체성과 동일) */
+/* 성격/두뇌/목소리 요약 스타일 - 세로 레이아웃 (정체성과 동일) */
 .timeline-summary--personality,
-.timeline-summary--brain {
+.timeline-summary--brain,
+.timeline-summary--voice {
   margin-top: 4px;
   display: block;
 }
 
 .timeline-summary--personality div,
-.timeline-summary--brain div {
+.timeline-summary--brain div,
+.timeline-summary--voice div {
   display: flex;
   align-items: flex-start;
   gap: 8px;
@@ -1293,14 +1404,16 @@ textarea.settings-field-input {
 }
 
 .timeline-summary--personality .summary-text,
-.timeline-summary--brain .summary-text {
+.timeline-summary--brain .summary-text,
+.timeline-summary--voice .summary-text {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 200px;
+  max-width: 280px;
 }
 
-.timeline-summary--brain:empty {
+.timeline-summary--brain:empty,
+.timeline-summary--voice:empty {
   display: none;
 }
 
@@ -1359,7 +1472,7 @@ textarea.settings-field-input {
 .timeline-header {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: 0;
   cursor: pointer;
 }
 
@@ -5149,6 +5262,16 @@ textarea.settings-field-input {
   gap: 8px;
 }
 
+.brain-single-model-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brain-single-model-row .brain-routing-select {
+  flex: 1;
+}
+
 .brain-tier-row {
   display: flex;
   align-items: center;
@@ -5208,7 +5331,6 @@ textarea.settings-field-input {
 
 .brain-wizard-confirm:hover {
   background: linear-gradient(135deg, #d4956a, #c4855a);
-  transform: translateY(-1px);
 }
 
 /* 안내 문구 */
@@ -7078,3 +7200,147 @@ textarea.settings-field-input {
 .base-layer .storage-settings .modal-header h3 { color: rgba(255, 255, 255, 0.95); }
 .base-layer .storage-settings .close-btn { color: rgba(255, 255, 255, 0.5); }
 .base-layer .storage-settings .close-btn:hover { color: rgba(255, 255, 255, 0.9); }
+
+/* 목소리 설정 */
+.voice-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.voice-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.75rem;
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 0.5rem;
+}
+
+.voice-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  padding: 1rem;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.voice-card:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(79, 172, 254, 0.3);
+  transform: translateY(-1px);
+}
+
+.voice-card.selected {
+  background: linear-gradient(135deg, rgba(79, 172, 254, 0.1), rgba(0, 242, 254, 0.1));
+  border-color: rgba(79, 172, 254, 0.5);
+}
+
+.voice-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.voice-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: rgba(0, 0, 0, 0.85);
+}
+
+.voice-selected-badge {
+  background: linear-gradient(135deg, #4facfe, #00f2fe);
+  color: white;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.voice-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.voice-lang {
+  display: inline-block;
+  background: rgba(0, 0, 0, 0.05);
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  color: rgba(0, 0, 0, 0.6);
+  width: fit-content;
+}
+
+.voice-desc {
+  font-size: 0.8rem;
+  color: rgba(0, 0, 0, 0.5);
+  line-height: 1.4;
+}
+
+.voice-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.voice-select-btn {
+  flex: 1;
+  padding: 0.5rem;
+  background: linear-gradient(135deg, #4facfe, #00f2fe);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.voice-select-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(79, 172, 254, 0.3);
+}
+
+.voice-card.selected .voice-select-btn {
+  background: rgba(0, 0, 0, 0.1);
+  color: rgba(0, 0, 0, 0.5);
+  cursor: default;
+}
+
+.voice-card.selected .voice-select-btn:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+/* 다크모드 */
+.base-layer .voice-card {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.base-layer .voice-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(79, 172, 254, 0.4);
+}
+
+.base-layer .voice-card.selected {
+  background: linear-gradient(135deg, rgba(79, 172, 254, 0.15), rgba(0, 242, 254, 0.15));
+  border-color: rgba(79, 172, 254, 0.6);
+}
+
+.base-layer .voice-name {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.base-layer .voice-lang {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.base-layer .voice-desc {
+  color: rgba(255, 255, 255, 0.5);
+}

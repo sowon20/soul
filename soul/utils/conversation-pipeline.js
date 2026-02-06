@@ -573,20 +573,22 @@ class ConversationPipeline {
       }, lastMessageTime, timezone);
 
       // 2. 어시스턴트 응답 저장 (사용자 메시지보다 최소 1ms 뒤)
+      // TTS 태그([laughter] 등)는 음성 전용이므로 메모리에서 제거
+      const cleanedResponse = assistantResponse.replace(/\[laughter\]/gi, '').replace(/\s{2,}/g, ' ').trim();
       const assistantTimestamp = new Date(userTimestamp.getTime() + 1);
       await this.memoryManager.addMessage({
         role: 'assistant',
-        content: assistantResponse,
+        content: cleanedResponse,
         timestamp: assistantTimestamp,
         ...metadata
       }, sessionId);
-      
+
       // 2.1 어시스턴트 응답 파일 아카이브
       const responseTime = metadata?.processingTime ||
         (assistantTimestamp.getTime() - userTimestamp.getTime()) / 1000;
       await archiver.archiveMessage({
         role: 'assistant',
-        content: assistantResponse,
+        content: cleanedResponse,
         timestamp: assistantTimestamp,
         tokens: this._estimateTokens(assistantResponse),
         sessionMeta: {
@@ -689,20 +691,17 @@ class ConversationPipeline {
     // === 최종 조합: 문서(상단) → 인격 → 지침(하단) ===
     let prompt = '';
 
-    // 문서/정보 섹션 (상단) - 출처 표시
+    // 문서/정보 섹션 (상단)
     if (profileSection) {
-      prompt += `<!-- 출처: 설정 > 프로필 (사용자가 공개 설정한 정보) -->\n`;
       prompt += profileSection + '\n\n';
     }
 
-    // 인격/역할 정의 - 출처 표시
-    prompt += `<!-- 출처: 설정 > AI 설정 > 성격 (프롬프트 + 세밀조절) -->\n`;
+    // 인격/역할 정의
     prompt += basePrompt;
 
-    // 지침 섹션 (하단) - 출처 표시
+    // 지침 섹션 (하단)
     if (customSection) {
-      prompt += `\n\n<!-- 출처: 설정 > AI 설정 > 성격 > 추가 지시사항 -->\n`;
-      prompt += customSection;
+      prompt += '\n\n' + customSection;
     }
     // core_principles 제거: chat.js의 <instructions>와 중복/모순되므로 삭제
 

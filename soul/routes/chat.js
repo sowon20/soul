@@ -342,6 +342,7 @@ ${rulesText}</self_notes>\n\n`;
         if (lower.includes('gemini')) return 'google';
         if (lower.includes('grok')) return 'xai';
         if (lower.includes('accounts/fireworks') || lower.includes('fireworks')) return 'fireworks';
+        if (lower.includes('deepseek')) return 'deepseek';
         if (lower.includes('llama') || lower.includes('meta-llama/')) return 'huggingface';
         if (lower.includes('qwen')) return 'huggingface';
         if (lower.includes('mistral')) return 'huggingface';
@@ -350,7 +351,7 @@ ${rulesText}</self_notes>\n\n`;
       }
 
       // 유효한 서비스명인지 확인
-      const VALID_SERVICES = ['anthropic', 'openai', 'google', 'xai', 'huggingface', 'ollama', 'lightning', 'vertex', 'openrouter', 'fireworks'];
+      const VALID_SERVICES = ['anthropic', 'openai', 'google', 'xai', 'huggingface', 'ollama', 'lightning', 'vertex', 'openrouter', 'fireworks', 'deepseek'];
 
       // 스마트 라우팅 결과 사용
       if (routingResult && routingResult.modelId) {
@@ -713,7 +714,6 @@ ${toolCatalog}`;
                     inputTokens: twInput,
                     outputTokens: twOutput,
                     totalTokens: twInput + twOutput,
-                    cost: 0, // 무료 모델 또는 별도 계산
                     latency: Date.now() - _twStart,
                     sessionId,
                     category: 'tool-selection'
@@ -979,7 +979,6 @@ ${toolCatalog}`;
               inputTokens: dInput,
               outputTokens: dOutput,
               totalTokens: dInput + dOutput,
-              cost: 0,
               latency: responseTime,
               sessionId,
               category: 'delegate'
@@ -1077,24 +1076,7 @@ ${toolCatalog}`;
     const outputTokens = actualUsage.output_tokens || 0;
     const totalTokens = inputTokens + outputTokens;
 
-    // 비용 계산 (서비스/모델별)
-    let cost = 0;
-    const lowerModelId = (routingResult.modelId || '').toLowerCase();
-    if (lowerModelId.includes('opus')) {
-      cost = (inputTokens * 0.015 + outputTokens * 0.075) / 1000;
-    } else if (lowerModelId.includes('sonnet')) {
-      cost = (inputTokens * 0.003 + outputTokens * 0.015) / 1000;
-    } else if (lowerModelId.includes('haiku')) {
-      cost = (inputTokens * 0.0008 + outputTokens * 0.004) / 1000;
-    } else if (lowerModelId.includes('gpt-4o')) {
-      cost = (inputTokens * 0.005 + outputTokens * 0.015) / 1000;
-    } else if (lowerModelId.includes('gpt-4')) {
-      cost = (inputTokens * 0.03 + outputTokens * 0.06) / 1000;
-    } else if (lowerModelId.includes('gemini')) {
-      cost = (inputTokens * 0.00125 + outputTokens * 0.005) / 1000;
-    }
-
-    console.log(`[Chat] Usage: ${inputTokens} input + ${outputTokens} output = ${totalTokens} tokens, ${cost.toFixed(6)}`);
+    console.log(`[Chat] Usage: ${inputTokens} input + ${outputTokens} output = ${totalTokens} tokens`);
 
     UsageStats.addUsage({
       tier,
@@ -1104,7 +1086,6 @@ ${toolCatalog}`;
       outputTokens,
       totalTokens,
       tokenBreakdown, // 토큰 분류 정보
-      cost,
       latency,
       sessionId,
       category: 'chat'
@@ -1131,11 +1112,6 @@ ${toolCatalog}`;
         system: tokenBreakdown.system,
         tools: tokenBreakdown.tools,
         toolCount: tokenBreakdown.toolCount
-      },
-      // 비용 정보
-      cost: {
-        usd: cost,
-        krw: Math.round(cost * 1450) // 대략적인 환율
       },
       // 메타 정보
       meta: {
@@ -1614,7 +1590,8 @@ router.get('/service-billing', async (req, res) => {
       'openrouter': ['openrouter'],
       'xai': ['xai'],
       'ollama': ['ollama'],
-      'lightning': ['lightning']
+      'lightning': ['lightning'],
+      'deepseek': ['deepseek']
     };
 
     for (const svc of allServices) {
@@ -1627,19 +1604,6 @@ router.get('/service-billing', async (req, res) => {
         `SELECT COUNT(*) as count, SUM(input_tokens + output_tokens) as totalTokens FROM usage_stats WHERE date = ? AND service IN (${placeholders})`
       ).get(today, ...aliases) || { count: 0, totalTokens: 0 };
 
-      // 메타데이터에서 비용 합산
-      const metaRows = db.db.prepare(
-        `SELECT metadata FROM usage_stats WHERE date = ? AND service IN (${placeholders}) AND metadata IS NOT NULL`
-      ).all(today, ...aliases);
-
-      let todayCost = 0;
-      for (const row of metaRows) {
-        try {
-          const meta = JSON.parse(row.metadata);
-          if (meta.cost) todayCost += meta.cost;
-        } catch (e) { /* skip */ }
-      }
-
       // 톱 모델
       const topModel = db.db.prepare(
         `SELECT model, COUNT(*) as cnt FROM usage_stats WHERE date = ? AND service IN (${placeholders}) GROUP BY model ORDER BY cnt DESC LIMIT 1`
@@ -1648,7 +1612,6 @@ router.get('/service-billing', async (req, res) => {
       const entry = {
         serviceId: sid,
         name: svc.name,
-        todayCost,
         todayRequests: stats.count || 0,
         todayTokens: stats.totalTokens || 0,
         topModel: topModel?.model || null,
@@ -1678,6 +1641,33 @@ router.get('/service-billing', async (req, res) => {
           }
         } catch (e) {
           console.warn('[Billing] OpenRouter balance fetch failed:', e.message);
+        }
+      }
+
+      // DeepSeek: 잔액 API (직접 호출)
+      if (sid === 'deepseek' && svc.api_key) {
+        try {
+          const dsResp = await fetch('https://api.deepseek.com/user/balance', {
+            headers: {
+              'Authorization': `Bearer ${svc.api_key}`,
+              'Accept': 'application/json'
+            }
+          });
+          if (dsResp.ok) {
+            const dsData = await dsResp.json();
+            // 잔액이 있는 통화 우선 (CNY > USD 순)
+            const balInfo = dsData.balance_infos?.find(b => parseFloat(b.total_balance) > 0) || dsData.balance_infos?.[0] || {};
+            const bal = parseFloat(balInfo.total_balance) || 0;
+            entry.balance = {
+              total_credits: bal,
+              currency: balInfo.currency || 'CNY',
+              granted: parseFloat(balInfo.granted_balance) || 0,
+              topped_up: parseFloat(balInfo.topped_up_balance) || 0,
+              remaining: bal
+            };
+          }
+        } catch (e) {
+          console.warn('[Billing] DeepSeek balance fetch failed:', e.message);
         }
       }
 

@@ -4,6 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const http = require('http');
 const { Server } = require('socket.io');
+const WebSocket = require('ws');
 
 // SQLite 초기화
 const db = require('../db');
@@ -13,6 +14,9 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: '*' }
 });
+
+// WebSocket 서버 (TTS 스트리밍용)
+const wss = new WebSocket.Server({ noServer: true });
 
 // 글로벌로 io 접근 가능하게 (도구 실행 상태 전송용)
 global.io = io;
@@ -176,6 +180,27 @@ io.on('connection', (socket) => {
 // io 인스턴스 글로벌 접근용
 app.set('io', io);
 app.set('connectedClients', connectedClients);
+
+// WebSocket 업그레이드 핸들러 (TTS 스트리밍)
+server.on('upgrade', (request, socket, head) => {
+  const url = new URL(request.url, `http://${request.headers.host}`);
+
+  if (url.pathname === '/api/tts/stream') {
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit('connection', ws, request);
+    });
+  } else {
+    socket.destroy();
+  }
+});
+
+// WebSocket TTS 연결 처리
+wss.on('connection', async (ws, request) => {
+  console.log('🎙️ TTS WebSocket connected');
+
+  const { handleWebSocketTTS } = require('../routes/tts');
+  await handleWebSocketTTS(ws, request);
+});
 
 server.listen(PORT, () => {
   console.log(`🌟 Soul server running on port ${PORT}`);

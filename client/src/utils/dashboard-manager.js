@@ -11,9 +11,6 @@ class DashboardManager {
     this.customEndDate = null;
     this.currentCurrency = 'USD';
     this.exchangeRate = null;
-    this.costInUSD = 0;
-    // 마지막 요청 비용 정보 저장 (통화 변경 시 재렌더링용)
-    this.lastRequestCost = null;
   }
 
   async init() {
@@ -152,9 +149,7 @@ class DashboardManager {
         options.forEach(o => o.classList.remove('active'));
         opt.classList.add('active');
 
-        // 비용 업데이트 (전체)
-        this.updateCostDisplay();
-        this.updateLastRequestCost();
+        // 통화 변경 시 재렌더링
         if (this._cachedModelUsage) this.renderModelUsage(this._cachedModelUsage);
         if (this._cachedCategoryUsage) this.renderCategoryUsage(this._cachedCategoryUsage);
         if (this._cachedBillingData) this.renderServiceBilling(this._cachedBillingData);
@@ -198,8 +193,6 @@ class DashboardManager {
             opt.classList.toggle('active', opt.dataset.currency === this.currentCurrency);
           });
         }
-        // 마지막 요청 비용도 통화에 맞게 초기화
-        this.updateLastRequestCost();
       }
     } catch (error) {
       console.error('통화 설정 불러오기 실패:', error);
@@ -214,32 +207,31 @@ class DashboardManager {
       const response = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
       const data = await response.json();
       this.exchangeRate = data.rates.KRW;
-      console.log('💱 환율 로드:', this.exchangeRate);
+      this.exchangeRates = data.rates; // 모든 통화 환율 저장
+      console.log('💱 환율 로드: USD→KRW', this.exchangeRate);
     } catch (error) {
       console.error('환율 가져오기 실패:', error);
       this.exchangeRate = 1400; // 기본값
+      this.exchangeRates = { KRW: 1400, CNY: 7.2 };
     }
   }
 
   /**
-   * 마지막 요청 비용 표시 업데이트 (통화 변경 시)
+   * 임의 통화 → 원화 변환
    */
-  updateLastRequestCost() {
-    const costEl = document.getElementById('lastReqCost');
-    if (!costEl) return;
-
-    // 아직 요청이 없으면 기본값 표시
-    if (!this.lastRequestCost) {
-      costEl.textContent = this.currentCurrency === 'KRW' ? '₩0' : '$0.0000';
-      return;
+  convertToKRW(amount, currency = 'USD') {
+    if (!amount || amount <= 0) return 0;
+    if (currency === 'KRW') return amount;
+    if (currency === 'USD') return amount * (this.exchangeRate || 1400);
+    // 다른 통화: USD 기준 환율로 변환 (CNY 등)
+    const rateToUSD = this.exchangeRates?.[currency];
+    if (rateToUSD) {
+      const usd = amount / rateToUSD;
+      return usd * (this.exchangeRate || 1400);
     }
-
-    const usd = this.lastRequestCost.usd || 0;
-    const krw = this.lastRequestCost.krw || 0;
-    costEl.textContent = this.currentCurrency === 'KRW'
-      ? `₩${krw.toLocaleString()}`
-      : `$${usd.toFixed(4)}`;
+    return amount; // 환율 없으면 원본
   }
+
 
   /**
    * USD 비용을 현재 화폐 설정에 맞게 포맷
@@ -253,20 +245,6 @@ class DashboardManager {
     return `$${usdAmount.toFixed(4)}`;
   }
 
-  /**
-   * 비용 표시 업데이트
-   */
-  updateCostDisplay() {
-    const costEl = document.getElementById('stat-cost');
-    if (!costEl) return;
-
-    if (this.currentCurrency === 'KRW' && this.exchangeRate) {
-      const krw = this.costInUSD * this.exchangeRate;
-      costEl.textContent = `₩${Math.round(krw).toLocaleString()}`;
-    } else {
-      costEl.textContent = `$${this.costInUSD.toFixed(2)}`;
-    }
-  }
 
   /**
    * 통계 초기화 (삭제)
@@ -408,9 +386,6 @@ class DashboardManager {
         this.updateStat('stat-medium', stats.distribution?.medium || '0%');
         this.updateStat('stat-heavy', stats.distribution?.heavy || '0%');
 
-        this.costInUSD = stats.totalCost || 0;
-        this.updateCostDisplay();
-
         const latency = stats.averageLatency;
         this.updateStat('stat-latency', latency ? latency.toFixed(0) + 'ms' : '-');
 
@@ -546,7 +521,7 @@ class DashboardManager {
       this.saveLastRequestToStorage(tokenUsage);
     }
 
-    const { actual, breakdown, cost, meta } = tokenUsage;
+    const { actual, breakdown, meta } = tokenUsage;
 
     // 모델 (전체 모델 ID, 길면 ... 처리)
     const modelEl = document.getElementById('lastReqModel');
@@ -607,10 +582,6 @@ class DashboardManager {
     if (toolValEl) toolValEl.textContent = this.formatNumber(toolTokens);
     if (toolCountEl) toolCountEl.textContent = toolCount;
 
-    // 비용 제거 (정확하지 않음)
-    // this.lastRequestCost = cost;
-    // this.updateLastRequestCost();
-
     // 응답시간
     const latencyEl = document.getElementById('lastReqLatency');
     if (latencyEl) {
@@ -644,13 +615,12 @@ class DashboardManager {
     container.innerHTML = topModels.map(model => {
       const displayName = this.getModelDisplayName(model.modelId);
       const percentage = parseFloat(model.percentage) || 0;
-      const costStr = this.formatCost(model.cost);
 
       return `
         <div class="model-usage-item">
           <div class="model-usage-header">
             <span class="model-name">${displayName}</span>
-            <span class="model-percentage">${costStr}</span>
+            <span class="model-percentage">${model.percentage || '0%'}</span>
           </div>
           <div class="model-usage-bar">
             <div class="model-usage-fill" style="width: ${percentage}%"></div>
@@ -744,30 +714,33 @@ class DashboardManager {
       'fireworks': '🔥'
     };
 
-    // 잔액 있는 서비스 우선, 그 다음 비용 순
-    const sorted = [...services].sort((a, b) => {
-      if (a.balance && !b.balance) return -1;
-      if (!a.balance && b.balance) return 1;
-      return (b.todayCost || 0) - (a.todayCost || 0);
-    });
+    // 잔액 있는 서비스 / 없는 서비스 분리
+    const withBalance = services.filter(s => s.balance && s.balance.total_credits > 0);
+    const withoutBalance = services.filter(s => !s.balance || !s.balance.total_credits);
 
-    container.innerHTML = sorted.map(svc => {
+    const renderCard = (svc) => {
       const icon = serviceIcons[svc.serviceId] || '🔹';
-      const todayCostStr = svc.todayCost > 0
-        ? this.formatCost(svc.todayCost)
-        : '';  // 0이면 표시 안 함
       const topModelName = svc.topModel
         ? this.getModelDisplayName(svc.topModel)
         : '-';
 
-      // 잔액 표시 (오픈라우터, Fireworks 등 API 있는 서비스)
+      // 잔액 표시
       let balanceHtml = '';
-      if (svc.balance && svc.balance.total_credits != null) {
+      if (svc.balance && svc.balance.total_credits > 0) {
         const totalCredits = svc.balance.total_credits;
         const totalUsage = svc.balance.total_usage || 0;
-        const remaining = totalCredits - totalUsage;
+        const remaining = svc.balance.remaining != null ? svc.balance.remaining : (totalCredits - totalUsage);
 
-        const remainStr = this.formatCost(remaining) || '$0.00';
+        const currency = svc.balance.currency || 'USD';
+        let remainStr;
+        if (this.currentCurrency === 'KRW' && this.exchangeRate) {
+          const krw = this.convertToKRW(remaining, currency);
+          remainStr = `₩${Math.round(krw).toLocaleString()}`;
+        } else if (currency === 'CNY') {
+          remainStr = `¥${remaining.toFixed(2)}`;
+        } else {
+          remainStr = this.formatCost(remaining) || '$0.00';
+        }
         const usagePercent = totalCredits > 0
           ? Math.min(100, Math.round((totalUsage / totalCredits) * 100))
           : 0;
@@ -790,7 +763,6 @@ class DashboardManager {
         <div class="service-billing-item">
           <div class="service-billing-item-header">
             <span class="service-billing-name">${icon} ${svc.name}</span>
-            <span class="service-billing-cost">${todayCostStr}</span>
           </div>
           ${balanceHtml}
           <div class="service-billing-details">
@@ -799,7 +771,41 @@ class DashboardManager {
           </div>
         </div>
       `;
-    }).join('');
+    };
+
+    let html = '';
+
+    // 잔액 있는 서비스
+    if (withBalance.length > 0) {
+      html += withBalance.map(renderCard).join('');
+    }
+
+    // 잔액 없는 서비스 (접기/펼치기)
+    if (withoutBalance.length > 0) {
+      const collapsed = this._billingOthersCollapsed !== false; // 기본: 접힘
+      html += `
+        <div class="billing-others-toggle" id="billing-others-toggle">
+          <span>${collapsed ? '▶' : '▼'} 기타 서비스 (${withoutBalance.length})</span>
+        </div>
+        <div class="billing-others-list" id="billing-others-list" style="display: ${collapsed ? 'none' : 'grid'}">
+          ${withoutBalance.map(renderCard).join('')}
+        </div>
+      `;
+    }
+
+    container.innerHTML = html;
+
+    // 접기/펼치기 이벤트
+    const toggleBtn = document.getElementById('billing-others-toggle');
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', () => {
+        const list = document.getElementById('billing-others-list');
+        const isHidden = list.style.display === 'none';
+        list.style.display = isHidden ? 'grid' : 'none';
+        toggleBtn.querySelector('span').textContent = `${isHidden ? '▼' : '▶'} 기타 서비스 (${withoutBalance.length})`;
+        this._billingOthersCollapsed = !isHidden;
+      });
+    }
   }
 
   getModelDisplayName(modelId) {
@@ -844,8 +850,6 @@ class DashboardManager {
     this.updateStat('stat-light', '0%');
     this.updateStat('stat-medium', '0%');
     this.updateStat('stat-heavy', '0%');
-    this.costInUSD = 0;
-    this.updateCostDisplay();
     this.updateStat('stat-latency', '-');
 
     this.updateStat('stat-total-tokens', '0');

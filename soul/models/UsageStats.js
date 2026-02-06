@@ -22,7 +22,6 @@ UsageStats.addUsage = async function(data) {
     metadata: JSON.stringify({
       tier: data.tier,
       tokenBreakdown: data.tokenBreakdown,
-      cost: data.cost || 0,
       latency: data.latency || 0,
       sessionId: data.sessionId || 'main-conversation',
       category: data.category || 'chat',
@@ -85,7 +84,6 @@ UsageStats.getStatsByPeriod = async function(period = 'today', options = {}) {
   `);
   const metaRows = metaStmt.all(startDate);
 
-  let totalCost = 0;
   let totalLatency = 0;
   let latencyCount = 0;
   const tierCounts = { light: 0, medium: 0, heavy: 0, single: 0 };
@@ -99,7 +97,6 @@ UsageStats.getStatsByPeriod = async function(period = 'today', options = {}) {
   for (const row of metaRows) {
     try {
       const meta = JSON.parse(row.metadata);
-      if (meta.cost) totalCost += meta.cost;
       if (meta.latency) {
         totalLatency += meta.latency;
         latencyCount++;
@@ -132,20 +129,7 @@ UsageStats.getStatsByPeriod = async function(period = 'today', options = {}) {
     }
   }
 
-  // 모델별 통계 (metadata에서 cost, latency도 추출)
-  const modelStmt = db.db.prepare(`
-    SELECT
-      model,
-      service,
-      COUNT(*) as count,
-      SUM(input_tokens + output_tokens) as totalTokens,
-      metadata
-    FROM usage_stats
-    WHERE date >= ?
-    GROUP BY model, service
-    ORDER BY count DESC
-  `);
-  // GROUP BY + metadata는 마지막 row만 나옴 → 개별 row에서 집계 필요
+  // 모델별 latency 집계를 위해 개별 row 필요 (GROUP BY하면 마지막 row만 나옴)
   const modelMetaStmt = db.db.prepare(`
     SELECT model, service, metadata
     FROM usage_stats
@@ -153,14 +137,13 @@ UsageStats.getStatsByPeriod = async function(period = 'today', options = {}) {
   `);
   const modelMetaRows = modelMetaStmt.all(startDate);
 
-  // 모델별 cost, latency 집계
+  // 모델별 latency 집계
   const modelAgg = {};
   for (const row of modelMetaRows) {
     const key = `${row.model}||${row.service}`;
-    if (!modelAgg[key]) modelAgg[key] = { cost: 0, latency: 0, latencyCount: 0, tokens: 0 };
+    if (!modelAgg[key]) modelAgg[key] = { latency: 0, latencyCount: 0 };
     try {
       const meta = JSON.parse(row.metadata);
-      if (meta.cost) modelAgg[key].cost += meta.cost;
       if (meta.latency) {
         modelAgg[key].latency += meta.latency;
         modelAgg[key].latencyCount++;
@@ -181,27 +164,6 @@ UsageStats.getStatsByPeriod = async function(period = 'today', options = {}) {
   `);
   const modelStats = modelBasicStmt.all(startDate);
 
-  // 카테고리별 사용량 (토큰 포함)
-  const categoryTokens = {};
-  for (const row of modelMetaRows) {
-    try {
-      const meta = JSON.parse(row.metadata);
-      const cat = meta.category || 'chat';
-      if (!categoryTokens[cat]) categoryTokens[cat] = 0;
-    } catch (e) {}
-  }
-
-  // 카테고리별 cost, tokens 집계
-  const categoryAgg = {};
-  for (const row of modelMetaRows) {
-    try {
-      const meta = JSON.parse(row.metadata);
-      const cat = meta.category || 'chat';
-      if (!categoryAgg[cat]) categoryAgg[cat] = { cost: 0, tokens: 0 };
-      if (meta.cost) categoryAgg[cat].cost += meta.cost;
-    } catch (e) {}
-  }
-
   const categoryUsage = Object.entries(categoryCounts).map(([category, count]) => {
     const catTokenStmt = db.db.prepare(`
       SELECT SUM(input_tokens + output_tokens) as tokens
@@ -209,13 +171,11 @@ UsageStats.getStatsByPeriod = async function(period = 'today', options = {}) {
       WHERE date >= ? AND metadata LIKE ?
     `);
     const catTokenResult = catTokenStmt.get(startDate, `%"category":"${category}"%`);
-    const agg = categoryAgg[category] || {};
     return {
       category,
       count,
       percentage: Math.round((count / totalReqs) * 100) + '%',
-      totalTokens: catTokenResult?.tokens || 0,
-      totalCost: agg.cost || 0
+      totalTokens: catTokenResult?.tokens || 0
     };
   });
 
@@ -225,7 +185,6 @@ UsageStats.getStatsByPeriod = async function(period = 'today', options = {}) {
     totalTokens: stats.totalTokens || 0,
     inputTokens: stats.inputTokens || 0,
     outputTokens: stats.outputTokens || 0,
-    totalCost,
     averageLatency: latencyCount > 0 ? totalLatency / latencyCount : null,
     distribution,
     tokenBreakdown: breakdownCount > 0 ? {
@@ -242,7 +201,6 @@ UsageStats.getStatsByPeriod = async function(period = 'today', options = {}) {
         serviceId: m.service,
         count: m.count,
         totalTokens: m.totalTokens || 0,
-        cost: agg.cost || 0,
         avgLatency: agg.latencyCount > 0 ? agg.latency / agg.latencyCount : null,
         percentage: Math.round((m.count / totalReqs) * 100) + '%'
       };
@@ -276,8 +234,7 @@ UsageStats.getDailyTrend = async function(days = 7) {
   return stmt.all(startDateStr).map(row => ({
     _id: row.date,
     requests: row.requests,
-    tokens: row.tokens,
-    cost: 0
+    tokens: row.tokens
   }));
 };
 

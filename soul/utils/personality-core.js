@@ -208,6 +208,7 @@ class PersonalityCore {
 ${speechStyle}
 - 길이: ${this._describeLevel(profile.communication.verbosity, '간결하게', '자세히')}
 - 언어: 한국어 기본, 코드/기술용어는 영어 OK
+- 감정 표현: 웃을 때 [laughter] 태그 사용 가능 (예: "진짜? [laughter] 대박이다")
 
 `;
 
