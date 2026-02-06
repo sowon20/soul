@@ -607,9 +607,9 @@ class DashboardManager {
     if (toolValEl) toolValEl.textContent = this.formatNumber(toolTokens);
     if (toolCountEl) toolCountEl.textContent = toolCount;
 
-    // 비용 저장 (통화 변경 시 재렌더링용)
-    this.lastRequestCost = cost;
-    this.updateLastRequestCost();
+    // 비용 제거 (정확하지 않음)
+    // this.lastRequestCost = cost;
+    // this.updateLastRequestCost();
 
     // 응답시간
     const latencyEl = document.getElementById('lastReqLatency');
