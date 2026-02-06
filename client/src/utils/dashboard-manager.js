@@ -739,7 +739,9 @@ class DashboardManager {
       'openrouter': '🟠',
       'huggingface': '🟡',
       'ollama': '🔧',
-      'lightning': '⚡'
+      'lightning': '⚡',
+      'cartesia': '🎙️',
+      'fireworks': '🔥'
     };
 
     // 잔액 있는 서비스 우선, 그 다음 비용 순

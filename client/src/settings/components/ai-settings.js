@@ -2373,6 +2373,10 @@ export class AISettings {
         bg: 'linear-gradient(135deg, #ff6b35 0%, #f7931e 50%, #ffd700 100%)',
         displayName: 'Fireworks'
       },
+      'cartesia': {
+        bg: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+        displayName: 'Cartesia'
+      },
       'custom': {
         bg: 'linear-gradient(135deg, #8a9098 0%, #a0a8b0 100%)',
         displayName: null // 원래 이름 사용
