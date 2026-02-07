@@ -5492,6 +5492,37 @@ textarea.settings-field-input {
   text-overflow: ellipsis;
 }
 
+/* 모델 체인 라벨 */
+.alba-compact-model {
+  display: block;
+  font-size: 0.68rem;
+  color: rgba(90, 80, 70, 0.5);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+
+.alba-mode-tag {
+  display: inline-block;
+  font-size: 0.6rem;
+  font-weight: 600;
+  padding: 0px 4px;
+  border-radius: 3px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.alba-mode-tag.single {
+  background: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
+}
+
+.alba-mode-tag.chain {
+  background: rgba(234, 88, 12, 0.12);
+  color: #ea580c;
+}
+
 /* 시스템 역할 태그 */
 .alba-system-tag {
   display: inline-block;

@@ -899,10 +899,13 @@ export class AISettings {
       }
       // 실시간 통계 캐시
       this._albaLiveStats = statsRes?.stats?.roles || {};
+      // DB 마지막 호출 캐시 (영구)
+      this._albaLastCalls = statsRes?.lastCalls || {};
     } catch (error) {
       console.error('Failed to load roles:', error);
       this.availableRoles = [];
       this._albaLiveStats = {};
+      this._albaLastCalls = {};
     }
   }
 
@@ -1093,17 +1096,27 @@ export class AISettings {
     // 시스템 역할: OFF일 때 뭐가 달라지는지 힌트
     const hint = role.isSystem && !role.active ? '<span class="alba-compact-hint">OFF: 간단 규칙으로 동작</span>' : '';
 
-    // 실시간 통계 미니 뱃지
+    // 마지막 호출 뱃지 (DB 영구 저장 기반 — 서버 재시작 후에도 유지)
+    const lastCall = this._albaLastCalls?.[role.roleId];
     const liveStats = this._albaLiveStats?.[role.roleId];
-    const statsBadge = liveStats && liveStats.totalCalls > 0
-      ? `<span class="alba-compact-stats">${liveStats.totalCalls}회 · ${this._formatTokens(liveStats.totalTokens)}</span>`
-      : '';
+    let statsBadge = '';
+    if (lastCall?.at) {
+      const ago = this._timeAgo(lastCall.at);
+      const statusIcon = lastCall.success ? '✓' : '✗';
+      statsBadge = `<span class="alba-compact-stats">${statusIcon} ${ago}</span>`;
+    } else if (liveStats && liveStats.totalCalls > 0) {
+      statsBadge = `<span class="alba-compact-stats">${liveStats.totalCalls}회</span>`;
+    }
+
+    // 모델 체인 정보
+    const modelChain = this._renderModelChainLabel(role);
 
     return `
       <div class="alba-compact-item ${role.active ? '' : 'inactive'}" data-role-id="${role.roleId}" data-action="edit-alba">
         <div class="alba-compact-info">
           <span class="alba-compact-name">${role.name}${role.isSystem ? ' <span class="alba-system-tag">시스템</span>' : ''} ${statsBadge}</span>
           <span class="alba-compact-desc">${role.description || '설명 없음'}${hint}</span>
+          ${modelChain}
         </div>
         <label class="toggle-switch toggle-switch-xs" onclick="event.stopPropagation()">
           <input type="checkbox"
@@ -1114,6 +1127,50 @@ export class AISettings {
         </label>
       </div>
     `;
+  }
+
+  /**
+   * 모델 체인 라벨 생성
+   * [단일] 모델명  or  [체인] 모델명 → 1번 → 2번
+   */
+  _renderModelChainLabel(role) {
+    const cfg = typeof role.config === 'string' ? (() => { try { return JSON.parse(role.config); } catch { return {}; } })() : (role.config || {});
+    const mainModel = this._shortModelName(role.preferredModel);
+
+    // 시스템 알바: config.fallbackModels 체크
+    if (role.isSystem && cfg.fallbackModels?.length > 0) {
+      const steps = [mainModel, ...cfg.fallbackModels.map(fb => this._shortModelName(fb.modelId))];
+      const chain = steps.join(' → ');
+      return `<span class="alba-compact-model alba-chain-label" title="${chain}"><span class="alba-mode-tag chain">체인</span>${chain}</span>`;
+    }
+
+    // 사용자 알바: mode === 'chain' && chainSteps
+    if (role.mode === 'chain' && role.chainSteps?.length > 0) {
+      const stepNames = role.chainSteps.map(sid => {
+        const r = this.availableRoles.find(ar => ar.roleId === sid);
+        return r ? r.name : sid;
+      });
+      const chain = [mainModel || role.name, ...stepNames].join(' → ');
+      return `<span class="alba-compact-model alba-chain-label" title="${chain}"><span class="alba-mode-tag chain">체인</span>${chain}</span>`;
+    }
+
+    // 단일 모델
+    if (mainModel && mainModel !== '미설정') {
+      return `<span class="alba-compact-model"><span class="alba-mode-tag single">단일</span>${mainModel}</span>`;
+    }
+
+    return '';
+  }
+
+  /**
+   * 모델 ID → 짧은 표시명
+   */
+  _shortModelName(modelId) {
+    if (!modelId) return '미설정';
+    const model = this.availableModels.find(m => m.id === modelId);
+    const name = model?.name || modelId;
+    // 30자 넘으면 ... 처리
+    return name.length > 30 ? name.slice(0, 28) + '...' : name;
   }
 
   /**
@@ -5684,10 +5741,31 @@ export class AISettings {
       const res = await this.apiClient.get(`/roles/${roleId}/stats/live`);
       const stats = res?.stats;
       const embedStats = res?.embedStats;
+      const lastCall = res?.lastCall;
 
-      if (!stats || stats.totalCalls === 0) {
+      if ((!stats || stats.totalCalls === 0) && !lastCall) {
         section.querySelector('.alba-stats-loading').innerHTML =
-          '<div style="font-size:12px;color:rgba(0,0,0,0.35);padding:6px 0;">서버 시작 후 호출 기록 없음</div>';
+          '<div style="font-size:12px;color:rgba(0,0,0,0.35);padding:6px 0;">호출 기록 없음</div>';
+        return;
+      }
+
+      // 실시간 통계 없지만 DB 마지막 호출은 있는 경우
+      if ((!stats || stats.totalCalls === 0) && lastCall) {
+        const statusIcon = lastCall.success ? '✓' : '✗';
+        const statusColor = lastCall.success ? '#4caf50' : '#f44336';
+        const timeStr = lastCall.at ? this._timeAgo(lastCall.at) : '';
+        section.querySelector('.alba-stats-loading').innerHTML = `
+          <div style="font-size:12px;padding:6px 0;">
+            <div style="color:rgba(0,0,0,0.5);margin-bottom:4px;">마지막 호출</div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <span style="color:${statusColor};font-weight:600;">${statusIcon}</span>
+              <span>${timeStr}</span>
+              ${lastCall.model ? `<span style="color:rgba(0,0,0,0.4)">${this._shortModelName(lastCall.model)}</span>` : ''}
+              ${lastCall.latencyMs ? `<span style="color:rgba(0,0,0,0.35)">${lastCall.latencyMs}ms</span>` : ''}
+            </div>
+            ${lastCall.detail ? `<div style="color:rgba(0,0,0,0.35);font-size:11px;margin-top:2px;">${lastCall.detail}</div>` : ''}
+          </div>
+        `;
         return;
       }
 
@@ -5761,6 +5839,17 @@ export class AISettings {
     if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
     if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
     return n.toString();
+  }
+
+  _timeAgo(dateStr) {
+    const now = Date.now();
+    const then = new Date(dateStr).getTime();
+    const diff = Math.floor((now - then) / 1000);
+    if (diff < 60) return '방금';
+    if (diff < 3600) return `${Math.floor(diff / 60)}분 전`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`;
+    if (diff < 604800) return `${Math.floor(diff / 86400)}일 전`;
+    return new Date(dateStr).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
   }
 
   /**

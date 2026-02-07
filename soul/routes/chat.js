@@ -82,16 +82,81 @@ async function callAIWithStreaming(aiService, chatMessages, chatOptions) {
   console.log('[Chat] Using streaming mode');
   if (global.io) global.io.emit('stream_start');
 
+  // [MEMO:] 태그 버퍼링 — 스트리밍 중에 사용자에게 노출되지 않도록
+  // 청크 경계를 넘어도 감지할 수 있도록 상태 머신 방식
+  let memoBuf = '';       // 현재 버퍼 ([, [M, [ME, [MEM, [MEMO, [MEMO:, [MEMO:내용...)
+  let memoState = 'none'; // none | maybe | confirmed
+  // maybe: [ 또는 ( 를 만남 → MEMO: 인지 확인 중
+  // confirmed: [MEMO: 확인됨 → 닫는 괄호까지 수집 중
+  const MEMO_PREFIX = 'MEMO:';
+
   const result = await aiService.streamChat(chatMessages, chatOptions, (type, data) => {
     if (!global.io) return;
     if (type === 'thinking') {
       global.io.emit('stream_chunk', { type: 'thinking', content: data });
     } else if (type === 'content') {
-      global.io.emit('stream_chunk', { type: 'content', content: data });
+      let text = data;
+      let output = '';
+
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+
+        if (memoState === 'confirmed') {
+          // [MEMO: 확인됨 → 닫는 괄호까지 수집
+          memoBuf += ch;
+          const opener = memoBuf[0];
+          const closer = opener === '[' ? ']' : ')';
+          if (ch === closer) {
+            // 메모 완성 → tool_start/tool_end 이벤트로 표시
+            const memoContent = memoBuf.replace(/^[\[(]MEMO:\s*/i, '').replace(/[\])]$/, '').trim();
+            if (memoContent) {
+              global.io.emit('tool_start', { name: 'memo', display: `📝 ${memoContent.slice(0, 60)}${memoContent.length > 60 ? '...' : ''}` });
+              global.io.emit('tool_end', { name: 'memo', success: true, result: '기억 저장' });
+            }
+            memoBuf = '';
+            memoState = 'none';
+          }
+        } else if (memoState === 'maybe') {
+          // [ 또는 ( 만난 후 → MEMO: 패턴 확인 중
+          memoBuf += ch;
+          const checkLen = memoBuf.length - 1; // 첫 괄호 제외한 길이
+          if (checkLen <= MEMO_PREFIX.length) {
+            // 아직 확인 중 — 지금까지 일치하는지 체크
+            const soFar = memoBuf.slice(1).toUpperCase();
+            const expected = MEMO_PREFIX.slice(0, checkLen);
+            if (soFar !== expected) {
+              // 불일치 → 버퍼를 그냥 출력하고 리셋
+              output += memoBuf;
+              memoBuf = '';
+              memoState = 'none';
+            } else if (checkLen === MEMO_PREFIX.length) {
+              // [MEMO: 완성! → confirmed 상태로 전환
+              memoState = 'confirmed';
+            }
+          }
+        } else {
+          // none 상태 — [ 또는 ( 감지
+          if (ch === '[' || ch === '(') {
+            memoState = 'maybe';
+            memoBuf = ch;
+          } else {
+            output += ch;
+          }
+        }
+      }
+
+      if (output) {
+        global.io.emit('stream_chunk', { type: 'content', content: output });
+      }
     } else if (type === 'tool_start') {
       global.io.emit('stream_chunk', { type: 'tool', content: '도구 실행 중...' });
     }
   });
+
+  // 버퍼에 남은 미완성 메모가 있으면 그냥 텍스트로 출력
+  if (memoBuf && global.io) {
+    global.io.emit('stream_chunk', { type: 'content', content: memoBuf });
+  }
 
   if (global.io) global.io.emit('stream_end');
   return result;
@@ -444,6 +509,14 @@ ${rulesText}</self_notes>\n\n`;
               break;
             } catch (vErr) {
               console.warn(`[vision-worker] ${modelInfo.modelId} 실패:`, vErr.message);
+              trackAlba('vision-worker', {
+                action: 'image-analyze',
+                tokens: 0,
+                latencyMs: Date.now() - visionStart,
+                success: false,
+                model: modelInfo.modelId,
+                detail: vErr.message.slice(0, 100)
+              });
               continue;
             }
           }
@@ -1001,22 +1074,6 @@ ${toolCatalog}`;
         console.log(`[Chat] Calling with ${allTools.length} tools (${chatMessages.length} messages, ~${totalChars} chars)`);
         actualToolCount = allTools.length;
 
-        // 🔍 DEBUG: AI에게 실제 전송되는 전체 데이터
-        console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.log('🤖 [AI INPUT] 실제 전송 데이터');
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.log('시스템 프롬프트:');
-        console.log(combinedSystemPrompt);
-        console.log('\n메시지 배열 (' + chatMessages.length + '개):');
-        chatMessages.forEach((msg, i) => {
-          console.log(`  [${i}] ${msg.role}: ${msg.content?.substring(0, 100)}${msg.content?.length > 100 ? '...' : ''}`);
-        });
-        console.log('\n도구 목록 (' + allTools.length + '개):');
-        allTools.forEach(tool => {
-          console.log(`  - ${tool.name}: ${tool.description?.substring(0, 80) || '설명 없음'}`);
-        });
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-
         aiResult = await callAIWithStreaming(aiService, chatMessages, {
           systemPrompt: combinedSystemPrompt,
           maxTokens: aiSettings.maxTokens,
@@ -1350,9 +1407,12 @@ ${toolCatalog}`;
           role: m.role,
           content: typeof m.content === 'string' ? m.content.substring(0, 200) + (m.content.length > 200 ? '...' : '') : m.content
         })),
-        tools: allTools.map(t => ({ name: t.name, description: t.description })),
+        tools: isToolRoutingEnabled
+          ? [{ name: '{need} 모드', description: `도구 ${allTools.length}개 대기 — AI가 {need}로 요청 시 tool-worker가 선별` }]
+          : allTools.map(t => ({ name: t.name, description: t.description })),
         messageCount: chatMessages.length,
-        toolCount: allTools.length
+        toolCount: isToolRoutingEnabled ? 0 : actualToolCount,
+        toolMode: isToolRoutingEnabled ? 'need' : 'direct'
       },
       validation: {
         valid: validation.valid,

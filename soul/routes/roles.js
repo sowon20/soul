@@ -301,9 +301,13 @@ router.get('/stats/live', (req, res) => {
     const vectorStore = require('../utils/vector-store');
     const embedStats = vectorStore.getEmbedStats();
 
+    // DB에 저장된 마지막 호출 정보 (영구)
+    const lastCalls = albaStats.getAllLastCallsFromDB();
+
     res.json({
       success: true,
       stats,
+      lastCalls,
       embedStats
     });
   } catch (error) {
@@ -328,10 +332,14 @@ router.get('/:roleId/stats/live', (req, res) => {
       embedStats = vectorStore.getEmbedStats();
     }
 
+    // DB에 저장된 마지막 호출 (영구)
+    const lastCall = albaStats.getLastCallFromDB(roleId);
+
     res.json({
       success: true,
       roleId,
       stats: stats || { totalCalls: 0, message: '서버 시작 후 호출 기록 없음' },
+      lastCall,
       embedStats
     });
   } catch (error) {

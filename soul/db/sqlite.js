@@ -159,6 +159,13 @@ function createTables() {
     // 이미 컬럼이 있으면 무시
   }
 
+  // 마이그레이션: roles에 last_call_info 컬럼 추가 (마지막 호출 정보, JSON)
+  try {
+    db.exec(`ALTER TABLE roles ADD COLUMN last_call_info TEXT`);
+  } catch (e) {
+    // 이미 컬럼이 있으면 무시
+  }
+
   // UsageStats - 사용량 통계
   db.exec(`
     CREATE TABLE IF NOT EXISTS usage_stats (

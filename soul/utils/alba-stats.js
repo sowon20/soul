@@ -1,11 +1,9 @@
 /**
  * alba-stats.js
- * 알바(Worker) 호출 통계 — 메모리 내 (서버 재시작 시 리셋)
+ * 알바(Worker) 호출 통계
  *
- * 모든 알바 호출을 중앙 추적:
- * - digest-worker: 대화 요약/메모리 추출
- * - embedding-worker: 벡터 임베딩
- * - tool-worker: 도구 선별
+ * - 실시간 통계: 메모리 내 (서버 재시작 시 리셋)
+ * - 마지막 호출: DB 영구 저장 (서버 재시작 후에도 유지)
  */
 
 const _stats = {};
@@ -65,6 +63,68 @@ function trackCall(roleId, info = {}) {
   if (s.recentCalls.length > 20) {
     s.recentCalls.shift();
   }
+
+  // DB에 마지막 호출 정보 영구 저장 (비동기, 에러 무시)
+  _saveLastCallToDB(roleId, {
+    action,
+    tokens: info.tokens || 0,
+    latencyMs: info.latencyMs || 0,
+    success: info.success !== false,
+    model: info.model || null,
+    detail: info.detail || null,
+    at: s.lastCall
+  });
+}
+
+/**
+ * DB에 마지막 호출 정보 저장 (비동기)
+ */
+function _saveLastCallToDB(roleId, callInfo) {
+  try {
+    const db = require('../db');
+    if (!db.db) return;
+    const json = JSON.stringify(callInfo);
+    db.db.prepare('UPDATE roles SET last_call_info = ? WHERE role_id = ?').run(json, roleId);
+  } catch (e) {
+    // 무시 — DB 저장 실패해도 메모리 통계는 유지
+  }
+}
+
+/**
+ * DB에서 마지막 호출 정보 조회
+ */
+function getLastCallFromDB(roleId) {
+  try {
+    const db = require('../db');
+    if (!db.db) return null;
+    const row = db.db.prepare('SELECT last_call_info FROM roles WHERE role_id = ?').get(roleId);
+    if (row?.last_call_info) {
+      return JSON.parse(row.last_call_info);
+    }
+  } catch (e) {
+    // 무시
+  }
+  return null;
+}
+
+/**
+ * 전체 알바의 DB 마지막 호출 정보 조회
+ */
+function getAllLastCallsFromDB() {
+  try {
+    const db = require('../db');
+    if (!db.db) return {};
+    const rows = db.db.prepare('SELECT role_id, last_call_info FROM roles WHERE last_call_info IS NOT NULL').all();
+    const result = {};
+    for (const row of rows) {
+      try {
+        result[row.role_id] = JSON.parse(row.last_call_info);
+      } catch (e) { /* skip */ }
+    }
+    return result;
+  } catch (e) {
+    return {};
+  }
 }
 
 /**
@@ -118,4 +178,4 @@ function resetStats(roleId) {
   }
 }
 
-module.exports = { trackCall, getAllStats, getStats, resetStats };
+module.exports = { trackCall, getAllStats, getStats, resetStats, getLastCallFromDB, getAllLastCallsFromDB };

@@ -108,24 +108,30 @@ export class APIClient {
 
     // 🔍 DEBUG: AI 입력/출력 데이터 표시
     if (response._debug) {
-      console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('🤖 AI에게 실제로 전송된 데이터');
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('\n📋 시스템 프롬프트:');
-      console.log(response._debug.systemPrompt);
-      console.log('\n💬 메시지 배열 (' + response._debug.messageCount + '개):');
-      response._debug.messages.forEach((msg, i) => {
+      const d = response._debug;
+      const toolMode = d.toolMode === 'need' ? '{need} 모드' : `${d.toolCount}개`;
+
+      // 시스템 프롬프트 — 항상 바로 보임
+      console.log(
+        `%c📋 시스템 프롬프트 (${d.systemPrompt?.length || 0}자) %c| 모델: ${response.routing?.modelId || '?'} | 도구: ${toolMode} | 메시지: ${d.messageCount}개`,
+        'font-weight:bold; font-size:13px; color:#4fc3f7',
+        'font-weight:normal; font-size:11px; color:#aaa'
+      );
+      console.log(d.systemPrompt);
+
+      // 나머지는 접힌 그룹
+      console.groupCollapsed(`💬 메시지 (${d.messageCount}개) + 🔧 도구 (${toolMode}) + 📥 응답`);
+      d.messages.forEach((msg, i) => {
         console.log(`  [${i}] ${msg.role}:`, msg.content);
       });
-      console.log('\n🔧 도구 목록 (' + response._debug.toolCount + '개):');
-      response._debug.tools.forEach(tool => {
-        console.log(`  - ${tool.name}: ${tool.description || '설명 없음'}`);
+      console.log('──── 도구 ────');
+      d.tools.forEach(tool => {
+        console.log(`  - ${tool.name}: ${tool.description || ''}`);
       });
-      console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('📥 AI 응답:', response.reply || response.message);
-      console.log('🎯 사용 모델:', response.routing?.modelId);
+      console.log('──── 응답 ────');
+      console.log('📥', response.reply || response.message);
       console.log('💰 토큰:', response.tokenUsage?.actual);
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+      console.groupEnd();
     }
 
     return response;

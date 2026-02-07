@@ -258,6 +258,12 @@ async function createTables() {
       // ORA-01430: column already exists - 무시
     }
 
+    try {
+      await conn.execute(`ALTER TABLE roles ADD last_call_info VARCHAR2(4000)`);
+    } catch (err) {
+      // ORA-01430: column already exists - 무시
+    }
+
     await conn.commit();
     console.log('[Oracle] Tables initialized');
   } finally {
