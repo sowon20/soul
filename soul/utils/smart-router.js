@@ -131,16 +131,33 @@ class SmartRouter {
         modelName: 'Single Model',
         reason: 'Single model mode',
         tier: 'single',
-        confidence: 1.0
+        confidence: 1.0,
+        mode: 'single'
       };
     }
 
-    // 2.5. AI 라우팅 모드 (현재는 서버 라우팅과 동일하게 동작)
-    // TODO: 실제 AI 호출을 통한 라우팅 결정 구현 필요
+    // 2.5. AI 라우팅 모드 — managerModel에게 티어 판단 요청
     if (this.config.manager === 'ai' && this.config.managerModel) {
-      console.log('[SmartRouter] AI routing mode with model:', this.config.managerModel);
-      // 현재는 서버 휴리스틱과 동일하게 처리
-      // 나중에 managerModel을 사용해서 AI에게 라우팅 결정을 요청하는 로직 추가 예정
+      try {
+        const aiTier = await this._routeWithAI(message, context);
+        if (aiTier) {
+          this._updateStats(aiTier);
+          return {
+            modelId: aiTier.id,
+            serviceId: aiTier.serviceId || null,
+            thinking: aiTier.thinking || false,
+            modelName: aiTier.name,
+            tier: aiTier.tier,  // fast, balanced, premium
+            reason: `AI 판단: ${aiTier.tier}`,
+            confidence: 0.9,
+            manager: 'ai',
+            mode: 'auto',
+            managerModel: this.config.managerModel
+          };
+        }
+      } catch (err) {
+        console.warn('[SmartRouter] AI routing failed, falling back to heuristic:', err.message);
+      }
     }
 
     // 3. 자동 라우팅 비활성화 시
@@ -155,11 +172,12 @@ class SmartRouter {
       };
     }
 
-    // 4. 태스크 분석 (server 또는 ai 담당)
+    // 4. 태스크 분석 (server 휴리스틱)
     const analysis = this.analyzeTask(message, context);
 
     // 5. 모델 선택
     const selectedModel = this.selectModel(analysis);
+    console.log(`[SmartRouter] Heuristic: complexity=${analysis.complexity}, task=${analysis.taskType || 'none'}, reasoning=${analysis.requiresReasoning}, expertise=${analysis.requiresExpertise} → ${selectedModel.tier}`);
 
     // 6. 통계 업데이트
     this._updateStats(selectedModel);
@@ -169,11 +187,14 @@ class SmartRouter {
       serviceId: selectedModel.serviceId || null,
       thinking: selectedModel.thinking || false,
       modelName: selectedModel.name,
+      tier: selectedModel.tier,  // fast, balanced, premium
       reason: this._buildReason(analysis, selectedModel),
       confidence: analysis.confidence,
       analysis,
       estimatedCost: this._estimateCost(analysis, selectedModel),
-      manager: this.config.manager  // 어떤 담당이 결정했는지 표시
+      manager: this.config.manager,  // 어떤 담당이 결정했는지 표시
+      mode: 'auto',
+      managerModel: this.config.managerModel || null
     };
   }
 
@@ -228,20 +249,67 @@ class SmartRouter {
    * 분석 결과 기반 최적 모델 선택
    */
   selectModel(analysis) {
-    const { complexity, requiresExpertise, totalTokens } = analysis;
+    const { complexity, requiresExpertise } = analysis;
 
-    // 1. 고성능: 복잡도 7+, 전문성 요구
-    if (complexity >= 7 || requiresExpertise) {
+    // 1. 고성능: 복잡도 8+, 또는 복잡도 6+ AND 전문성 요구
+    if (complexity >= 8 || (complexity >= 6 && requiresExpertise)) {
       return TIERS.HEAVY;
     }
 
-    // 2. 경량: 복잡도 3 이하, 간단한 작업
-    if (complexity <= 3 && !analysis.requiresReasoning) {
+    // 2. 경량: 복잡도 4 이하 (reasoning 여부 무관 - 간단한 코드질문도 경량으로)
+    //    단, 복잡도 0~2는 무조건 경량 (인사, 잡담 등)
+    if (complexity <= 2) {
+      return TIERS.LIGHT;
+    }
+    if (complexity <= 4 && !requiresExpertise) {
       return TIERS.LIGHT;
     }
 
-    // 3. 중간: 기본값, 대부분의 작업
+    // 3. 중간: 복잡도 5~7
     return TIERS.MEDIUM;
+  }
+
+  /**
+   * AI 모델을 사용한 라우팅 결정
+   * managerModel에게 메시지 복잡도를 판단시킴
+   */
+  async _routeWithAI(message, context) {
+    const { managerModel } = this.config;
+    if (!managerModel || !managerModel.modelId) return null;
+
+    const { AIServiceFactory } = require('../utils/ai-service');
+    const serviceId = managerModel.serviceId || 'openrouter';
+    const modelId = managerModel.modelId;
+
+    console.log(`[SmartRouter] AI routing with ${serviceId}/${modelId}`);
+
+    const routingPrompt = `You are a routing classifier. Classify the user message into exactly one tier.
+
+TIERS:
+- light: Simple greetings, casual chat, short questions, translations, formatting, yes/no answers
+- medium: Code generation, data analysis, explanations requiring reasoning, moderate tasks
+- heavy: Complex architecture design, multi-step debugging, research, expert-level consultation
+
+Respond with ONLY one word: light, medium, or heavy
+
+User message: ${message.slice(0, 500)}`;
+
+    const service = await AIServiceFactory.createService(serviceId, modelId);
+    const result = await service.chat(
+      [{ role: 'user', content: routingPrompt }],
+      { maxTokens: 10, temperature: 0 }
+    );
+
+    const response = (typeof result === 'object' ? result.text : result).trim().toLowerCase();
+    console.log(`[SmartRouter] AI decision: "${response}"`);
+
+    if (response.includes('light')) return TIERS.LIGHT;
+    if (response.includes('heavy')) return TIERS.HEAVY;
+    if (response.includes('medium')) return TIERS.MEDIUM;
+
+    // 파싱 실패 시 null → 휴리스틱 폴백
+    console.warn(`[SmartRouter] AI response not parseable: "${response}"`);
+    return null;
   }
 
   /**
@@ -287,12 +355,15 @@ class SmartRouter {
       return { name: 'TRANSLATION', ...TASK_TYPES.TRANSLATION };
     }
 
-    // Questions
-    if (/^(what|how|why|when|where|who|무엇|어떻게|왜|언제|어디|누가)\b/i.test(text)) {
+    // Questions (문장 어디서든 매칭 + 한국어 의문형 종결어미)
+    if (/^(what|how|why|when|where|who|무엇|어떻게|왜|언제|어디|누가)\b/i.test(text) ||
+        /\?([\s]*)$/i.test(text) ||
+        /(뭐야|뭐지|뭘까|할까|인가요|인가|인지|인거야|인건가|알려줘|알려주세요|해줘|해주세요|가르쳐)/.test(text)) {
       return { name: 'SIMPLE_QUESTION', ...TASK_TYPES.SIMPLE_QUESTION };
     }
 
-    return null;
+    // 매칭 안 됨 = 일상 대화/잡담 → 복잡도 0
+    return { name: 'CASUAL', complexity: 0, requiresReasoning: false };
   }
 
   /**
@@ -369,20 +440,20 @@ class SmartRouter {
       requirements.signals.push('Requires creativity');
     }
 
-    // Expertise
+    // Expertise (너무 일반적인 단어 제외 — '중요한', '복잡한'은 일상 대화에서도 빈번)
     const expertiseKeywords = [
-      'expert', 'advanced', 'complex', 'sophisticated', 'critical',
-      '전문가', '고급', '복잡한', '정교한', '중요한'
+      'expert', 'advanced', 'sophisticated',
+      '전문가', '고급', '정교한'
     ];
     if (expertiseKeywords.some(kw => message.toLowerCase().includes(kw.toLowerCase()))) {
       requirements.expertise = true;
       requirements.signals.push('Requires expertise');
     }
 
-    // Production/Critical
-    if (/\b(production|critical|important|프로덕션|중요|핵심)\b/i.test(message)) {
+    // Production/Critical (프로덕션 환경 관련만)
+    if (/\b(production|프로덕션)\b/i.test(message)) {
       requirements.expertise = true;
-      requirements.signals.push('Production/Critical task');
+      requirements.signals.push('Production task');
     }
 
     return requirements;

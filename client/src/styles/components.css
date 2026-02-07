@@ -482,6 +482,45 @@
   margin-bottom: 0;
 }
 
+/* 첨부 파일 표시 */
+.message-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.message-attachment-img {
+  max-width: 280px;
+  max-height: 200px;
+  border-radius: 8px;
+  cursor: pointer;
+  object-fit: cover;
+  transition: opacity 0.2s;
+}
+
+.message-attachment-img:hover {
+  opacity: 0.85;
+}
+
+.message-attachment-file {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  font-size: 0.8rem;
+}
+
+.attachment-ext {
+  font-weight: 600;
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+
 .message-content code {
   padding: 0.125rem 0.375rem;
   background: var(--muted);

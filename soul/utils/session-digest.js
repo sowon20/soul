@@ -15,6 +15,7 @@
 
 const { getAlbaWorker } = require('./alba-worker');
 const { AIServiceFactory } = require('./ai-service');
+const { trackCall: trackAlba } = require('./alba-stats');
 const configManager = require('./config');
 const path = require('path');
 const fs = require('fs');
@@ -167,16 +168,42 @@ class SessionDigest {
       return `${role}: ${(m.content || '').substring(0, 300)}`;
     }).join('\n');
 
+    const _chunkStart = Date.now();
+
     // 1) Ollama (로컬 LLM)
     if (alba && alba.initialized) {
-      return await this._processChunkWithLLM(conversationText, alba);
+      const result = await this._processChunkWithLLM(conversationText, alba);
+      trackAlba('digest-worker', {
+        action: 'chunk-analyze',
+        tokens: Math.ceil(conversationText.length / 4),
+        latencyMs: Date.now() - _chunkStart,
+        success: !!(result && result.summary),
+        detail: 'ollama'
+      });
+      return result;
     }
 
     // 2) 다이제스트 워커 (역할 기반 — OpenRouter 등)
     const digestResult = await this._processChunkWithDigestLLM(conversationText);
-    if (digestResult) return digestResult;
+    if (digestResult) {
+      trackAlba('digest-worker', {
+        action: 'chunk-analyze',
+        tokens: Math.ceil(conversationText.length / 4),
+        latencyMs: Date.now() - _chunkStart,
+        success: true,
+        detail: 'openrouter'
+      });
+      return digestResult;
+    }
 
     // 3) 규칙 기반 폴백
+    trackAlba('digest-worker', {
+      action: 'chunk-analyze',
+      tokens: 0,
+      latencyMs: Date.now() - _chunkStart,
+      success: true,
+      detail: 'rule-based-fallback'
+    });
     return this._processChunkRuleBased(chunk);
   }
 
@@ -395,11 +422,22 @@ class SessionDigest {
       systemMsg = '대화 청크 요약들을 3-5문장으로 통합 정리해. 시간순서 유지, 중요한 결정/다짐/감정변화 포함. 요약만 출력.';
     }
 
+    const _sumStart = Date.now();
+
     // 1) Ollama
     if (alba && alba.initialized) {
       try {
         const result = await alba._callLLM(systemMsg, summaryPrompt);
-        if (result) return result.trim();
+        if (result) {
+          trackAlba('digest-worker', {
+            action: 'summary-merge',
+            tokens: Math.ceil(summaryPrompt.length / 4),
+            latencyMs: Date.now() - _sumStart,
+            success: true,
+            detail: 'ollama'
+          });
+          return result.trim();
+        }
       } catch (e) {
         console.warn('[SessionDigest] Session summary LLM failed:', e.message);
       }
@@ -408,7 +446,16 @@ class SessionDigest {
     // 2) 다이제스트 워커 폴백
     try {
       const digestResult = await this._callDigestLLM(systemMsg, summaryPrompt);
-      if (digestResult) return digestResult.trim();
+      if (digestResult) {
+        trackAlba('digest-worker', {
+          action: 'summary-merge',
+          tokens: Math.ceil(summaryPrompt.length / 4),
+          latencyMs: Date.now() - _sumStart,
+          success: true,
+          detail: 'openrouter'
+        });
+        return digestResult.trim();
+      }
     } catch (e) {
       console.warn('[SessionDigest] Session summary DigestLLM failed:', e.message);
     }
@@ -460,7 +507,7 @@ class SessionDigest {
 
         // 1) 임베딩 기반 중복 체크 시도
         try {
-          newEmbedding = await vectorStore.embed(memText);
+          newEmbedding = await vectorStore.embed(memText, 'digest-dedup');
 
           if (newEmbedding && newEmbedding.length > 0) {
             // 기존 메모리와 코사인 유사도 비교 (저장된 임베딩 재사용)

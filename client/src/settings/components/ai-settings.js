@@ -43,11 +43,6 @@ export class AISettings {
     this.availableRoles = [];  // 알바(Role) 목록
     this.expandedRoleId = null;  // 확장된 알바 ID
     this.abortController = null;  // 이벤트 리스너 중복 방지용
-    this.toolSearchConfig = {
-      enabled: false,
-      type: 'regex',
-      alwaysLoad: []
-    };
     this.voiceConfig = {
       model: ''
     };
@@ -93,9 +88,6 @@ export class AISettings {
 
       // 에이전트 체인 설정 로드
       await this.loadAgentChains();
-
-      // Tool Search 설정 로드
-      await this.loadToolSearchConfig();
 
       // TTS 모델 목록 로드
       await this.loadTTSModels();
@@ -878,24 +870,6 @@ export class AISettings {
   }
 
   /**
-   * Tool Search 설정 로드
-   */
-  async loadToolSearchConfig() {
-    try {
-      const response = await this.apiClient.get('/config/tool-search');
-      if (response) {
-        this.toolSearchConfig = {
-          enabled: response.enabled ?? false,
-          type: response.type ?? 'regex',
-          alwaysLoad: response.alwaysLoad ?? []
-        };
-      }
-    } catch (error) {
-      console.error('Failed to load tool search config:', error);
-    }
-  }
-
-  /**
    * 라우팅 통계 로드
    */
   async loadRoutingStats() {
@@ -916,13 +890,19 @@ export class AISettings {
   async loadAvailableRoles() {
     try {
       // 설정 페이지에서는 모든 알바 표시 (비활성 포함)
-      const response = await this.apiClient.get('/roles');
-      if (response.success) {
-        this.availableRoles = response.roles || [];
+      const [rolesRes, statsRes] = await Promise.all([
+        this.apiClient.get('/roles'),
+        this.apiClient.get('/roles/stats/live').catch(() => null)
+      ]);
+      if (rolesRes.success) {
+        this.availableRoles = rolesRes.roles || [];
       }
+      // 실시간 통계 캐시
+      this._albaLiveStats = statsRes?.stats?.roles || {};
     } catch (error) {
       console.error('Failed to load roles:', error);
       this.availableRoles = [];
+      this._albaLiveStats = {};
     }
   }
 
@@ -1113,10 +1093,16 @@ export class AISettings {
     // 시스템 역할: OFF일 때 뭐가 달라지는지 힌트
     const hint = role.isSystem && !role.active ? '<span class="alba-compact-hint">OFF: 간단 규칙으로 동작</span>' : '';
 
+    // 실시간 통계 미니 뱃지
+    const liveStats = this._albaLiveStats?.[role.roleId];
+    const statsBadge = liveStats && liveStats.totalCalls > 0
+      ? `<span class="alba-compact-stats">${liveStats.totalCalls}회 · ${this._formatTokens(liveStats.totalTokens)}</span>`
+      : '';
+
     return `
       <div class="alba-compact-item ${role.active ? '' : 'inactive'}" data-role-id="${role.roleId}" data-action="edit-alba">
         <div class="alba-compact-info">
-          <span class="alba-compact-name">${role.name}${role.isSystem ? ' <span class="alba-system-tag">시스템</span>' : ''}</span>
+          <span class="alba-compact-name">${role.name}${role.isSystem ? ' <span class="alba-system-tag">시스템</span>' : ''} ${statsBadge}</span>
           <span class="alba-compact-desc">${role.description || '설명 없음'}${hint}</span>
         </div>
         <label class="toggle-switch toggle-switch-xs" onclick="event.stopPropagation()">
@@ -1518,58 +1504,6 @@ export class AISettings {
           </button>
           <button class="settings-btn settings-btn-outline" id="resetMemoryBtn">
             기본값으로 초기화
-          </button>
-        </div>
-      </div>
-    `;
-  }
-
-  /**
-   * Tool Search 설정 렌더링
-   */
-  renderToolSearchSettings() {
-    return `
-      <div class="tool-search-settings-container">
-        <div class="memory-toggle-group">
-          <div class="memory-toggle-item">
-            <div class="toggle-info">
-              <span class="label-text">Tool Search 활성화</span>
-              <span class="label-hint">도구가 많을 때(10개+) 필요한 도구만 동적으로 로드하여 토큰 절약 (Claude 전용 베타)</span>
-            </div>
-            <label class="toggle-switch">
-              <input type="checkbox" id="toolSearchEnabled" ${this.toolSearchConfig.enabled ? 'checked' : ''}>
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-        </div>
-
-        <div class="memory-field" style="margin-top: 1rem;">
-          <label class="memory-label">
-            <span class="label-text">검색 방식</span>
-            <span class="label-hint">regex: 정규표현식 기반 빠른 검색 / bm25: 의미 기반 검색</span>
-          </label>
-          <select id="toolSearchType" class="memory-input" style="width: 100%; padding: 0.5rem;">
-            <option value="regex" ${this.toolSearchConfig.type === 'regex' ? 'selected' : ''}>Regex (권장)</option>
-            <option value="bm25" ${this.toolSearchConfig.type === 'bm25' ? 'selected' : ''}>BM25</option>
-          </select>
-        </div>
-
-        <div class="memory-field" style="margin-top: 1rem;">
-          <label class="memory-label">
-            <span class="label-text">항상 로드할 도구</span>
-            <span class="label-hint">쉼표로 구분 (예: send_message, schedule_message)</span>
-          </label>
-          <input type="text"
-                 class="memory-input"
-                 id="toolSearchAlwaysLoad"
-                 value="${this.toolSearchConfig.alwaysLoad.join(', ')}"
-                 placeholder="도구 이름을 쉼표로 구분"
-                 style="width: 100%; padding: 0.5rem;">
-        </div>
-
-        <div class="memory-actions" style="margin-top: 1rem;">
-          <button class="settings-btn settings-btn-primary" id="saveToolSearchBtn">
-            저장
           </button>
         </div>
       </div>
@@ -3211,12 +3145,6 @@ export class AISettings {
       });
     }
 
-    // Tool Search 설정 버튼
-    const saveToolSearchBtn = container.querySelector('#saveToolSearchBtn');
-    if (saveToolSearchBtn) {
-      saveToolSearchBtn.addEventListener('click', () => this.saveToolSearchSettings());
-    }
-
     // Soul temperature 슬라이더 (레거시 - 제거됨)
     const soulTempSlider = container.querySelector('#soulTemperature');
     if (soulTempSlider) {
@@ -4633,31 +4561,6 @@ export class AISettings {
   }
 
   /**
-   * Tool Search 설정 저장
-   */
-  async saveToolSearchSettings() {
-    try {
-      const enabled = document.getElementById('toolSearchEnabled')?.checked || false;
-      const type = document.getElementById('toolSearchType')?.value || 'regex';
-      const alwaysLoadInput = document.getElementById('toolSearchAlwaysLoad')?.value || '';
-      const alwaysLoad = alwaysLoadInput
-        .split(',')
-        .map(s => s.trim())
-        .filter(s => s.length > 0);
-
-      const config = { enabled, type, alwaysLoad };
-
-      await this.apiClient.put('/config/tool-search', config);
-
-      this.toolSearchConfig = config;
-      this.showSaveStatus('Tool Search 설정이 저장되었습니다.', 'success');
-    } catch (error) {
-      console.error('Failed to save tool search settings:', error);
-      this.showSaveStatus('Tool Search 설정 저장에 실패했습니다.', 'error');
-    }
-  }
-
-  /**
    * 저장소 타입 탭 전환
    */
   switchStorageType(type) {
@@ -5601,6 +5504,19 @@ export class AISettings {
               <button type="button" class="alba-chain-add-btn" id="addFallbackStep">+ 모델 추가</button>
             </div>
             ` : ''}
+            ${role.description ? `
+            <div class="alba-modal-field">
+              <label>설명</label>
+              <div style="font-size:13px;color:rgba(0,0,0,0.55);padding:4px 0;line-height:1.5;">${role.description}</div>
+            </div>` : ''}
+            <div class="alba-modal-field">
+              <label>메모</label>
+              <textarea id="albaMemo" rows="3" placeholder="모델 선택 이유, 설정 참고사항 등" style="width:100%;resize:vertical;font-size:13px;padding:8px;border:1px solid rgba(0,0,0,0.15);border-radius:6px;font-family:inherit;">${(role.memo || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
+            </div>
+            <div class="alba-modal-field alba-stats-section" id="albaStatsSection">
+              <label>실시간 통계 <span class="field-hint">(서버 시작 이후)</span></label>
+              <div class="alba-stats-loading" style="font-size:12px;color:rgba(0,0,0,0.4);padding:8px 0;">로딩 중...</div>
+            </div>
           </div>
           <div class="alba-modal-footer">
             <div class="alba-modal-footer-right">
@@ -5613,6 +5529,9 @@ export class AISettings {
     `;
 
     document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    // 실시간 통계 로드
+    this._loadAlbaLiveStats(roleId);
 
     const overlay = document.querySelector('.alba-modal-overlay');
     const closeBtn = overlay.querySelector('.alba-modal-close');
@@ -5737,9 +5656,11 @@ export class AISettings {
           updatedConfig.fallbackModels = fallbackModels;
         }
 
+        const memo = document.getElementById('albaMemo')?.value?.trim() || '';
         await this.apiClient.patch(`/roles/${roleId}`, {
           name,
           preferredModel,
+          memo,
           config: JSON.stringify(updatedConfig)
         });
         this.showSaveStatus('저장되었습니다.', 'success');
@@ -5750,6 +5671,96 @@ export class AISettings {
         this.showSaveStatus('저장에 실패했습니다.', 'error');
       }
     });
+  }
+
+  /**
+   * 알바 실시간 통계 로드 (모달 내)
+   */
+  async _loadAlbaLiveStats(roleId) {
+    const section = document.getElementById('albaStatsSection');
+    if (!section) return;
+
+    try {
+      const res = await this.apiClient.get(`/roles/${roleId}/stats/live`);
+      const stats = res?.stats;
+      const embedStats = res?.embedStats;
+
+      if (!stats || stats.totalCalls === 0) {
+        section.querySelector('.alba-stats-loading').innerHTML =
+          '<div style="font-size:12px;color:rgba(0,0,0,0.35);padding:6px 0;">서버 시작 후 호출 기록 없음</div>';
+        return;
+      }
+
+      // 작업별 통계
+      const actionRows = Object.entries(stats.actions || {}).map(([action, data]) =>
+        `<div class="alba-stat-row">
+          <span class="alba-stat-label">${this._formatActionName(action)}</span>
+          <span class="alba-stat-value">${data.calls}회 / ~${this._formatTokens(data.tokens)}</span>
+        </div>`
+      ).join('');
+
+      // 최근 호출 (최대 5건)
+      const recentRows = (stats.recentCalls || []).slice(-5).reverse().map(call => {
+        const time = new Date(call.at);
+        const timeStr = `${time.getHours().toString().padStart(2,'0')}:${time.getMinutes().toString().padStart(2,'0')}`;
+        const statusIcon = call.success ? '✓' : '✗';
+        const statusColor = call.success ? '#4caf50' : '#f44336';
+        return `<div class="alba-stat-recent">
+          <span style="color:${statusColor};font-weight:600;">${statusIcon}</span>
+          <span>${timeStr}</span>
+          <span>${this._formatActionName(call.action)}</span>
+          ${call.latencyMs ? `<span style="color:rgba(0,0,0,0.4)">${call.latencyMs}ms</span>` : ''}
+        </div>`;
+      }).join('');
+
+      section.querySelector('.alba-stats-loading').innerHTML = `
+        <div class="alba-stats-grid">
+          <div class="alba-stat-card">
+            <div class="alba-stat-num">${stats.totalCalls}</div>
+            <div class="alba-stat-desc">총 호출</div>
+          </div>
+          <div class="alba-stat-card">
+            <div class="alba-stat-num">${this._formatTokens(stats.totalTokens)}</div>
+            <div class="alba-stat-desc">추정 토큰</div>
+          </div>
+          <div class="alba-stat-card">
+            <div class="alba-stat-num">${stats.avgLatencyMs}ms</div>
+            <div class="alba-stat-desc">평균 속도</div>
+          </div>
+          <div class="alba-stat-card">
+            <div class="alba-stat-num">${stats.successRate}%</div>
+            <div class="alba-stat-desc">성공률</div>
+          </div>
+        </div>
+        ${actionRows ? `<div class="alba-stat-actions"><div style="font-size:11px;color:rgba(0,0,0,0.4);margin-bottom:4px;">작업별</div>${actionRows}</div>` : ''}
+        ${recentRows ? `<div class="alba-stat-recent-list"><div style="font-size:11px;color:rgba(0,0,0,0.4);margin-bottom:4px;">최근 호출</div>${recentRows}</div>` : ''}
+      `;
+    } catch (e) {
+      section.querySelector('.alba-stats-loading').innerHTML =
+        '<div style="font-size:12px;color:rgba(0,0,0,0.35);">통계 로드 실패</div>';
+    }
+  }
+
+  _formatActionName(action) {
+    const map = {
+      'chunk-analyze': '청크 분석',
+      'summary-merge': '요약 통합',
+      'digest-embed': '다이제스트 임베딩',
+      'digest-dedup': '중복 체크',
+      'recall-search': '기억 검색',
+      'ingest-jsonl': 'JSONL 적재',
+      'ingest-day': '일간 적재',
+      'tool-select': '도구 선별',
+      'unknown': '기타'
+    };
+    return map[action] || action;
+  }
+
+  _formatTokens(n) {
+    if (!n || n === 0) return '0';
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+    if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+    return n.toString();
   }
 
   /**

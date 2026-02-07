@@ -487,45 +487,6 @@ router.put('/routing', async (req, res) => {
 });
 
 /**
- * GET /api/config/tool-search
- * Tool Search 설정 조회
- */
-router.get('/tool-search', async (req, res) => {
-  try {
-    const defaultConfig = {
-      enabled: false,
-      type: 'regex',
-      alwaysLoad: []
-    };
-    const toolSearchConfig = await configManager.getConfigValue('toolSearch', defaultConfig);
-    res.json(toolSearchConfig);
-  } catch (error) {
-    console.error('Error reading tool search config:', error);
-    res.status(500).json({ error: 'Internal Server Error', message: error.message });
-  }
-});
-
-/**
- * PUT /api/config/tool-search
- * Tool Search 설정 저장
- */
-router.put('/tool-search', async (req, res) => {
-  try {
-    const { enabled, type, alwaysLoad } = req.body;
-    const config = {
-      enabled: !!enabled,
-      type: type || 'regex',
-      alwaysLoad: Array.isArray(alwaysLoad) ? alwaysLoad : []
-    };
-    await configManager.setConfigValue('toolSearch', config, 'Tool Search configuration');
-    res.json(config);
-  } catch (error) {
-    console.error('Error saving tool search config:', error);
-    res.status(500).json({ error: 'Internal Server Error', message: error.message });
-  }
-});
-
-/**
  * GET /api/config/dock
  * 독 아이템 목록 조회
  */

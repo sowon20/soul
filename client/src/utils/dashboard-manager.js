@@ -523,7 +523,7 @@ class DashboardManager {
 
     const { actual, breakdown, meta } = tokenUsage;
 
-    // 모델 (전체 모델 ID, 길면 ... 처리)
+    // 모델 (전체 모델 ID)
     const modelEl = document.getElementById('lastReqModel');
     if (modelEl) {
       modelEl.textContent = meta?.model || '-';
@@ -537,6 +537,51 @@ class DashboardManager {
       const tierLabels = { light: '경량', medium: '중간', heavy: '고성능', single: '단일' };
       tierEl.textContent = tierLabels[tier] || tier;
       tierEl.className = 'last-req-tier-badge ' + tier;
+    }
+
+    // 모델 상세 (모드/라우팅/알바 정보)
+    const detailEl = document.getElementById('lastReqModelDetail');
+    if (detailEl && meta) {
+      const parts = [];
+      const mode = meta.mode || (meta.tier === 'single' ? 'single' : null);
+
+      if (mode === 'single') {
+        parts.push(`<span class="detail-label">모드</span> <span class="detail-value">단일</span>`);
+      } else if (mode === 'auto') {
+        // 라우팅 모드
+        const mgr = meta.manager;
+        if (mgr === 'ai' && meta.managerModel) {
+          const mModel = typeof meta.managerModel === 'object'
+            ? (meta.managerModel.modelId || JSON.stringify(meta.managerModel))
+            : meta.managerModel;
+          parts.push(`<span class="detail-label">라우터</span> <span class="detail-value">${mModel}</span>`);
+        } else {
+          parts.push(`<span class="detail-label">라우터</span> <span class="detail-value">서버</span>`);
+        }
+        if (meta.reason && typeof meta.reason === 'string') {
+          parts.push(`<span class="detail-reason">${meta.reason}</span>`);
+        }
+      }
+      if (meta.delegatedTo) {
+        parts.push(`<span class="detail-label">알바</span> <span class="detail-value">${meta.delegatedTo.name || meta.delegatedTo.roleId}</span>`);
+        if (meta.delegatedTo.model) {
+          parts.push(`<span class="detail-label">모델</span> <span class="detail-value">${meta.delegatedTo.model}</span>`);
+        }
+      }
+      // 도구 사용 정보
+      if (meta.toolsUsed?.length > 0) {
+        parts.push(`<span class="detail-label">도구</span> <span class="detail-value">${meta.toolsUsed.join(', ')}</span>`);
+      }
+      // vision-worker 사용 정보
+      if (meta.visionWorkerUsed) {
+        parts.push(`<span class="detail-label">👁️ 이미지 분석</span>`);
+      }
+      if (parts.length > 0) {
+        detailEl.innerHTML = parts.join('');
+        detailEl.style.display = '';
+      } else {
+        detailEl.style.display = 'none';
+      }
     }
 
     // 입력/출력 토큰

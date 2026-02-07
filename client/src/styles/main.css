@@ -2581,65 +2581,51 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
+}
+
+/* MCP 연결 끊김 오버레이 */
+.mcp-status-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  backdrop-filter: blur(3px);
+}
+.mcp-status-content {
+  text-align: center;
+  color: #fff;
+}
+.mcp-status-icon {
+  font-size: 2rem;
+  margin-bottom: 8px;
+}
+.mcp-status-text {
+  font-size: 14px;
+  margin-bottom: 12px;
+  opacity: 0.9;
+}
+.mcp-reconnect-btn {
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 8px;
+  padding: 8px 20px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.mcp-reconnect-btn:hover {
+  background: rgba(255,255,255,0.25);
 }
 .canvas-mcp-container .canvas-mcp-iframe {
   flex: 1;
   width: 100%;
   border: none;
   min-height: 0;
-}
-
-/* 도구 목록 섹션 */
-.canvas-tools-section {
-  flex-shrink: 0;
-  padding: 12px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  max-height: 45%;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
-}
-.canvas-tools-header {
-  margin-bottom: 8px;
-}
-.canvas-tools-title {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.5);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-.canvas-tools-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.canvas-tool-item {
-  padding: 6px 8px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-}
-.canvas-tool-item:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-.canvas-tool-name {
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.85);
-  font-family: 'SF Mono', 'Fira Code', monospace;
-}
-.canvas-tool-desc {
-  font-size: 0.7rem;
-  color: rgba(255, 255, 255, 0.45);
-  margin-top: 2px;
-  line-height: 1.4;
-}
-.canvas-tools-loading,
-.canvas-tools-empty {
-  font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.35);
-  padding: 8px 0;
 }
 
 .canvas-content {
@@ -4337,6 +4323,33 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 마지막 요청 모델 상세 */
+.last-request-model-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  font-size: 10px;
+  color: rgba(0, 0, 0, 0.5);
+  margin-bottom: 4px;
+  padding: 3px 6px;
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 4px;
+}
+
+.last-request-model-detail .detail-label {
+  color: rgba(0, 0, 0, 0.35);
+}
+
+.last-request-model-detail .detail-value {
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.last-request-model-detail .detail-reason {
+  color: rgba(0, 0, 0, 0.35);
+  font-style: italic;
 }
 
 /* 마지막 요청 통계 한 줄 */

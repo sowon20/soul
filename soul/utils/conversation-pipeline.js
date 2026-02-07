@@ -562,6 +562,7 @@ class ConversationPipeline {
         content: userMessage,
         timestamp: userTimestamp,
         tokens: this._estimateTokens(userMessage),
+        attachments: metadata?.attachments || undefined,
         sessionMeta: {
           sessionId,
           sessionDuration,

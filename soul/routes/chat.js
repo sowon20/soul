@@ -9,6 +9,8 @@
 
 const express = require('express');
 const router = express.Router();
+const fs = require('fs');
+const path = require('path');
 const { getConversationPipeline } = require('../utils/conversation-pipeline');
 const { getMemoryManager } = require('../utils/memory-layers');
 const { getTokenSafeguard } = require('../utils/token-safeguard');
@@ -23,6 +25,7 @@ const { loadMCPTools, executeMCPTool, callJinaTool } = require('../utils/mcp-too
 const { builtinTools, executeBuiltinTool, isBuiltinTool } = require('../utils/builtin-tools');
 const { isProactiveActive } = require('../utils/proactive-messenger');
 const configManager = require('../utils/config');
+const { trackCall: trackAlba } = require('../utils/alba-stats');
 // alba-worker는 더 이상 사용하지 않음 (도구 선택은 tool-worker 알바가 {need} 단계에서 처리)
 
 // JSONL 대화 저장소 (lazy init)
@@ -123,6 +126,7 @@ router.post('/', async (req, res) => {
     const executedTools = [];
     let toolNeeds = []; // {need} 요청 내용
     let toolsSelected = []; // 알바가 선택한 도구 이름
+    let visionWorkerResult = null; // vision-worker 사용 결과
 
     // 디버그용 변수 (상위 스코프에 선언)
     let combinedSystemPrompt = '';
@@ -145,6 +149,8 @@ router.post('/', async (req, res) => {
       historyTokens: options.historyTokens || 0,
       messageCount: options.messageCount || 0
     });
+
+    console.log(`[Chat] Routing result: tier=${routingResult.tier || 'n/a'}, model=${routingResult.modelId}, service=${routingResult.serviceId}, manager=${routingResult.manager || 'server'}, reason=${routingResult.reason}`);
 
     // 2. 인격 코어 - 시스템 프롬프트 생성 및 AI 설정 로드
     const personality = getPersonalityCore();
@@ -331,17 +337,141 @@ ${rulesText}</self_notes>\n\n`;
     const preloadedTools = await getCachedTools();
     const estimatedToolCount = Math.min(preloadedTools.length, 12); // 최대 12개까지 선택됨
 
-    // 3.6 첨부 파일 정보를 메시지에 추가
+    // 3.6 첨부 파일을 AI가 읽을 수 있는 documents 배열로 변환
     let enhancedMessage = message || '';
+    const attachmentDocuments = [];
     if (attachments && attachments.length > 0) {
-      const attachmentInfo = attachments.map(a => {
-        const sizeKB = (a.size / 1024).toFixed(1);
-        return `- ${a.name} (${a.type}, ${sizeKB}KB): ${a.url}`;
-      }).join('\n');
-      enhancedMessage = enhancedMessage
-        ? `${enhancedMessage}\n\n[첨부 파일]\n${attachmentInfo}`
-        : `[첨부 파일]\n${attachmentInfo}`;
-      debugLog(`Enhanced message with attachments: ${enhancedMessage}`);
+      const os = require('os');
+      const DATA_DIR = process.env.SOUL_DATA_DIR || path.join(os.homedir(), '.soul');
+      const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
+      for (const att of attachments) {
+        try {
+          // URL에서 파일명 추출 (/api/files/abc123.jpg → abc123.jpg)
+          const filename = att.url.split('/').pop();
+          const filePath = path.join(UPLOAD_DIR, filename);
+
+          if (att.type.startsWith('image/')) {
+            // 이미지: base64로 읽어서 AI에게 직접 전달
+            const imageData = fs.readFileSync(filePath);
+            const base64 = imageData.toString('base64');
+            attachmentDocuments.push({
+              type: 'image',
+              media_type: att.type,
+              data: base64
+            });
+            debugLog(`Image attachment loaded: ${att.name} (${(att.size / 1024).toFixed(1)}KB)`);
+          } else if (att.type === 'application/pdf') {
+            // PDF: base64로 읽어서 전달
+            const pdfData = fs.readFileSync(filePath);
+            const base64 = pdfData.toString('base64');
+            attachmentDocuments.push({
+              type: 'pdf',
+              title: att.name,
+              data: base64
+            });
+            debugLog(`PDF attachment loaded: ${att.name}`);
+          } else {
+            // 텍스트 파일 (txt, md, csv, json): 내용을 텍스트로 읽기
+            const textContent = fs.readFileSync(filePath, 'utf-8');
+            attachmentDocuments.push({
+              type: 'text',
+              title: att.name,
+              content: textContent
+            });
+            debugLog(`Text attachment loaded: ${att.name}`);
+          }
+        } catch (fileErr) {
+          console.error(`[Chat] Failed to read attachment ${att.name}:`, fileErr.message);
+          // 파일 읽기 실패 시 텍스트로 안내
+          enhancedMessage += `\n\n[첨부 파일 읽기 실패: ${att.name}]`;
+        }
+      }
+    }
+
+    // 3.7 비전 미지원 모델 + 이미지 첨부 → vision-worker 자동 호출
+    const NON_VISION_SERVICES = new Set(['deepseek']);
+    const hasImages = attachmentDocuments.some(d => d.type === 'image');
+    console.log(`[vision-worker] check: hasImages=${hasImages}, serviceId=${routingResult.serviceId}, match=${NON_VISION_SERVICES.has(routingResult.serviceId)}`);
+    if (hasImages && routingResult.serviceId && NON_VISION_SERVICES.has(routingResult.serviceId)) {
+      try {
+        const visionRole = await Role.findOne({ roleId: 'vision-worker', isActive: 1 });
+        console.log(`[vision-worker] role found: ${!!visionRole}, model: ${visionRole?.preferredModel}`);
+        if (visionRole && visionRole.preferredModel) {
+          const rawVConfig = visionRole.config || {};
+          const vConfig = typeof rawVConfig === 'string' ? JSON.parse(rawVConfig) : rawVConfig;
+          const visionChain = [
+            { modelId: visionRole.preferredModel, serviceId: vConfig.serviceId },
+            ...(vConfig.fallbackModels || [])
+          ].filter(m => m.modelId && m.serviceId);
+
+          const imageDocuments = attachmentDocuments.filter(d => d.type === 'image');
+          let imageDescription = null;
+
+          // 프론트에 이미지 분석 시작 알림
+          if (global.io) global.io.emit('tool_start', {
+            name: 'vision-worker',
+            display: `🔍 이미지 ${imageDocuments.length}장 분석 중...`,
+            input: { model: visionChain[0]?.modelId, images: imageDocuments.length }
+          });
+          const visionStart = Date.now();
+
+          for (const modelInfo of visionChain) {
+            try {
+              const { AIServiceFactory } = require('../utils/ai-service');
+              const visionService = await AIServiceFactory.createService(modelInfo.serviceId, modelInfo.modelId);
+              const visionResult = await visionService.chat(
+                [{ role: 'user', content: message || '이 이미지를 분석해주세요.' }],
+                {
+                  systemPrompt: visionRole.systemPrompt,
+                  maxTokens: vConfig.maxTokens || 1000,
+                  temperature: vConfig.temperature || 0.3,
+                  documents: imageDocuments
+                }
+              );
+              imageDescription = typeof visionResult === 'object' && visionResult.text !== undefined
+                ? visionResult.text : visionResult;
+
+              trackAlba('vision-worker', {
+                action: 'image-analyze',
+                tokens: (typeof visionResult === 'object' && visionResult.usage)
+                  ? (visionResult.usage.input_tokens || 0) + (visionResult.usage.output_tokens || 0) : 0,
+                latencyMs: Date.now() - visionStart,
+                success: true,
+                model: modelInfo.modelId,
+                detail: `${imageDocuments.length}장 분석`
+              });
+              console.log(`[vision-worker] 이미지 ${imageDocuments.length}장 분석 완료 (${modelInfo.modelId}, ${Date.now() - visionStart}ms)`);
+              break;
+            } catch (vErr) {
+              console.warn(`[vision-worker] ${modelInfo.modelId} 실패:`, vErr.message);
+              continue;
+            }
+          }
+
+          if (imageDescription) {
+            visionWorkerResult = { model: visionChain[0]?.modelId, imageCount: imageDocuments.length };
+            enhancedMessage = `[이미지 분석 결과]\n${imageDescription}\n\n${enhancedMessage}`;
+            const nonImageDocs = attachmentDocuments.filter(d => d.type !== 'image');
+            attachmentDocuments.length = 0;
+            attachmentDocuments.push(...nonImageDocs);
+            if (global.io) global.io.emit('tool_end', {
+              name: 'vision-worker', success: true,
+              result: `이미지 ${imageDocuments.length}장 분석 완료`
+            });
+          } else {
+            if (global.io) global.io.emit('tool_end', {
+              name: 'vision-worker', success: false,
+              result: '이미지 분석 실패 — 원본 이미지로 시도합니다'
+            });
+          }
+        }
+      } catch (visionErr) {
+        console.error('[vision-worker] 초기화 실패:', visionErr.message);
+        if (global.io) global.io.emit('tool_end', {
+          name: 'vision-worker', success: false,
+          result: visionErr.message
+        });
+      }
     }
 
     // 4. 대화 메시지 구성
@@ -609,12 +739,7 @@ ${rulesText}</self_notes>\n\n`;
       const contextLevel = conversationData.contextNeeds?.level || 'full';
       console.log(`[Chat] Context level: ${contextLevel} (${conversationData.contextNeeds?.reason || 'unknown'})`);
 
-      // Tool Search 설정 로드
-      const toolSearchConfig = await configManager.getConfigValue('toolSearch', {
-        enabled: false,
-        type: 'regex',
-        alwaysLoad: []
-      });
+
 
       let aiResult;
       let actualToolCount = 0;
@@ -631,6 +756,7 @@ ${rulesText}</self_notes>\n\n`;
           tools: null,
           toolExecutor: null,
           thinking: routingResult.thinking || false,
+          documents: attachmentDocuments.length > 0 ? attachmentDocuments : undefined,
         });
 
         // {need} 감지 및 처리
@@ -734,25 +860,42 @@ ${toolCatalog}`;
                 }
                 // 알바 사용량 기록
                 const twUsage = typeof twResult === 'object' ? twResult.usage : null;
+                const twLatency = Date.now() - _twStart;
+                const twTokens = twUsage ? (twUsage.input_tokens || 0) + (twUsage.output_tokens || 0) : 0;
                 if (twUsage) {
-                  const twInput = twUsage.input_tokens || 0;
-                  const twOutput = twUsage.output_tokens || 0;
                   UsageStats.addUsage({
                     tier: 'tool-worker',
                     modelId: modelInfo.modelId,
                     serviceId: modelInfo.serviceId,
-                    inputTokens: twInput,
-                    outputTokens: twOutput,
-                    totalTokens: twInput + twOutput,
-                    latency: Date.now() - _twStart,
+                    inputTokens: twUsage.input_tokens || 0,
+                    outputTokens: twUsage.output_tokens || 0,
+                    totalTokens: twTokens,
+                    latency: twLatency,
                     sessionId,
                     category: 'tool-selection'
                   }).catch(err => console.error('Tool-worker usage save error:', err));
                 }
 
+                trackAlba('tool-worker', {
+                  action: 'tool-select',
+                  tokens: twTokens || Math.ceil(combinedNeeds.length / 4),
+                  latencyMs: twLatency,
+                  success: true,
+                  model: modelInfo.modelId,
+                  detail: `selected: ${[...selectedToolNames].join(', ')}`
+                });
+
                 selectionSuccess = true;
                 break;
               } catch (twErr) {
+                trackAlba('tool-worker', {
+                  action: 'tool-select',
+                  tokens: 0,
+                  latencyMs: Date.now() - _twStart,
+                  success: false,
+                  model: modelInfo.modelId,
+                  detail: twErr.message
+                });
                 console.warn(`[Chat] ❌ tool-selector ${modelInfo.modelId} 실패 (${Date.now() - _twStart}ms): ${twErr.message}`);
               }
             }
@@ -881,9 +1024,7 @@ ${toolCatalog}`;
           tools: allTools,
           toolExecutor: toolExecutor,
           thinking: routingResult.thinking || false,
-          enableToolSearch: toolSearchConfig.enabled,
-          toolSearchType: toolSearchConfig.type,
-          alwaysLoadTools: toolSearchConfig.alwaysLoad
+          documents: attachmentDocuments.length > 0 ? attachmentDocuments : undefined,
         });
       } else {
         // minimal 또는 도구 없음: 도구 없이 응답
@@ -895,6 +1036,7 @@ ${toolCatalog}`;
           tools: null,
           toolExecutor: null,
           thinking: routingResult.thinking || false,
+          documents: attachmentDocuments.length > 0 ? attachmentDocuments : undefined,
         });
       }
 
@@ -967,21 +1109,21 @@ ${toolCatalog}`;
 
           // 알바에게 작업 위임
           const roleModelId = role.preferredModel || 'claude-3-5-sonnet-20241022';
-          const roleServiceName = roleModelId.includes('claude') ? 'anthropic'
-            : roleModelId.includes('gpt') ? 'openai'
-            : roleModelId.includes('gemini') ? 'google'
-            : 'anthropic';
+          const rawRoleConfig = role.config || {};
+          const roleConfig = typeof rawRoleConfig === 'string' ? JSON.parse(rawRoleConfig) : rawRoleConfig;
+          const roleServiceName = roleConfig.serviceId || inferServiceFromModel(roleModelId) || 'anthropic';
 
           const roleService = await AIServiceFactory.createService(roleServiceName, roleModelId);
 
-          console.log(`[Chat] @${roleId} 작업 시작 (model: ${roleModelId})`);
+          console.log(`[Chat] @${roleId} 작업 시작 (model: ${roleModelId}, service: ${roleServiceName})`);
 
           const roleResultObj = await roleService.chat(
             [{ role: 'user', content: message }],
             {
               systemPrompt: role.systemPrompt,
               maxTokens: role.maxTokens || 4096,
-              temperature: role.temperature || 0.7
+              temperature: role.temperature || 0.7,
+              documents: attachmentDocuments.length > 0 ? attachmentDocuments : undefined
             }
           );
 
@@ -1097,7 +1239,8 @@ ${toolCatalog}`;
         },
         toolsUsed: executedTools.length > 0 ? executedTools : undefined,
         toolNeeds: toolNeeds.length > 0 ? toolNeeds : undefined,
-        toolsSelected: toolsSelected.length > 0 ? toolsSelected : undefined
+        toolsSelected: toolsSelected.length > 0 ? toolsSelected : undefined,
+        attachments: attachments.length > 0 ? attachments : undefined
       });
       console.log('[Chat] Response saved successfully');
     } catch (saveError) {
@@ -1154,7 +1297,24 @@ ${toolCatalog}`;
         service: routingResult.serviceId,
         tier,
         latency,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        // 라우팅 상세
+        mode: routingResult.mode || (routingResult.tier === 'single' ? 'single' : 'auto'),
+        manager: typeof routingResult.manager === 'string' ? routingResult.manager : 'server',
+        managerModel: routingResult.managerModel
+          ? (typeof routingResult.managerModel === 'object' ? routingResult.managerModel.modelId : routingResult.managerModel)
+          : null,
+        reason: typeof routingResult.reason === 'string' ? routingResult.reason : null,
+        // 알바 위임 정보
+        delegatedTo: delegatedRole ? {
+          roleId: delegatedRole.roleId,
+          name: delegatedRole.name,
+          model: delegatedRole.preferredModel || null
+        } : null,
+        // 도구 사용 정보
+        toolsUsed: executedTools.length > 0 ? executedTools.map(t => t.name || t.tool) : null,
+        // vision-worker 사용 여부
+        visionWorkerUsed: !!visionWorkerResult
       }
     };
 
@@ -1308,7 +1468,9 @@ router.get('/history/:sessionId', async (req, res) => {
         // 도구 사용 정보 (있으면 포함)
         toolsUsed: m.metadata?.toolsUsed || m.toolsUsed || null,
         toolNeeds: m.metadata?.toolNeeds || null,
-        toolsSelected: m.metadata?.toolsSelected || null
+        toolsSelected: m.metadata?.toolsSelected || null,
+        // 첨부파일 (user 메시지용)
+        attachments: m.attachments || null
       })),
       total: messages.length
     });
@@ -1612,7 +1774,13 @@ router.get('/service-billing', async (req, res) => {
       'SELECT service_id, name, api_key, is_active FROM ai_services WHERE is_active = 1 AND api_key IS NOT NULL AND api_key != ?'
     ).all('');
 
-    const today = new Date().toISOString().split('T')[0];
+    // 사용자 타임존 기준 오늘 날짜 (UTC 대신)
+    let tz = 'Asia/Seoul';
+    try {
+      const tzRow = db.db.prepare("SELECT timezone FROM user_profiles WHERE user_id = 'default-user' LIMIT 1").get();
+      if (tzRow?.timezone) tz = tzRow.timezone;
+    } catch (e) {}
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: tz });
     const result = [];
 
     // usage_stats.service → ai_services.service_id 매핑
@@ -1834,6 +2002,12 @@ function determineTier(modelId, routingTier = null) {
   if (routingTier === 'single') {
     return 'single';
   }
+
+  // 자동 라우팅에서 결정한 티어가 있으면 우선 사용
+  // (같은 모델이 여러 티어에 설정된 경우 모델 이름으로 판단 불가)
+  if (routingTier === 'fast') return 'light';
+  if (routingTier === 'balanced') return 'medium';
+  if (routingTier === 'premium') return 'heavy';
 
   if (!modelId) return 'medium';
 

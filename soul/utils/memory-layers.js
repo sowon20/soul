@@ -124,14 +124,21 @@ class ShortTermMemory {
       // maxMessages 설정 사용 (UI에서 설정한 단기 메모리 크기)
       const messages = await archiver.getRecentMessages(this.maxMessages);
 
-      this.messages = messages.map(m => ({
-        role: m.role,
-        content: m.content,
-        timestamp: m.timestamp,
-        tokens: m.tokens || this._estimateTokens(m.content),
-        // 메타데이터도 포함 (timestamp 정보용)
-        meta: m.meta
-      }));
+      this.messages = messages.map(m => {
+        // content가 배열이면 텍스트만 추출 (image_url 등 제거)
+        let content = m.content;
+        if (Array.isArray(content)) {
+          const texts = content.filter(p => p.type === 'text').map(p => p.text);
+          content = texts.join('\n') || '[첨부 파일]';
+        }
+        return {
+          role: m.role,
+          content,
+          timestamp: m.timestamp,
+          tokens: m.tokens || this._estimateTokens(content),
+          meta: m.meta
+        };
+      });
       this.totalTokens = this.messages.reduce((sum, m) => sum + m.tokens, 0);
       this.initialized = true;
 

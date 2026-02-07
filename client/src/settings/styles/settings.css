@@ -5505,6 +5505,20 @@ textarea.settings-field-input {
   margin-left: 4px;
 }
 
+/* 알바 통계 미니 뱃지 */
+.alba-compact-stats {
+  display: inline-block;
+  font-size: 0.6rem;
+  font-weight: 500;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(59, 130, 246, 0.1);
+  color: rgba(59, 130, 246, 0.7);
+  vertical-align: middle;
+  margin-left: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
 /* 시스템 역할 OFF 힌트 */
 .alba-compact-hint {
   display: block;
@@ -6473,6 +6487,81 @@ textarea.settings-field-input {
 .alba-modal-delete:hover {
   background: rgba(180, 80, 80, 0.1);
   border-color: rgba(180, 80, 80, 0.5);
+}
+
+/* 알바 통계 섹션 */
+.alba-stats-section {
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  padding-top: 12px !important;
+  margin-top: 8px !important;
+}
+
+.alba-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.alba-stat-card {
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 8px;
+  padding: 8px 6px;
+  text-align: center;
+}
+
+.alba-stat-num {
+  font-size: 16px;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.8);
+  line-height: 1.2;
+}
+
+.alba-stat-desc {
+  font-size: 10px;
+  color: rgba(0, 0, 0, 0.4);
+  margin-top: 2px;
+}
+
+.alba-stat-actions {
+  margin-top: 6px;
+  padding: 6px 8px;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 6px;
+}
+
+.alba-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 0;
+  font-size: 12px;
+}
+
+.alba-stat-label {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.alba-stat-value {
+  color: rgba(0, 0, 0, 0.8);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.alba-stat-recent-list {
+  margin-top: 8px;
+  padding: 6px 8px;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 6px;
+}
+
+.alba-stat-recent {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 11px;
+  padding: 2px 0;
+  color: rgba(0, 0, 0, 0.6);
 }
 
 /* ============================================

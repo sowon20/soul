@@ -242,7 +242,9 @@ class ConversationArchiver {
       tags: message.tags || [],
       metadata: message.metadata || {},
       // 라우팅 정보 (assistant 메시지용)
-      routing: message.routing || null
+      routing: message.routing || null,
+      // 첨부파일 정보 (user 메시지용)
+      attachments: message.attachments || null
     };
 
     // 원격 폴더 접근 시도

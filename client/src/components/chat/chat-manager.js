@@ -346,6 +346,31 @@ export class ChatManager {
       const content = messageDiv.querySelector('.message-content');
       content.innerHTML = this.escapeHtml(message.content);
 
+      // 첨부 파일 표시
+      if (message.attachments && message.attachments.length > 0) {
+        const attachmentsDiv = document.createElement('div');
+        attachmentsDiv.className = 'message-attachments';
+        message.attachments.forEach(att => {
+          if (att.type?.startsWith('image/')) {
+            const img = document.createElement('img');
+            img.src = att.url;
+            img.alt = att.name;
+            img.className = 'message-attachment-img';
+            img.addEventListener('click', () => {
+              window.open(att.url, '_blank');
+            });
+            attachmentsDiv.appendChild(img);
+          } else {
+            const fileDiv = document.createElement('div');
+            fileDiv.className = 'message-attachment-file';
+            const ext = att.name?.split('.').pop()?.toUpperCase() || 'FILE';
+            fileDiv.innerHTML = `<span class="attachment-ext">${ext}</span><span>${att.name}</span>`;
+            attachmentsDiv.appendChild(fileDiv);
+          }
+        });
+        content.prepend(attachmentsDiv);
+      }
+
       // Set timestamp
       const timestamp = messageDiv.querySelector('.message-time');
       timestamp.textContent = this.formatDateTime(message.timestamp);

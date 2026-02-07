@@ -191,6 +191,54 @@ router.get('/servers', async (req, res) => {
 });
 
 /**
+ * GET /api/mcp/servers/:id/health
+ * MCP 서버 연결 상태 확인 (빠른 ping)
+ */
+router.get('/servers/:id/health', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const config = await loadServerConfig();
+    const serverInfo = config.externalServers?.[id];
+    if (!serverInfo) {
+      return res.json({ status: 'not_found' });
+    }
+
+    const start = Date.now();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+
+    try {
+      const protocol = detectProtocol(serverInfo.url);
+      let ok = false;
+
+      if (protocol === 'streamable-http') {
+        // JSON-RPC ping (tools/list는 가벼운 요청)
+        const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream' };
+        if (serverInfo.apiKey) headers['Authorization'] = `Bearer ${serverInfo.apiKey}`;
+        const r = await fetch(serverInfo.url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/list', id: 1 }),
+          signal: controller.signal
+        });
+        ok = r.ok;
+      } else {
+        const baseUrl = serverInfo.url.replace(/\/sse\/?$/, '');
+        const r = await fetch(baseUrl + '/tools', { signal: controller.signal });
+        ok = r.ok;
+      }
+      clearTimeout(timeout);
+      res.json({ status: ok ? 'ok' : 'error', latencyMs: Date.now() - start });
+    } catch (err) {
+      clearTimeout(timeout);
+      res.json({ status: 'unreachable', error: err.message, latencyMs: Date.now() - start });
+    }
+  } catch (error) {
+    res.json({ status: 'error', error: error.message });
+  }
+});
+
+/**
  * GET /api/mcp/servers/:id/tools
  * 특정 MCP 서버의 도구 상세 정보 조회
  */

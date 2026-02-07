@@ -1476,11 +1476,27 @@ class SoulApp {
       return;
     }
 
-    // DB에서 독 아이템 로드
+    // DB에서 독 아이템 + MCP 서버 상태 로드
     try {
-      const response = await fetch('/api/config/dock');
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      this.dockItems = await response.json();
+      const [dockRes, mcpRes] = await Promise.all([
+        fetch('/api/config/dock'),
+        fetch('/api/mcp/servers')
+      ]);
+      if (!dockRes.ok) throw new Error(`HTTP ${dockRes.status}`);
+      this.dockItems = await dockRes.json();
+
+      // MCP 서버 정보 병합 (isMcp 마킹)
+      if (mcpRes.ok) {
+        const mcpData = await mcpRes.json();
+        const mcpServers = mcpData.servers || [];
+        for (const item of this.dockItems) {
+          const srv = mcpServers.find(s => s.id === item.id);
+          if (srv) {
+            item.isMcp = true;
+          }
+        }
+      }
+
       this.renderDock();
       console.log('✅ MacOS Dock 초기화 완료');
     } catch (error) {
@@ -1499,17 +1515,18 @@ class SoulApp {
     const dock = document.querySelector('.dock');
     if (!dock || !this.dockItems) return;
 
-    // order 기준 정렬
-    const sorted = [...this.dockItems].sort((a, b) => a.order - b.order);
-    
+    // order 기준 정렬 (독 표시 여부는 showInDock으로 이미 결정됨)
+    const sorted = [...this.dockItems]
+      .sort((a, b) => a.order - b.order);
+
     dock.innerHTML = sorted.map(item => `
       <div class="dock-item ${item.fixed ? 'fixed' : ''}" data-id="${item.id}" data-name="${item.name}" draggable="${!item.fixed && this.dockEditMode}">
         <div class="icon">
           <img src="/assets/${item.icon}" alt="${item.name}" />
         </div>
         ${this.dockEditMode && !item.fixed ? '<div class="dock-item-remove">×</div>' : ''}
-      </div>
-    `).join('');
+      </div>`
+    ).join('');
 
     // 이미지 로드 실패 시 자동 재시도 (서버 시작 타이밍 문제 대응)
     dock.querySelectorAll('.dock-item img').forEach(img => {
@@ -1712,7 +1729,12 @@ class SoulApp {
           this.openSettingsInCanvas();
           break;
         default:
-          console.log('미구현 독 기능:', item.id);
+          // MCP 서버지만 UI URL 없으면 설정에서 관리 안내
+          if (item.isMcp) {
+            this.showToast(`${item.name} — 설정 > MCP에서 관리`, 2000);
+          } else {
+            console.log('미구현 독 기능:', item.id);
+          }
       }
     }
   }
@@ -1759,79 +1781,13 @@ class SoulApp {
     container.innerHTML = '<div style="color: white; padding: 20px;">로딩 중...</div>';
 
     try {
-      // MCP 서버 및 Tool Search 설정 동시 로드
-      const [mcpResponse, toolSearchResponse] = await Promise.all([
-        fetch('/api/mcp/servers'),
-        fetch('/api/config/tool-search').catch(() => ({ ok: false }))
-      ]);
-
+      const mcpResponse = await fetch('/api/mcp/servers');
       const data = await mcpResponse.json();
       const servers = data.servers || [];
-
-      // Tool Search 설정 로드 (백엔드 필드명: enabled, type, alwaysLoad)
-      let toolSearchConfig = { enabled: false, type: 'auto', alwaysLoad: [] };
-      if (toolSearchResponse.ok) {
-        const tsData = await toolSearchResponse.json();
-        if (tsData) {
-          toolSearchConfig = {
-            enabled: tsData.enabled || false,
-            type: tsData.type || 'auto',
-            alwaysLoad: tsData.alwaysLoad || []
-          };
-        }
-      }
 
       container.innerHTML = `
         <div style="color: white; padding-right: 8px;">
           <h2 style="margin: 0 0 16px 0; font-size: 1.2rem;">MCP 서버 설정</h2>
-
-          <!-- Tool Search 설정 카드 -->
-          <div style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(59, 130, 246, 0.2)); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 12px; padding: 16px; margin-bottom: 16px;">
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
-              <span style="font-size: 1.2rem;">🔍</span>
-              <span style="font-weight: 600; font-size: 1rem;">Tool Search</span>
-              <span style="font-size: 0.7rem; background: rgba(139, 92, 246, 0.3); padding: 2px 6px; border-radius: 4px; color: #c4b5fd;">Beta</span>
-            </div>
-            <p style="font-size: 0.8rem; opacity: 0.8; margin: 0 0 12px 0;">
-              Claude가 필요한 도구를 동적으로 검색하고 로드합니다. 많은 MCP 도구가 있을 때 성능을 향상시킵니다.
-            </p>
-
-            <div style="display: flex; flex-direction: column; gap: 12px;">
-              <!-- 활성화 토글 -->
-              <div style="display: flex; align-items: center; justify-content: space-between;">
-                <span style="font-size: 0.9rem;">Tool Search 사용</span>
-                <label style="position: relative; width: 44px; height: 24px; cursor: pointer;">
-                  <input type="checkbox" id="toolSearchEnabled" ${toolSearchConfig.enabled ? 'checked' : ''}
-                         style="opacity: 0; width: 0; height: 0;">
-                  <span style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: ${toolSearchConfig.enabled ? '#8b5cf6' : '#4b5563'}; border-radius: 24px; transition: 0.3s;"></span>
-                  <span style="position: absolute; top: 2px; left: ${toolSearchConfig.enabled ? '22px' : '2px'}; width: 20px; height: 20px; background: white; border-radius: 50%; transition: 0.3s;"></span>
-                </label>
-              </div>
-
-              <!-- 검색 타입 -->
-              <div id="toolSearchOptions" style="display: ${toolSearchConfig.enabled ? 'flex' : 'none'}; flex-direction: column; gap: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1);">
-                <div>
-                  <label style="font-size: 0.8rem; opacity: 0.7; display: block; margin-bottom: 4px;">검색 방식</label>
-                  <select id="toolSearchType" style="width: 100%; padding: 8px; border: 1px solid #4b5563; border-radius: 8px; background: rgba(0,0,0,0.3); color: white;">
-                    <option value="regex" ${toolSearchConfig.type === 'regex' || toolSearchConfig.type === 'auto' ? 'selected' : ''}>정규식 (권장)</option>
-                    <option value="bm25" ${toolSearchConfig.type === 'bm25' || toolSearchConfig.type === 'semantic' ? 'selected' : ''}>BM25</option>
-                  </select>
-                </div>
-
-                <!-- 항상 로드할 도구 -->
-                <div>
-                  <label style="font-size: 0.8rem; opacity: 0.7; display: block; margin-bottom: 4px;">항상 로드할 도구 (쉼표 구분)</label>
-                  <input type="text" id="alwaysLoadTools" value="${(toolSearchConfig.alwaysLoad || []).join(', ')}"
-                         placeholder="예: read_file, write_file"
-                         style="width: 100%; padding: 8px; border: 1px solid #4b5563; border-radius: 8px; background: rgba(0,0,0,0.3); color: white; box-sizing: border-box;">
-                </div>
-
-                <button id="saveToolSearchBtn" style="padding: 8px 16px; background: #8b5cf6; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 0.85rem; margin-top: 4px;">
-                  저장
-                </button>
-              </div>
-            </div>
-          </div>
 
           <!-- MCP 서버 목록 -->
           <div style="display: flex; flex-direction: column; gap: 12px;">
@@ -2003,60 +1959,6 @@ class SoulApp {
         });
       });
 
-      // Tool Search 이벤트 핸들러
-      const toolSearchToggle = container.querySelector('#toolSearchEnabled');
-      const toolSearchOptions = container.querySelector('#toolSearchOptions');
-      const saveToolSearchBtn = container.querySelector('#saveToolSearchBtn');
-
-      if (toolSearchToggle) {
-        toolSearchToggle.addEventListener('change', () => {
-          const isEnabled = toolSearchToggle.checked;
-          if (toolSearchOptions) {
-            toolSearchOptions.style.display = isEnabled ? 'flex' : 'none';
-          }
-          // 토글 스타일 업데이트
-          const slider = toolSearchToggle.nextElementSibling;
-          const circle = slider?.nextElementSibling;
-          if (slider) slider.style.background = isEnabled ? '#8b5cf6' : '#4b5563';
-          if (circle) circle.style.left = isEnabled ? '22px' : '2px';
-        });
-      }
-
-      if (saveToolSearchBtn) {
-        saveToolSearchBtn.addEventListener('click', async () => {
-          const enabled = container.querySelector('#toolSearchEnabled')?.checked || false;
-          const type = container.querySelector('#toolSearchType')?.value || 'auto';
-          const alwaysLoadInput = container.querySelector('#alwaysLoadTools')?.value || '';
-          const alwaysLoad = alwaysLoadInput.split(',').map(s => s.trim()).filter(s => s);
-
-          try {
-            const response = await fetch('/api/config/tool-search', {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ enabled, type, alwaysLoad })
-            });
-
-            if (response.ok) {
-              saveToolSearchBtn.textContent = '저장됨 ✓';
-              saveToolSearchBtn.style.background = '#22c55e';
-              setTimeout(() => {
-                saveToolSearchBtn.textContent = '저장';
-                saveToolSearchBtn.style.background = '#8b5cf6';
-              }, 2000);
-            } else {
-              throw new Error('저장 실패');
-            }
-          } catch (err) {
-            console.error('Tool Search 설정 저장 실패:', err);
-            saveToolSearchBtn.textContent = '오류!';
-            saveToolSearchBtn.style.background = '#ef4444';
-            setTimeout(() => {
-              saveToolSearchBtn.textContent = '저장';
-              saveToolSearchBtn.style.background = '#8b5cf6';
-            }, 2000);
-          }
-        });
-      }
     } catch (e) {
       container.innerHTML = `<div style="color: #ff6b6b; padding: 20px;">설정을 불러오는데 실패했습니다.</div>`;
     }
@@ -2267,29 +2169,38 @@ class SoulApp {
     }
 
     // 새 탭 추가
-    this.canvasTabs.push({ type, title, url });
+    this.canvasTabs.push({ type, title, url, isMcp: !!url });
 
-    // 컨테이너 생성 (도구 목록 + iframe)
+    // 컨테이너 생성 (iframe만, 도구 목록은 접힌 상태)
     const container = document.createElement('div');
     container.className = 'canvas-iframe canvas-mcp-container';
     container.id = `canvas-iframe-${type}`;
 
-    // 도구 목록 영역
-    const toolsSection = document.createElement('div');
-    toolsSection.className = 'canvas-tools-section';
-    toolsSection.innerHTML = '<div class="canvas-tools-loading">도구 불러오는 중...</div>';
-    container.appendChild(toolsSection);
-
-    // iframe (MCP UI)
+    // iframe (MCP UI) — 전체 영역 사용
     const iframe = document.createElement('iframe');
     iframe.className = 'canvas-mcp-iframe';
     iframe.src = url;
     container.appendChild(iframe);
 
-    content.appendChild(container);
+    // MCP 상태 오버레이 (연결 끊김 시 표시)
+    const overlay = document.createElement('div');
+    overlay.className = 'mcp-status-overlay';
+    overlay.id = `mcp-overlay-${type}`;
+    overlay.style.display = 'none';
+    overlay.innerHTML = `
+      <div class="mcp-status-content">
+        <div class="mcp-status-icon">⚡</div>
+        <div class="mcp-status-text">서버 연결 끊김</div>
+        <button class="mcp-reconnect-btn">재연결</button>
+      </div>`;
+    overlay.querySelector('.mcp-reconnect-btn').addEventListener('click', () => {
+      overlay.style.display = 'none';
+      iframe.src = url; // iframe 재로드
+      this._checkMcpHealth(type);
+    });
+    container.appendChild(overlay);
 
-    // 도구 목록 비동기 로드
-    this.loadCanvasTools(type, toolsSection);
+    content.appendChild(container);
 
     // 탭 활성화
     this.activateCanvasTab(type);
@@ -2298,43 +2209,10 @@ class SoulApp {
     // 패널 열기
     panel.classList.remove('hide');
     this.movCanvasPanelForMobile();
+
+    // MCP 헬스체크 시작
+    if (url) this._startMcpHealthCheck(type);
     console.log('✅ 캔버스 탭 열림:', type);
-  }
-
-  /**
-   * 캔버스 패널에 MCP 도구 목록 로드
-   */
-  async loadCanvasTools(serverId, container) {
-    try {
-      console.log('🔧 도구 로드 시도:', serverId);
-      const res = await fetch(`/api/mcp/servers/${serverId}/tools`);
-      if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
-      const data = await res.json();
-      const tools = data.tools || [];
-      console.log('🔧 도구 로드 결과:', tools.length, '개');
-
-      if (tools.length === 0) {
-        container.innerHTML = '<div class="canvas-tools-empty">등록된 도구가 없습니다</div>';
-        return;
-      }
-
-      container.innerHTML = `
-        <div class="canvas-tools-header">
-          <span class="canvas-tools-title">도구 ${tools.length}개</span>
-        </div>
-        <div class="canvas-tools-list">
-          ${tools.map(t => `
-            <div class="canvas-tool-item">
-              <div class="canvas-tool-name">${t.name}</div>
-              ${t.description ? `<div class="canvas-tool-desc">${t.description}</div>` : ''}
-            </div>
-          `).join('')}
-        </div>
-      `;
-    } catch (e) {
-      console.warn('도구 목록 로드 실패:', e.message);
-      container.innerHTML = '<div class="canvas-tools-empty">도구 목록을 불러올 수 없습니다</div>';
-    }
   }
 
   /**
@@ -2358,6 +2236,10 @@ class SoulApp {
     }
     if (activeIframe) activeIframe.classList.add('active');
 
+    // MCP 탭이면 헬스체크
+    const tab = this.canvasTabs.find(t => t.type === type);
+    if (tab?.isMcp) this._checkMcpHealth(type);
+
     this.renderCanvasTabs();
   }
 
@@ -2379,6 +2261,9 @@ class SoulApp {
     }
     if (iframe) iframe.remove();
 
+    // MCP 헬스체크 인터벌 정리
+    this._stopMcpHealthCheck(type);
+
     // 탭 배열에서 제거
     this.canvasTabs.splice(idx, 1);
 
@@ -2394,6 +2279,44 @@ class SoulApp {
     }
     
     this.renderCanvasTabs();
+  }
+
+  // === MCP 헬스체크 ===
+  _mcpHealthIntervals = {};
+
+  async _checkMcpHealth(type) {
+    try {
+      const res = await fetch(`/api/mcp/servers/${type}/health`);
+      const data = await res.json();
+      const overlay = document.getElementById(`mcp-overlay-${type}`);
+      if (!overlay) return;
+
+      if (data.status === 'ok') {
+        overlay.style.display = 'none';
+      } else {
+        overlay.style.display = 'flex';
+        const textEl = overlay.querySelector('.mcp-status-text');
+        if (textEl) textEl.textContent = data.status === 'unreachable' ? '서버에 연결할 수 없습니다' : '서버 응답 오류';
+      }
+    } catch {
+      const overlay = document.getElementById(`mcp-overlay-${type}`);
+      if (overlay) overlay.style.display = 'flex';
+    }
+  }
+
+  _startMcpHealthCheck(type) {
+    this._stopMcpHealthCheck(type);
+    // 즉시 한 번 체크
+    this._checkMcpHealth(type);
+    // 30초마다 체크
+    this._mcpHealthIntervals[type] = setInterval(() => this._checkMcpHealth(type), 30000);
+  }
+
+  _stopMcpHealthCheck(type) {
+    if (this._mcpHealthIntervals[type]) {
+      clearInterval(this._mcpHealthIntervals[type]);
+      delete this._mcpHealthIntervals[type];
+    }
   }
 
   /**

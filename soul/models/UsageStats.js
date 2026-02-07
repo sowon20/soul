@@ -6,11 +6,40 @@
 const { UsageStats } = require('../db/models');
 
 /**
+ * 사용자 타임존 기준 오늘 날짜 (YYYY-MM-DD)
+ * UTC 대신 로컬 타임존 사용 — KST 오전 0~9시 요청이 전날로 기록되는 문제 방지
+ */
+let _cachedTimezone = null;
+let _tzCacheTime = 0;
+function _getTimezone() {
+  const now = Date.now();
+  if (_cachedTimezone && (now - _tzCacheTime) < 300000) return _cachedTimezone; // 5분 캐시
+  try {
+    const db = require('../db');
+    if (db.db) {
+      const row = db.db.prepare(
+        "SELECT timezone FROM user_profiles WHERE user_id = 'default-user' LIMIT 1"
+      ).get();
+      if (row?.timezone) {
+        _cachedTimezone = row.timezone;
+        _tzCacheTime = now;
+        return _cachedTimezone;
+      }
+    }
+  } catch (e) { /* 무시 */ }
+  return 'Asia/Seoul'; // 기본값
+}
+
+function getLocalDate(date = new Date()) {
+  return date.toLocaleDateString('en-CA', { timeZone: _getTimezone() });
+}
+
+/**
  * 사용 기록 추가 (매 요청마다 별도 row)
  */
 UsageStats.addUsage = async function(data) {
   const now = new Date();
-  const date = now.toISOString().split('T')[0];
+  const date = getLocalDate(now);
 
   return this.create({
     date,
@@ -43,16 +72,21 @@ UsageStats.getStatsByPeriod = async function(period = 'today', options = {}) {
 
   switch (period) {
     case 'today':
-      startDate = now.toISOString().split('T')[0];
+      startDate = getLocalDate(now);
       break;
     case 'week': {
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      startDate = weekAgo.toISOString().split('T')[0];
+      startDate = getLocalDate(weekAgo);
       break;
     }
-    case 'month':
-      startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    case 'month': {
+      // 로컬 타임존 기준 이번 달 1일
+      const tz = _getTimezone();
+      const localYear = parseInt(now.toLocaleDateString('en-CA', { timeZone: tz, year: 'numeric' }));
+      const localMonth = parseInt(now.toLocaleDateString('en-CA', { timeZone: tz, month: '2-digit' }));
+      startDate = `${localYear}-${String(localMonth).padStart(2, '0')}-01`;
       break;
+    }
     case 'custom':
       startDate = options.startDate || '1970-01-01';
       break;
@@ -218,7 +252,7 @@ UsageStats.getDailyTrend = async function(days = 7) {
 
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
-  const startDateStr = startDate.toISOString().split('T')[0];
+  const startDateStr = getLocalDate(startDate);
 
   const stmt = db.db.prepare(`
     SELECT

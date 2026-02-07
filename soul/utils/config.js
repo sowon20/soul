@@ -60,11 +60,6 @@ class ConfigManager {
         heavyThinking: false,
         confirmed: false
       },
-      toolSearch: {
-        enabled: false, // Tool Search Tool 활성화 (도구 10개+ 시 유용)
-        type: 'regex', // 'regex' | 'bm25'
-        alwaysLoad: [] // 항상 로드할 도구 이름 배열
-      },
       toolRouting: {
         enabled: false, // {need} 기반 도구 라우팅 (ON: 주모델에 도구 안 보냄, tool-worker 알바가 실행)
         mode: 'single' // 'single': 설정된 모델 하나로만, 'chain': 실패 시 폴백 모델로 자동 전환
@@ -118,7 +113,6 @@ class ConfigManager {
       const memory = await this.getConfigValue('memory', this.defaultConfig.memory);
       const files = await this.getConfigValue('files', this.defaultConfig.files);
       const routing = await this.getConfigValue('routing', this.defaultConfig.routing);
-      const toolSearch = await this.getConfigValue('toolSearch', this.defaultConfig.toolSearch);
       const toolRouting = await this.getConfigValue('toolRouting', this.defaultConfig.toolRouting);
       const storage = await this.getConfigValue('storage', this.defaultConfig.storage);
 
@@ -127,7 +121,7 @@ class ConfigManager {
         console.log('[CONFIG] 📖 readConfig: storage.type is LOCAL', new Error().stack);
       }
 
-      return { ai, memory, files, routing, toolSearch, toolRouting, storage };
+      return { ai, memory, files, routing, toolRouting, storage };
     } catch (error) {
       console.error('Failed to read config:', error);
       return this.defaultConfig;
@@ -143,7 +137,6 @@ class ConfigManager {
       if (config.memory) await this.setConfigValue('memory', config.memory, 'Memory storage configuration');
       if (config.files) await this.setConfigValue('files', config.files, 'File storage configuration');
       if (config.routing) await this.setConfigValue('routing', config.routing, 'Smart routing configuration');
-      if (config.toolSearch) await this.setConfigValue('toolSearch', config.toolSearch, 'Tool Search configuration');
       if (config.toolRouting) await this.setConfigValue('toolRouting', config.toolRouting, 'Tool routing configuration');
       if (config.storage) {
         console.log('[CONFIG] ⚠️ Writing storage config:', JSON.stringify(config.storage), new Error().stack);

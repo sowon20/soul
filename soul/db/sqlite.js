@@ -152,6 +152,13 @@ function createTables() {
     )
   `);
 
+  // 마이그레이션: roles에 memo 컬럼 추가
+  try {
+    db.exec(`ALTER TABLE roles ADD COLUMN memo TEXT`);
+  } catch (e) {
+    // 이미 컬럼이 있으면 무시
+  }
+
   // UsageStats - 사용량 통계
   db.exec(`
     CREATE TABLE IF NOT EXISTS usage_stats (

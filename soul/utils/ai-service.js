@@ -35,7 +35,6 @@ class AIService {
       effort: false,         // 노력 수준 조절
       toolExamples: false,   // 도구별 input_examples
       fineGrainedToolStreaming: false, // 세밀한 도구 스트리밍
-      enableToolSearch: false, // Tool Search Tool
     };
   }
 
@@ -65,6 +64,53 @@ class AIService {
   async testConnection() {
     throw new Error('testConnection must be implemented');
   }
+
+  /**
+   * OpenAI 호환 API용 이미지 첨부 처리
+   * documents 배열을 마지막 user 메시지의 content에 image_url 형식으로 삽입
+   */
+  static attachDocumentsOpenAI(apiMessages, documents, serviceName = 'AI', { supportsVision = true } = {}) {
+    if (!documents || documents.length === 0) return;
+    const lastUserIdx = apiMessages.map((m, i) => ({ m, i }))
+      .filter(x => x.m.role === 'user').pop()?.i;
+    if (lastUserIdx === undefined) return;
+    const originalContent = apiMessages[lastUserIdx].content;
+    const contentParts = [];
+    let skippedImages = 0;
+    for (const doc of documents) {
+      if (doc.type === 'image') {
+        if (!supportsVision) {
+          skippedImages++;
+          continue;
+        }
+        contentParts.push({
+          type: 'image_url',
+          image_url: { url: `data:${doc.media_type};base64,${doc.data}` }
+        });
+      } else if (doc.type === 'text') {
+        contentParts.push({ type: 'text', text: `[${doc.title}]\n${doc.content}` });
+      }
+    }
+    if (skippedImages > 0) {
+      console.log(`[${serviceName}] Skipped ${skippedImages} images (vision not supported)`);
+    }
+    // vision 미지원 + 텍스트 문서도 없으면 → content를 문자열로 유지 (배열 변환 안 함)
+    if (!supportsVision && contentParts.length === 0) {
+      // 이미지만 있었고 다 스킵됨 → 원본 텍스트에 안내만 추가
+      if (skippedImages > 0) {
+        const orig = typeof originalContent === 'string' ? originalContent : JSON.stringify(originalContent);
+        apiMessages[lastUserIdx].content = orig + `\n\n[첨부된 이미지 ${skippedImages}개는 이 모델에서 볼 수 없습니다]`;
+      }
+      return;
+    }
+    if (contentParts.length === 0) return;
+    contentParts.push({
+      type: 'text',
+      text: typeof originalContent === 'string' ? originalContent : JSON.stringify(originalContent)
+    });
+    apiMessages[lastUserIdx].content = contentParts;
+    console.log(`[${serviceName}] Documents attached: ${documents.length - skippedImages} items`);
+  }
 }
 
 /**
@@ -86,7 +132,6 @@ class AnthropicService extends AIService {
       effort: true,          // 노력 수준 조절 (Opus 4.5 전용)
       toolExamples: true,    // 도구별 input_examples (beta)
       fineGrainedToolStreaming: true, // 세밀한 도구 스트리밍 (beta)
-      enableToolSearch: true, // Tool Search Tool (beta)
     };
   }
 
@@ -170,9 +215,6 @@ class AnthropicService extends AIService {
       toolExamples = null, // 도구별 예제 입력 { toolName: [{ input: {...}, description?: '...' }] } (베타)
       fineGrainedToolStreaming = false, // 세밀한 도구 파라미터 스트리밍 (베타) - 지연 시간 감소
       disableParallelToolUse = false, // 병렬 도구 사용 비활성화 (한 번에 하나의 도구만)
-      enableToolSearch = false, // Tool Search Tool 활성화 (도구 30개+ 시 유용, 베타)
-      toolSearchType = 'regex', // 'regex' | 'bm25' - 검색 방식
-      alwaysLoadTools = [], // Tool Search 사용 시에도 항상 로드할 도구 이름 배열
     } = options;
 
     // Citations: 문서가 있으면 user 메시지에 문서를 포함
@@ -376,32 +418,6 @@ class AnthropicService extends AIService {
     // 도구 정의 (캐싱 적용: 매 요청마다 동일하므로 캐싱 효과 큼)
     if (tools && tools.length > 0) {
       let processedTools = tools.map(tool => ({ ...tool }));
-
-      // Tool Search Tool (베타: advanced-tool-use-2025-11-20)
-      // 도구가 많을 때 (30개+) 필요한 도구만 동적으로 검색/로드하여 컨텍스트 절약
-      // alwaysLoadTools에 지정된 도구는 항상 로드, 나머지는 defer_loading: true
-      if (enableToolSearch && tools.length >= 10) {
-        betas.push('advanced-tool-use-2025-11-20');
-
-        // Tool Search Tool 추가
-        const toolSearchToolType = toolSearchType === 'bm25'
-          ? 'tool_search_tool_bm25_20251119'
-          : 'tool_search_tool_regex_20251119';
-        const toolSearchToolName = toolSearchType === 'bm25'
-          ? 'tool_search_tool_bm25'
-          : 'tool_search_tool_regex';
-
-        processedTools = [
-          { type: toolSearchToolType, name: toolSearchToolName },
-          ...processedTools.map(tool => ({
-            ...tool,
-            defer_loading: !alwaysLoadTools.includes(tool.name)
-          }))
-        ];
-
-        const deferredCount = processedTools.filter(t => t.defer_loading).length;
-        console.log(`[Anthropic] Tool Search enabled (${toolSearchType}): ${deferredCount} deferred, ${alwaysLoadTools.length} always loaded`);
-      }
 
       // input_examples 추가 (베타: advanced-tool-use-2025-11-20)
       // 복잡한 도구에 예제 입력을 제공하여 Claude의 도구 사용 정확도 향상
@@ -1021,11 +1037,11 @@ class OpenAIService extends AIService {
       toolExamples = null,
       fineGrainedToolStreaming = false,
       disableParallelToolUse = false,
-      enableToolSearch = false,
+      
     } = options;
 
-    // Claude 전용 옵션 사용 시 경고
-    const claudeOnlyOptions = { documents, searchResults, outputFormat, strictTools, thinking, prefill, enableCache, effort, toolExamples, fineGrainedToolStreaming, disableParallelToolUse, enableToolSearch };
+    // Claude 전용 옵션 사용 시 경고 (documents는 OpenAI에서도 지원)
+    const claudeOnlyOptions = { searchResults, outputFormat, strictTools, thinking, prefill, enableCache, effort, toolExamples, fineGrainedToolStreaming, disableParallelToolUse };
     const usedClaudeOptions = Object.entries(claudeOnlyOptions)
       .filter(([, v]) => v)
       .map(([k]) => k);
@@ -1040,6 +1056,9 @@ class OpenAIService extends AIService {
         content: systemPrompt
       });
     }
+
+    // 이미지/파일 첨부 처리 (OpenAI vision 형식)
+    AIService.attachDocumentsOpenAI(apiMessages, documents, 'OpenAI');
 
     const requestBody = {
       model: this.modelName,
@@ -1216,6 +1235,7 @@ class HuggingFaceService extends AIService {
       temperature = 0.7,
       tools = null,
       toolExecutor = null,
+      documents = null,
     } = options;
 
     const apiMessages = messages.filter(msg => msg.content && (typeof msg.content !== 'string' || msg.content.trim()));
@@ -1225,6 +1245,9 @@ class HuggingFaceService extends AIService {
         content: systemPrompt
       });
     }
+
+    // 이미지/파일 첨부 처리
+    AIService.attachDocumentsOpenAI(apiMessages, documents, 'HuggingFace');
 
     const requestBody = {
       model: this.modelName,
@@ -1389,11 +1412,11 @@ class GoogleService extends AIService {
       toolExamples = null,
       fineGrainedToolStreaming = false,
       disableParallelToolUse = false,
-      enableToolSearch = false,
+      
     } = options;
 
     // Claude 전용 옵션 사용 시 경고 (thinking은 Gemini 2.5도 지원하므로 제외)
-    const claudeOnlyOptions = { documents, searchResults, outputFormat, strictTools, prefill, enableCache, effort, toolExamples, fineGrainedToolStreaming, disableParallelToolUse, enableToolSearch };
+    const claudeOnlyOptions = { searchResults, outputFormat, strictTools, prefill, enableCache, effort, toolExamples, fineGrainedToolStreaming, disableParallelToolUse };
     const usedClaudeOptions = Object.entries(claudeOnlyOptions)
       .filter(([, v]) => v)
       .map(([k]) => k);
@@ -1406,6 +1429,25 @@ class GoogleService extends AIService {
       role: msg.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: msg.content }]
     }));
+
+    // 이미지/파일 첨부 처리 (Gemini inlineData 형식)
+    if (documents && documents.length > 0) {
+      const lastUserIdx = contents.length - 1 - [...contents].reverse().findIndex(c => c.role === 'user');
+      if (lastUserIdx >= 0 && lastUserIdx < contents.length) {
+        const extraParts = [];
+        for (const doc of documents) {
+          if (doc.type === 'image') {
+            extraParts.push({
+              inlineData: { mimeType: doc.media_type, data: doc.data }
+            });
+          } else if (doc.type === 'text') {
+            extraParts.push({ text: `[${doc.title}]\n${doc.content}` });
+          }
+        }
+        contents[lastUserIdx].parts = [...extraParts, ...contents[lastUserIdx].parts];
+        console.log(`[Google] Documents attached: ${documents.length} items`);
+      }
+    }
 
     const generationConfig = {
       maxOutputTokens: maxTokens,
@@ -1654,11 +1696,11 @@ class XAIService extends AIService {
       toolExamples = null,
       fineGrainedToolStreaming = false,
       disableParallelToolUse = false,
-      enableToolSearch = false,
+      
     } = options;
 
     // Claude 전용 옵션 사용 시 경고
-    const claudeOnlyOptions = { documents, searchResults, outputFormat, strictTools, thinking, prefill, enableCache, effort, toolExamples, fineGrainedToolStreaming, disableParallelToolUse, enableToolSearch };
+    const claudeOnlyOptions = { searchResults, outputFormat, strictTools, thinking, prefill, enableCache, effort, toolExamples, fineGrainedToolStreaming, disableParallelToolUse };
     const usedClaudeOptions = Object.entries(claudeOnlyOptions)
       .filter(([, v]) => v)
       .map(([k]) => k);
@@ -1673,6 +1715,9 @@ class XAIService extends AIService {
         content: systemPrompt
       });
     }
+
+    // 이미지/파일 첨부 처리
+    AIService.attachDocumentsOpenAI(apiMessages, documents, 'xAI');
 
     const requestBody = {
       model: this.modelName,
@@ -1825,10 +1870,10 @@ class OpenRouterService extends AIService {
       toolExamples = null,
       fineGrainedToolStreaming = false,
       disableParallelToolUse = false,
-      enableToolSearch = false,
+      
     } = options;
 
-    const claudeOnlyOptions = { documents, searchResults, outputFormat, strictTools, thinking, prefill, enableCache, effort, toolExamples, fineGrainedToolStreaming, disableParallelToolUse, enableToolSearch };
+    const claudeOnlyOptions = { searchResults, outputFormat, strictTools, thinking, prefill, enableCache, effort, toolExamples, fineGrainedToolStreaming, disableParallelToolUse };
     const usedClaudeOptions = Object.entries(claudeOnlyOptions)
       .filter(([, v]) => v)
       .map(([k]) => k);
@@ -1843,6 +1888,9 @@ class OpenRouterService extends AIService {
         content: systemPrompt
       });
     }
+
+    // 이미지/파일 첨부 처리
+    AIService.attachDocumentsOpenAI(apiMessages, documents, 'OpenRouter');
 
     const requestBody = {
       model: this.modelName,
@@ -2014,6 +2062,7 @@ class LightningAIService extends AIService {
       temperature = 0.7,
       tools = null,
       toolExecutor = null,
+      documents = null,
     } = options;
 
     const apiMessages = messages.filter(msg => msg.content && (typeof msg.content !== 'string' || msg.content.trim()));
@@ -2023,6 +2072,9 @@ class LightningAIService extends AIService {
         content: systemPrompt
       });
     }
+
+    // 이미지/파일 첨부 처리
+    AIService.attachDocumentsOpenAI(apiMessages, documents, 'LightningAI');
 
     const requestBody = {
       model: this.modelName,
@@ -2136,12 +2188,18 @@ class DeepSeekService extends OpenAIService {
       tools = null,
       toolExecutor = null,
       thinking = false,
+      documents = null,
     } = options;
 
     const apiMessages = messages.filter(msg => msg.content && (typeof msg.content !== 'string' || msg.content.trim()));
     if (systemPrompt) {
       apiMessages.unshift({ role: 'system', content: systemPrompt });
     }
+
+    // DeepSeek은 content 배열을 못 받음 → 문자열로 강제 변환
+    DeepSeekService._stripImageUrlFromHistory(apiMessages);
+    // 텍스트 문서만 원본에 이어붙이기, 이미지는 안내 텍스트로 대체
+    DeepSeekService._attachDocumentsAsText(apiMessages, documents);
 
     const requestBody = {
       model: this.modelName,
@@ -2276,12 +2334,18 @@ class DeepSeekService extends OpenAIService {
       tools = null,
       toolExecutor = null,
       thinking = false,
+      documents = null,
     } = options;
 
     const apiMessages = messages.filter(msg => msg.content && (typeof msg.content !== 'string' || msg.content.trim()));
     if (systemPrompt) {
       apiMessages.unshift({ role: 'system', content: systemPrompt });
     }
+
+    // DeepSeek은 content 배열을 못 받음 → 문자열로 강제 변환
+    DeepSeekService._stripImageUrlFromHistory(apiMessages);
+    // 텍스트 문서만 원본에 이어붙이기, 이미지는 안내 텍스트로 대체
+    DeepSeekService._attachDocumentsAsText(apiMessages, documents);
 
     const requestBody = {
       model: this.modelName,
@@ -2464,6 +2528,47 @@ class DeepSeekService extends OpenAIService {
 
     return { text, usage };
   }
+
+  /**
+   * 히스토리 메시지에서 image_url 타입 제거 (DeepSeek은 vision 미지원)
+   * content가 배열인 경우 image_url 항목을 제거하고 텍스트만 남김
+   */
+  static _stripImageUrlFromHistory(apiMessages) {
+    for (const msg of apiMessages) {
+      if (Array.isArray(msg.content)) {
+        // DeepSeek은 content 배열을 아예 못 받음 → 항상 문자열로 변환
+        const texts = msg.content
+          .filter(p => p.type === 'text')
+          .map(p => p.text);
+        msg.content = texts.join('\n') || '[이미지]';
+      }
+    }
+  }
+
+  /**
+   * DeepSeek용: 문서를 문자열로만 첨부 (배열 변환 없음)
+   */
+  static _attachDocumentsAsText(apiMessages, documents) {
+    if (!documents || documents.length === 0) return;
+    const lastUserIdx = apiMessages.map((m, i) => ({ m, i }))
+      .filter(x => x.m.role === 'user').pop()?.i;
+    if (lastUserIdx === undefined) return;
+    const extra = [];
+    let skippedImages = 0;
+    for (const doc of documents) {
+      if (doc.type === 'image') {
+        skippedImages++;
+      } else if (doc.type === 'text') {
+        extra.push(`[${doc.title}]\n${doc.content}`);
+      }
+    }
+    if (skippedImages > 0) {
+      extra.push(`[첨부된 이미지 ${skippedImages}개는 이 모델에서 볼 수 없습니다]`);
+    }
+    if (extra.length > 0) {
+      apiMessages[lastUserIdx].content = extra.join('\n\n') + '\n\n' + apiMessages[lastUserIdx].content;
+    }
+  }
 }
 
 class FireworksAIService extends AIService {
@@ -2480,6 +2585,7 @@ class FireworksAIService extends AIService {
       temperature = 0.7,
       tools = null,
       toolExecutor = null,
+      documents = null,
     } = options;
 
     const apiMessages = messages.filter(msg => msg.content && (typeof msg.content !== 'string' || msg.content.trim()));
@@ -2489,6 +2595,9 @@ class FireworksAIService extends AIService {
         content: systemPrompt
       });
     }
+
+    // 이미지/파일 첨부 처리
+    AIService.attachDocumentsOpenAI(apiMessages, documents, 'FireworksAI');
 
     const requestBody = {
       model: this.modelName,
@@ -2611,11 +2720,11 @@ class OllamaService extends AIService {
       toolExamples = null,
       fineGrainedToolStreaming = false,
       disableParallelToolUse = false,
-      enableToolSearch = false,
+      
     } = options;
 
     // Claude 전용 옵션 사용 시 경고
-    const claudeOnlyOptions = { documents, searchResults, outputFormat, strictTools, thinking, prefill, enableCache, effort, toolExamples, fineGrainedToolStreaming, disableParallelToolUse, enableToolSearch };
+    const claudeOnlyOptions = { searchResults, outputFormat, strictTools, thinking, prefill, enableCache, effort, toolExamples, fineGrainedToolStreaming, disableParallelToolUse };
     const usedClaudeOptions = Object.entries(claudeOnlyOptions)
       .filter(([, v]) => v)
       .map(([k]) => k);
@@ -2627,6 +2736,9 @@ class OllamaService extends AIService {
     const apiMessages = systemPrompt
       ? [{ role: 'system', content: systemPrompt }, ...messages]
       : [...messages];
+
+    // 이미지/파일 첨부 처리
+    AIService.attachDocumentsOpenAI(apiMessages, documents, 'Ollama');
 
     const requestBody = {
       model: this.modelName,
@@ -2774,7 +2886,6 @@ class VertexAIService extends AIService {
       effort: true,          // 노력 수준 조절
       toolExamples: true,    // 도구별 input_examples (beta)
       fineGrainedToolStreaming: true, // 세밀한 도구 스트리밍 (beta)
-      enableToolSearch: true, // Tool Search Tool (beta)
     };
   }
 
@@ -2830,9 +2941,7 @@ class VertexAIService extends AIService {
       prefill = null,
       enableCache = true,
       effort = null,
-      enableToolSearch = false,
-      toolSearchType = 'regex',
-      alwaysLoadTools = [],
+      documents = null,
     } = options;
 
     const client = await this._getClient();
@@ -2841,6 +2950,25 @@ class VertexAIService extends AIService {
       role: msg.role,
       content: msg.content
     }));
+
+    // 이미지/파일 첨부 처리 (Anthropic 형식 — content 배열)
+    if (documents && documents.length > 0) {
+      const lastUserIdx = apiMessages.length - 1 - [...apiMessages].reverse().findIndex(m => m.role === 'user');
+      if (lastUserIdx >= 0 && lastUserIdx < apiMessages.length) {
+        const contentBlocks = documents.map(doc => {
+          if (doc.type === 'image') {
+            return { type: 'image', source: { type: 'base64', media_type: doc.media_type, data: doc.data } };
+          } else if (doc.type === 'text') {
+            return { type: 'text', text: `[${doc.title}]\n${doc.content}` };
+          }
+          return null;
+        }).filter(Boolean);
+        const originalText = apiMessages[lastUserIdx].content;
+        contentBlocks.push({ type: 'text', text: typeof originalText === 'string' ? originalText : JSON.stringify(originalText) });
+        apiMessages[lastUserIdx].content = contentBlocks;
+        console.log(`[VertexAI] Documents attached: ${documents.length} items`);
+      }
+    }
 
     // Prefill 처리
     if (prefill) {
@@ -2879,24 +3007,6 @@ class VertexAIService extends AIService {
     // 도구 처리
     if (tools && tools.length > 0) {
       let processedTools = tools.map(tool => ({ ...tool }));
-
-      // Tool Search Tool
-      if (enableToolSearch && tools.length >= 10) {
-        const toolSearchToolType = toolSearchType === 'bm25'
-          ? 'tool_search_tool_bm25_20251119'
-          : 'tool_search_tool_regex_20251119';
-        const toolSearchToolName = toolSearchType === 'bm25'
-          ? 'tool_search_tool_bm25'
-          : 'tool_search_tool_regex';
-
-        processedTools = [
-          { type: toolSearchToolType, name: toolSearchToolName },
-          ...processedTools.map(tool => ({
-            ...tool,
-            defer_loading: !alwaysLoadTools.includes(tool.name)
-          }))
-        ];
-      }
 
       if (enableCache) {
         processedTools = processedTools.map((tool, index) => {

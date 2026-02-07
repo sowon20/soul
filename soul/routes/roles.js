@@ -9,6 +9,7 @@ const express = require('express');
 const router = express.Router();
 const Role = require('../models/Role');
 const { AIServiceFactory } = require('../utils/ai-service');
+const albaStats = require('../utils/alba-stats');
 
 /**
  * POST /api/roles/execute
@@ -285,6 +286,57 @@ router.get('/', async (req, res) => {
       success: false,
       error: error.message
     });
+  }
+});
+
+/**
+ * GET /api/roles/stats/live
+ * 실시간 알바 호출 통계 (서버 시작 이후, 메모리 내)
+ */
+router.get('/stats/live', (req, res) => {
+  try {
+    const stats = albaStats.getAllStats();
+
+    // 임베딩 통계도 합치기
+    const vectorStore = require('../utils/vector-store');
+    const embedStats = vectorStore.getEmbedStats();
+
+    res.json({
+      success: true,
+      stats,
+      embedStats
+    });
+  } catch (error) {
+    console.error('Error fetching alba stats:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/roles/:roleId/stats/live
+ * 특정 알바 실시간 통계
+ */
+router.get('/:roleId/stats/live', (req, res) => {
+  try {
+    const { roleId } = req.params;
+    const stats = albaStats.getStats(roleId);
+
+    // embedding-worker면 추가 정보
+    let embedStats = null;
+    if (roleId === 'embedding-worker') {
+      const vectorStore = require('../utils/vector-store');
+      embedStats = vectorStore.getEmbedStats();
+    }
+
+    res.json({
+      success: true,
+      roleId,
+      stats: stats || { totalCalls: 0, message: '서버 시작 후 호출 기록 없음' },
+      embedStats
+    });
+  } catch (error) {
+    console.error('Error fetching role stats:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

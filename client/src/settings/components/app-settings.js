@@ -480,7 +480,6 @@ export class AppSettings {
     const server = this.mcpServers.find(s => s.id === serverId);
     if (server) {
       server.enabled = enabled;
-      // API 호출로 저장
       try {
         await this.apiClient.put('/mcp/servers/' + serverId, { enabled });
       } catch (e) {

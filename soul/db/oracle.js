@@ -251,6 +251,13 @@ async function createTables() {
       }
     }
 
+    // 마이그레이션: roles에 memo 컬럼 추가
+    try {
+      await conn.execute(`ALTER TABLE roles ADD memo VARCHAR2(2000)`);
+    } catch (err) {
+      // ORA-01430: column already exists - 무시
+    }
+
     await conn.commit();
     console.log('[Oracle] Tables initialized');
   } finally {

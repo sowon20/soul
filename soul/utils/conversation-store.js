@@ -367,7 +367,8 @@ class ConversationStore {
           tags: m.tags || [],
           tokens: m.tokens || 0,
           metadata: m.metadata || {},
-          routing: m.routing || null
+          routing: m.routing || null,
+          attachments: m.attachments || null
         }));
       } catch (e) {
         console.error('[ConversationStore] Archiver read failed:', e.message);

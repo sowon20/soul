@@ -6,8 +6,34 @@
  * 지원: OpenRouter, OpenAI, HuggingFace, Ollama
  */
 
+const { trackCall: trackAlba } = require('./alba-stats');
+
 // 임베딩 프로바이더 캐시
 let _cachedProvider = null;
+
+// 임베딩 호출 통계 (메모리 — 서버 재시작 시 리셋)
+const _embedStats = {
+  totalCalls: 0,
+  totalTokens: 0,
+  byCategory: {},  // { 'digest-embed': { calls: N, tokens: N }, 'recall-search': { calls: N, tokens: N }, ... }
+  lastCall: null,
+  startedAt: new Date().toISOString()
+};
+
+function trackEmbedCall(category, tokenEstimate) {
+  _embedStats.totalCalls++;
+  _embedStats.totalTokens += tokenEstimate;
+  _embedStats.lastCall = new Date().toISOString();
+  if (!_embedStats.byCategory[category]) {
+    _embedStats.byCategory[category] = { calls: 0, tokens: 0 };
+  }
+  _embedStats.byCategory[category].calls++;
+  _embedStats.byCategory[category].tokens += tokenEstimate;
+}
+
+function getEmbedStats() {
+  return { ..._embedStats };
+}
 
 const OLLAMA_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
 
@@ -125,7 +151,7 @@ async function embedWithOllama(text, model) {
 /**
  * 텍스트를 벡터로 변환 (프로바이더 자동 감지)
  */
-async function embed(text) {
+async function embed(text, category = 'unknown') {
   try {
     const provider = await getEmbeddingProvider();
 
@@ -134,19 +160,38 @@ async function embed(text) {
       return null;
     }
 
+    // 토큰 추정 (한글 ~0.6, 영어 ~0.3)
+    const tokenEstimate = Math.ceil(text.length * 0.5);
+    trackEmbedCall(category, tokenEstimate);
+
+    const _embedStart = Date.now();
+    let result = null;
     switch (provider.type) {
       case 'openrouter':
-        return await embedWithOpenAI(text, provider.apiKey, provider.model, 'https://openrouter.ai/api/v1');
+        result = await embedWithOpenAI(text, provider.apiKey, provider.model, 'https://openrouter.ai/api/v1');
+        break;
       case 'openai':
-        return await embedWithOpenAI(text, provider.apiKey, provider.model, 'https://api.openai.com/v1');
+        result = await embedWithOpenAI(text, provider.apiKey, provider.model, 'https://api.openai.com/v1');
+        break;
       case 'huggingface':
-        return await embedWithHuggingFace(text, provider.apiKey, provider.model);
+        result = await embedWithHuggingFace(text, provider.apiKey, provider.model);
+        break;
       case 'ollama':
-        return await embedWithOllama(text, provider.model);
+        result = await embedWithOllama(text, provider.model);
+        break;
       default:
-        // OpenAI 호환 시도
-        return await embedWithOpenAI(text, provider.apiKey, provider.model, provider.baseUrl);
+        result = await embedWithOpenAI(text, provider.apiKey, provider.model, provider.baseUrl);
     }
+
+    trackAlba('embedding-worker', {
+      action: category,
+      tokens: tokenEstimate,
+      latencyMs: Date.now() - _embedStart,
+      success: !!result,
+      model: provider.model
+    });
+
+    return result;
   } catch (error) {
     console.error('[VectorStore] Embedding error:', error.message);
     return null;
@@ -161,7 +206,7 @@ async function addMessage(message) {
     const text = message.text || message.content || '';
     if (!text || text.length < 5) return;
 
-    const embedding = await embed(text);
+    const embedding = await embed(text, 'digest-embed');
     if (!embedding) {
       console.warn('[VectorStore] Embedding failed, skipping');
       return;
@@ -209,7 +254,7 @@ async function addMessage(message) {
  */
 async function search(query, limit = 5, options = {}) {
   try {
-    const queryEmbedding = await embed(query);
+    const queryEmbedding = await embed(query, 'recall-search');
     if (!queryEmbedding) return [];
 
     const Message = require('../models/Message');
@@ -331,7 +376,7 @@ async function ingestJsonl(filePath, options = {}) {
     }
 
     try {
-      const embedding = await embed(combinedText);
+      const embedding = await embed(combinedText, 'ingest-jsonl');
       if (!embedding) {
         skipped++;
         continue;
@@ -376,11 +421,106 @@ async function ingestJsonl(filePath, options = {}) {
   return { total: chunks.length, embedded, skipped, errors };
 }
 
+/**
+ * 일별 대화 JSON 파일을 임베딩
+ * conversations/YYYY-MM/YYYY-MM-DD.json 형식
+ */
+async function ingestDayJson(filePath, options = {}) {
+  const fs = require('fs');
+  const path = require('path');
+
+  if (!fs.existsSync(filePath)) {
+    console.log(`[VectorStore] File not found: ${filePath}`);
+    return { total: 0, embedded: 0, skipped: 0, errors: 0 };
+  }
+
+  const raw = fs.readFileSync(filePath, 'utf-8');
+  let messages;
+  try {
+    messages = JSON.parse(raw);
+  } catch {
+    console.warn(`[VectorStore] Invalid JSON: ${filePath}`);
+    return { total: 0, embedded: 0, skipped: 0, errors: 0 };
+  }
+
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return { total: 0, embedded: 0, skipped: 0, errors: 0 };
+  }
+
+  // ingestJsonl과 동일한 청킹 로직
+  const { batchDelay = 500, maxChunkChars = 1500 } = options;
+  const chunks = [];
+  let currentChunk = { texts: [], roles: [], timestamp: null };
+
+  for (const msg of messages) {
+    const text = (msg.text || msg.content || '').trim();
+    const role = msg.role || 'unknown';
+    if (!text || text.length < 3) continue;
+
+    if (!currentChunk.timestamp) {
+      currentChunk.timestamp = msg.timestamp || new Date().toISOString();
+    }
+
+    if (role === 'user' && currentChunk.texts.length > 0) {
+      chunks.push({ ...currentChunk });
+      currentChunk = { texts: [], roles: [], timestamp: msg.timestamp };
+    }
+
+    const truncated = text.length > maxChunkChars
+      ? text.substring(0, maxChunkChars) + '...'
+      : text;
+    currentChunk.texts.push(`[${role}] ${truncated}`);
+    currentChunk.roles.push(role);
+  }
+  if (currentChunk.texts.length > 0) chunks.push(currentChunk);
+
+  const source = path.basename(filePath, '.json');
+  console.log(`[VectorStore] Ingest day: ${source} — ${messages.length} messages → ${chunks.length} chunks`);
+
+  const db = require('../db');
+  if (!db.db) db.init();
+
+  let embedded = 0, skipped = 0, errors = 0;
+
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
+    const combinedText = chunk.texts.join('\n');
+    if (combinedText.length < 10) { skipped++; continue; }
+
+    try {
+      const embedding = await embed(combinedText, 'ingest-day');
+      if (!embedding) { skipped++; continue; }
+
+      const stmt = db.db.prepare(`
+        INSERT INTO messages (session_id, role, content, embedding, timestamp, meta)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `);
+      stmt.run(
+        'embeddings', chunk.roles.includes('user') ? 'user' : 'system',
+        combinedText, JSON.stringify(embedding),
+        chunk.timestamp, JSON.stringify({ source, chunkIndex: i })
+      );
+      embedded++;
+
+      if (i < chunks.length - 1) await new Promise(r => setTimeout(r, batchDelay));
+    } catch (err) {
+      errors++;
+      console.warn(`[VectorStore] Ingest chunk ${i} failed:`, err.message);
+      if (err.message.includes('429')) await new Promise(r => setTimeout(r, 5000));
+    }
+  }
+
+  console.log(`[VectorStore] Ingest day complete: ${embedded} embedded, ${skipped} skipped, ${errors} errors`);
+  return { total: chunks.length, embedded, skipped, errors };
+}
+
 module.exports = {
   embed,
   addMessage,
   search,
   getEmbeddingProvider,
   resetEmbeddingProvider,
-  ingestJsonl
+  ingestJsonl,
+  ingestDayJson,
+  getEmbedStats
 };

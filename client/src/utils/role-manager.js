@@ -383,6 +383,11 @@ export class RoleManager {
             <small>이 역할이 사용할 AI 모델을 선택하세요</small>
           </div>
 
+          <div class="form-group">
+            <label>메모</label>
+            <textarea name="description" rows="3" placeholder="이 알바에 대한 메모 (모델 선택 이유, 설정 참고사항 등)">${role.description || ''}</textarea>
+          </div>
+
           <div class="form-actions">
             <button type="button" class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">취소</button>
             <button type="submit" class="btn btn-primary">저장</button>
@@ -433,6 +438,7 @@ export class RoleManager {
         const response = await this.apiClient.patch(`/roles/${roleId}`, {
           name: newName,
           preferredModel: newModel,
+          description: formData.get('description') || '',
           config: JSON.stringify(updatedConfig)
         });
 

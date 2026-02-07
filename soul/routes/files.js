@@ -9,9 +9,11 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
 const crypto = require('crypto');
+const os = require('os');
 
-// 업로드 디렉토리
-const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, '../uploads');
+// 업로드 디렉토리 (SOUL_DATA_DIR/uploads)
+const DATA_DIR = process.env.SOUL_DATA_DIR || path.join(os.homedir(), '.soul');
+const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 
 // 디렉토리 생성 (없으면)
 fs.mkdir(UPLOAD_DIR, { recursive: true }).catch(() => {});
