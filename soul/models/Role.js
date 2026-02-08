@@ -94,6 +94,26 @@ Role.initializeDefaultRoles = async function() {
         maxTokens: 1000,
         purpose: 'vision'
       })
+    },
+    {
+      roleId: 'verification-worker',
+      name: '도구 검증',
+      description: '도구 실행 결과를 검증하여 AI의 거짓/날조를 감지합니다.',
+      systemPrompt: '',  // verification-worker.js 내부 프롬프트 사용
+      preferredModel: 'openai/gpt-oss-20b:free',
+      tools: '[]',
+      isActive: 1,
+      isSystem: 1,
+      config: JSON.stringify({
+        serviceId: 'openrouter',
+        temperature: 0.1,
+        maxTokens: 300,
+        purpose: 'verification',
+        fallbackModels: [
+          { modelId: 'google/gemini-2.0-flash-exp:free', serviceId: 'openrouter' },
+          { modelId: 'meta-llama/llama-4-scout:free', serviceId: 'openrouter' }
+        ]
+      })
     }
   ];
 

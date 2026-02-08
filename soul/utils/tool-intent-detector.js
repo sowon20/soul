@@ -31,48 +31,6 @@ class ToolIntentDetector {
         ],
         needTemplate: '관련 기억/대화 검색: {query}',
       },
-      list_my_rules: {
-        keywords: ['규칙', '메모', '할일', '투두', 'todo', 'rule', 'memo', '목록', '리스트'],
-        patterns: [
-          /(?:규칙|메모|할일|투두|todo)\s*(?:보여|목록|리스트|조회|확인|뭐가?\s*있)/,
-          /(?:뭐|뭘|무엇)\s*(?:기억|메모|저장)/,
-          /(?:저장|기억).*(?:목록|리스트|뭐)/,
-        ],
-        needTemplate: '규칙/메모 목록 조회',
-      },
-      add_my_rule: {
-        keywords: ['기억해', '저장해', '메모해', '추가해', '기록해', '잊지마', 'save', 'remember', 'memo', 'note'],
-        patterns: [
-          /(?:기억|저장|메모|기록|추가)\s*(?:해|해줘|해라|하자|할게)/,
-          /(?:잊지\s*마|잊어버리지\s*마)/,
-          /(?:이거|이것|이건)\s*(?:기억|저장|메모)/,
-        ],
-        needTemplate: '규칙에 저장: {content}',
-      },
-      update_my_rule: {
-        keywords: ['수정', '변경', '고쳐', '바꿔', 'update', 'edit', 'modify'],
-        patterns: [
-          /(?:규칙|메모|할일)\s*(?:수정|변경|고쳐|바꿔|편집)/,
-          /(?:수정|변경|고쳐|바꿔)\s*(?:해|해줘)/,
-        ],
-        needTemplate: '규칙 수정: {content}',
-      },
-      toggle_my_rule: {
-        keywords: ['체크', '완료', '토글', '끝', 'check', 'done', 'toggle', 'complete'],
-        patterns: [
-          /(?:규칙|메모|할일)\s*(?:체크|완료|토글|끝)/,
-          /(?:체크|완료|토글)\s*(?:해|해줘)/,
-        ],
-        needTemplate: '규칙 체크/토글',
-      },
-      delete_my_rule: {
-        keywords: ['삭제', '지워', '제거', '없애', 'delete', 'remove'],
-        patterns: [
-          /(?:규칙|메모|할일)\s*(?:삭제|지워|제거|없애)/,
-          /(?:삭제|지워|제거)\s*(?:해|해줘)/,
-        ],
-        needTemplate: '규칙 삭제',
-      },
       update_profile: {
         keywords: [],
         patterns: [

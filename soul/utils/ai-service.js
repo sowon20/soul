@@ -2703,8 +2703,8 @@ class QwenService extends OpenAIService {
 
     const apiMessages = messages.filter(msg => msg.content && (typeof msg.content !== 'string' || msg.content.trim()));
     if (systemPrompt) {
-      const thinkingDirective = thinking
-        ? '\n\n[Thinking Process Instruction] You may reason in English internally to maintain your logical depth. However, every single token of your output within the <think> tags must be displayed in KOREAN. Translate your thoughts into Korean in real-time as you generate them. Never output raw English text.'
+      const thinkingDirective = (thinking && this.modelName.includes('thinking'))
+        ? '\n\n<think> 시작과 동시에 모든 언어는 한국어로 한다.'
         : '';
       apiMessages.unshift({ role: 'system', content: systemPrompt + thinkingDirective });
     }
@@ -2722,17 +2722,16 @@ class QwenService extends OpenAIService {
     const isThinkingModel = this.modelName.includes('thinking');
     requestBody.stream_options = { include_usage: true };
 
-    if (thinking) {
+    if (isThinkingModel) {
+      // 생각모델은 enable_thinking: true 필수 (false도 미전송도 에러)
       requestBody.enable_thinking = true;
-      requestBody.thinking_budget = 30;
-      requestBody.repetition_penalty = 1.2;
-      requestBody.presence_penalty = 0.5;
-      requestBody.frequency_penalty = 0.3;
-    } else {
-      // thinking 모델이라도 명시적으로 끄기 (안 보내면 기본 true일 수 있음)
-      if (isThinkingModel) {
-        requestBody.enable_thinking = false;
+      requestBody.thinking_budget = thinking ? 4096 : 30;
+      if (thinking) {
+        requestBody.repetition_penalty = 1.2;
+        requestBody.presence_penalty = 0.5;
+        requestBody.frequency_penalty = 0.3;
       }
+    } else {
       requestBody.temperature = temperature;
     }
 

@@ -516,9 +516,12 @@ export class ChatManager {
         toolsToggle.type = 'button';
         toolsToggle.className = 'ai-tool-thinking-toggle';
         const allSuccess = toolsUsedArr.length > 0 ? toolsUsedArr.every(t => t.success) : true;
-        const statusClass = allSuccess ? 'success' : 'warning';
-        const icon = allSuccess ? '✓' : '⚠';
-        const totalSteps = (hasToolNeeds ? 1 : 0) + (hasToolsSelected ? 1 : 0) + toolsUsedArr.length;
+        const hasLie = toolsUsedArr.some(t => t.verificationVerdict === 'confirmed_lie' || t.lieStamp);
+        const hasVerifyFail = toolsUsedArr.some(t => t.verificationVerdict === 'fail');
+        const verifyCount = toolsUsedArr.filter(t => t.verificationVerdict && t.verificationVerdict !== 'skip').length;
+        const statusClass = hasLie ? 'error' : (allSuccess && !hasVerifyFail) ? 'success' : 'warning';
+        const icon = hasLie ? '✗' : allSuccess ? '✓' : '⚠';
+        const totalSteps = (hasToolNeeds ? 1 : 0) + (hasToolsSelected ? 1 : 0) + toolsUsedArr.length + verifyCount;
         toolsToggle.innerHTML = `<span class="tool-thinking-icon ${statusClass}">${icon}</span> <span>도구 사용 ${totalSteps}단계</span><span class="tool-thinking-chevron">›</span>`;
         toolsToggle.addEventListener('click', function(e) {
           e.preventDefault();
@@ -597,11 +600,23 @@ export class ChatManager {
           const inputText = tool.inputSummary || '';
           const resultText = formatResult(tool.name, tool.resultPreview || '');
 
+          // 검증 결과 표시
+          const vVerdict = tool.verificationVerdict;
+          const vMemo = tool.verificationMemo;
+          let verifyHtml = '';
+          if (vVerdict && vVerdict !== 'skip') {
+            const vIcon = vVerdict === 'pass' ? '✅' : vVerdict === 'fail' || vVerdict === 'confirmed_lie' ? '❌' : '📝';
+            const vLabel = vVerdict === 'pass' ? 'v통과' : vVerdict === 'confirmed_lie' ? 'x거짓 확정' : vVerdict === 'fail' ? 'x거짓' : '참고';
+            const vClass = vVerdict === 'pass' ? 'verify-pass' : vVerdict === 'fail' || vVerdict === 'confirmed_lie' ? 'verify-fail' : 'verify-note';
+            verifyHtml = `<div class="tool-thinking-verify ${vClass}">${vIcon} ${vLabel}${vMemo ? ` — ${escapeHtml(vMemo)}` : ''}</div>`;
+          }
+
           step.innerHTML = `
             <div class="tool-thinking-indicator">${tool.success ? '✓' : '✗'}</div>
             <div class="tool-thinking-content-wrap">
               <div class="tool-thinking-action">${escapeHtml(actionName)}${inputText ? `<span class="tool-thinking-input">${escapeHtml(inputText)}</span>` : ''}</div>
               ${resultText ? `<div class="tool-thinking-result">${escapeHtml(resultText)}</div>` : ''}
+              ${verifyHtml}
             </div>
           `;
           toolsContent.appendChild(step);
@@ -610,6 +625,45 @@ export class ChatManager {
         toolsContainer.appendChild(toolsToggle);
         toolsContainer.appendChild(toolsContent);
         content.insertBefore(toolsContainer, content.firstChild);
+      }
+
+      // 필터 표시 (서버에서 제거된 날조 내용)
+      if (message.filtered && message.filtered.length > 0) {
+        const filterContainer = document.createElement('div');
+        filterContainer.className = 'ai-filter-container';
+
+        const filterToggle = document.createElement('button');
+        filterToggle.type = 'button';
+        filterToggle.className = 'ai-filter-toggle';
+        filterToggle.innerHTML = `<span class="filter-icon">🚨</span> <span>필터 ${message.filtered.length}건</span><span class="filter-chevron">›</span>`;
+        filterToggle.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          this.parentElement.classList.toggle('expanded');
+        });
+
+        const filterContent = document.createElement('div');
+        filterContent.className = 'ai-filter-content';
+
+        const escHtml = (text) => {
+          const d = document.createElement('div');
+          d.textContent = text;
+          return d.innerHTML;
+        };
+
+        for (const f of message.filtered) {
+          const filterItem = document.createElement('div');
+          filterItem.className = 'ai-filter-item';
+          filterItem.innerHTML = `
+            <div class="filter-type">${escHtml(f.type)}</div>
+            <div class="filter-detail">${escHtml(f.content || '')}</div>
+          `;
+          filterContent.appendChild(filterItem);
+        }
+
+        filterContainer.appendChild(filterToggle);
+        filterContainer.appendChild(filterContent);
+        content.insertBefore(filterContainer, content.firstChild);
       }
 
       // Process code blocks - add copy button and syntax highlighting
@@ -1329,16 +1383,32 @@ export class ChatManager {
         toolsSelected = statusData.toolsSelected || [];
         window.soulApp.socketClient.clearToolStatus();
       }
-      // 서버 응답의 toolsUsed가 있으면 그것도 합침
-      if (response.toolsUsed?.length > 0 && toolItems.length === 0) {
-        toolItems = response.toolsUsed.map(t => ({
-          name: t.name,
-          display: t.display || t.name,
-          success: t.success !== false,
-          error: t.success === false,
-          inputSummary: t.inputSummary || '',
-          resultPreview: t.resultPreview || '',
-        }));
+      // 서버 응답의 toolsUsed에서 검증 데이터 머지
+      if (response.toolsUsed?.length > 0) {
+        if (toolItems.length === 0) {
+          // 실시간 데이터 없으면 서버 데이터 사용
+          toolItems = response.toolsUsed.map(t => ({
+            name: t.name,
+            display: t.display || t.name,
+            success: t.success !== false,
+            error: t.success === false,
+            inputSummary: t.inputSummary || '',
+            resultPreview: t.resultPreview || '',
+            verificationMemo: t.verificationMemo || null,
+            verificationVerdict: t.verificationVerdict || null,
+            lieStamp: t.lieStamp || false
+          }));
+        } else {
+          // 실시간 데이터 있으면 서버의 검증 정보만 머지
+          for (const serverTool of response.toolsUsed) {
+            const match = toolItems.find(t => t.name === serverTool.name && !t.verificationVerdict);
+            if (match && serverTool.verificationVerdict) {
+              match.verificationMemo = serverTool.verificationMemo;
+              match.verificationVerdict = serverTool.verificationVerdict;
+              match.lieStamp = serverTool.lieStamp || false;
+            }
+          }
+        }
       }
       // 서버 응답의 toolNeeds/toolsSelected 합침
       if (response.toolNeeds?.length > 0 && toolNeeds.length === 0) {
@@ -1358,6 +1428,7 @@ export class ChatManager {
         toolsUsed: toolItems.length > 0 ? toolItems : null,
         toolNeeds: toolNeeds.length > 0 ? toolNeeds : null,
         toolsSelected: toolsSelected.length > 0 ? toolsSelected : null,
+        filtered: response.filtered || null,
       });
 
       // system fallback 알림 (일시적, 저장 안 됨)

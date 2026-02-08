@@ -7,7 +7,6 @@
 
 const { getMemoryManager } = require('./memory-layers');
 const ProfileModel = require('../models/Profile');
-const SelfRule = require('../models/SelfRule');
 
 /**
  * 내장 도구 정의 (Claude tool_use 형식)
@@ -50,69 +49,6 @@ const builtinTools = [
     }
   },
   {
-    name: 'list_my_rules',
-    description: '내가 스스로 기억해둔 메모/규칙 조회. 이건 AI 내부 메모이며 사용자가 저장한 것이 아님. 사용자가 "내 규칙"이라고 하면 먼저 무엇을 의미하는지 확인할 것.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        category: { type: 'string', enum: ['system', 'coding', 'daily', 'personality', 'user', 'general'], description: '카테고리' },
-        limit: { type: 'number', description: '개수' }
-      }
-    }
-  },
-  {
-    name: 'add_my_rule',
-    description: '대화에서 배운 것/기억할 것을 내 메모에 저장. 사용자의 데이터가 아닌 AI 내부 메모.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        rule: { type: 'string', description: '내용' },
-        category: { type: 'string', enum: ['system', 'coding', 'daily', 'personality', 'user', 'general'], description: '카테고리' },
-        priority: { type: 'number', description: '중요도 1-10' },
-        context: { type: 'string', description: '배경' }
-      },
-      required: ['rule']
-    }
-  },
-  {
-    name: 'update_my_rule',
-    description: '기존 메모/규칙의 내용이나 속성을 수정 (AI 내부 메모)',
-    input_schema: {
-      type: 'object',
-      properties: {
-        ruleId: { type: 'string', description: '규칙 ID' },
-        rule: { type: 'string', description: '수정할 내용 (생략시 기존 유지)' },
-        category: { type: 'string', enum: ['system', 'coding', 'daily', 'personality', 'user', 'general'], description: '카테고리' },
-        priority: { type: 'number', description: '중요도 1-10' },
-        context: { type: 'string', description: '배경' }
-      },
-      required: ['ruleId']
-    }
-  },
-  {
-    name: 'toggle_my_rule',
-    description: '메모/규칙의 활성 상태를 토글 (체크/언체크). 할 일 완료 처리에 사용.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        ruleId: { type: 'string', description: '규칙 ID' },
-        isActive: { type: 'boolean', description: '활성 상태 (생략시 현재 상태 반전)' }
-      },
-      required: ['ruleId']
-    }
-  },
-  {
-    name: 'delete_my_rule',
-    description: '내 메모/규칙 삭제 (AI 내부 메모)',
-    input_schema: {
-      type: 'object',
-      properties: {
-        ruleId: { type: 'string', description: '규칙 ID' }
-      },
-      required: ['ruleId']
-    }
-  },
-  {
     name: 'execute_command',
     description: '서버에서 쉘 명령어 실행. 결과는 터미널에 실시간 표시됨. 위험한 명령(rm -rf /, shutdown 등)은 거부할 것.',
     input_schema: {
@@ -137,16 +73,6 @@ async function executeBuiltinTool(toolName, input) {
       return await getProfile(input);
     case 'update_profile':
       return await updateProfile(input);
-    case 'list_my_rules':
-      return await listMyRules(input);
-    case 'add_my_rule':
-      return await addMyRule(input);
-    case 'update_my_rule':
-      return await updateMyRule(input);
-    case 'toggle_my_rule':
-      return await toggleMyRule(input);
-    case 'delete_my_rule':
-      return await deleteMyRule(input);
     case 'execute_command':
       return await executeCommandTool(input);
     default:
@@ -575,158 +501,6 @@ async function updateProfile({ field, value, userId }) {
 }
 
 /**
- * list_my_rules 구현
- */
-async function listMyRules({ category = null, limit = 20 } = {}) {
-  try {
-    const query = { isActive: true };
-    if (category) query.category = category;
-
-    const rules = await SelfRule.find(query)
-      .sort({ priority: -1, useCount: -1 })
-      .limit(limit);
-
-    if (!rules || rules.length === 0) {
-      return { found: false, message: '저장한 규칙이 없어.' };
-    }
-
-    return {
-      found: true,
-      count: rules.length,
-      rules: rules.map(r => ({
-        id: r._id || r.id,
-        rule: r.rule,
-        category: r.category,
-        priority: r.priority,
-        context: r.context
-      }))
-    };
-  } catch (error) {
-    console.error('[list_my_rules] Error:', error);
-    return { error: error.message };
-  }
-}
-
-/**
- * add_my_rule 구현
- */
-async function addMyRule({ rule, category = 'general', priority = 5, context = null }) {
-  try {
-    // 중복/유사 기억 자동 정리: 핵심 키워드로 기존 기억 검색
-    const keywords = rule
-      .replace(/유저는|사용자는|사용자가|유저가|을|를|이|가|은|는|에|의|도|로|와|과|에서|으로|하다|했다|한다|있다|없다|아님|좋아함|싫어함/g, ' ')
-      .split(/\s+/)
-      .filter(w => w.length >= 2)
-      .slice(0, 5);
-
-    if (keywords.length > 0) {
-      const existing = await SelfRule.find({ isActive: 1 }).exec();
-      const duplicates = existing.filter(r => {
-        const ruleText = r.rule || '';
-        const matchCount = keywords.filter(kw => ruleText.includes(kw)).length;
-        return matchCount >= 2 && r.rule !== rule; // 키워드 2개 이상 겹치면 유사
-      });
-
-      for (const dup of duplicates) {
-        const dupId = dup.id || dup._id;
-        await SelfRule.deleteOne({ _id: dupId });
-        console.log(`[add_my_rule] Replaced old: "${dup.rule.substring(0, 50)}"`);
-      }
-    }
-
-    await SelfRule.create({
-      rule,
-      category,
-      priority,
-      context,
-      isActive: true,
-      useCount: 0
-    });
-
-    console.log(`[add_my_rule] Saved: "${rule.substring(0, 50)}"`);
-    return {
-      success: true,
-      message: `규칙 저장했어: "${rule.substring(0, 50)}${rule.length > 50 ? '...' : ''}"`
-    };
-  } catch (error) {
-    console.error('[add_my_rule] Error:', error);
-    return { error: error.message };
-  }
-}
-
-/**
- * update_my_rule 구현 - 기존 규칙 수정
- */
-async function updateMyRule({ ruleId, rule, category, priority, context }) {
-  try {
-    const existing = await SelfRule.findOne({ id: ruleId });
-    if (!existing) {
-      return { success: false, message: '해당 규칙을 찾지 못했어.' };
-    }
-
-    const updates = {};
-    if (rule !== undefined) updates.rule = rule;
-    if (category !== undefined) updates.category = category;
-    if (priority !== undefined) updates.priority = priority;
-    if (context !== undefined) updates.context = context;
-    updates.updatedAt = new Date().toISOString();
-
-    await SelfRule.updateOne({ id: ruleId }, updates);
-
-    console.log(`[update_my_rule] Updated id=${ruleId}: ${JSON.stringify(updates).substring(0, 100)}`);
-    return {
-      success: true,
-      message: `규칙 수정했어.`,
-      updated: updates
-    };
-  } catch (error) {
-    console.error('[update_my_rule] Error:', error);
-    return { error: error.message };
-  }
-}
-
-/**
- * toggle_my_rule 구현 - 활성 상태 토글 (체크/언체크)
- */
-async function toggleMyRule({ ruleId, isActive }) {
-  try {
-    const existing = await SelfRule.findOne({ id: ruleId });
-    if (!existing) {
-      return { success: false, message: '해당 규칙을 찾지 못했어.' };
-    }
-
-    // isActive가 지정되면 그 값, 아니면 현재 반전
-    const newState = isActive !== undefined ? (isActive ? 1 : 0) : (existing.isActive ? 0 : 1);
-    await SelfRule.updateOne({ id: ruleId }, { isActive: newState, updatedAt: new Date().toISOString() });
-
-    const stateText = newState ? '활성화' : '완료 처리';
-    console.log(`[toggle_my_rule] id=${ruleId} → ${stateText}`);
-    return {
-      success: true,
-      message: `규칙을 ${stateText}했어.`,
-      isActive: !!newState
-    };
-  } catch (error) {
-    console.error('[toggle_my_rule] Error:', error);
-    return { error: error.message };
-  }
-}
-
-/**
- * delete_my_rule 구현
- */
-async function deleteMyRule({ ruleId }) {
-  try {
-    const result = await SelfRule.deleteOne({ id: ruleId });
-    if (result.deletedCount > 0) {
-      return { success: true, message: '규칙 삭제했어.' };
-    }
-    return { success: false, message: '해당 규칙을 찾지 못했어.' };
-  } catch (error) {
-    console.error('[delete_my_rule] Error:', error);
-    return { error: error.message };
-  }
-}
 
 /**
  * execute_command 구현

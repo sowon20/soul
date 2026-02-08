@@ -5494,6 +5494,7 @@ export class AISettings {
     const currentServiceId = config.serviceId || '';
     const isEmbedding = config.purpose === 'embedding';
     const isToolWorker = config.purpose === 'tool-routing';
+    const hasChainSupport = isToolWorker || config.purpose === 'verification';
 
     // tool-worker면 현재 도구 라우팅 상태 로드
     let toolRoutingEnabled = false;
@@ -5549,8 +5550,8 @@ export class AISettings {
               <input type="text" id="albaName" value="${role.name || ''}" />
             </div>
             ${modelFieldHtml}
-            ${isToolWorker ? `
-            <div class="alba-modal-field" id="albaFallbackSection" style="${toolRoutingMode !== 'chain' ? 'display:none' : ''}">
+            ${hasChainSupport ? `
+            <div class="alba-modal-field" id="albaFallbackSection" style="${isToolWorker && toolRoutingMode !== 'chain' ? 'display:none' : ''}">
               <label>체인 단계 <span class="field-hint">(실패 시 순서대로 시도)</span></label>
               <div class="alba-chain-steps" id="albaFallbackSteps">
                 ${(config.fallbackModels || []).map((fb, idx) => `
@@ -5613,8 +5614,10 @@ export class AISettings {
           if (fallbackSection) fallbackSection.style.display = radio.value === 'chain' ? '' : 'none';
         });
       });
+    }
 
-      // fallback 모델 추가
+    // 체인 지원 알바 (tool-worker, verification-worker): fallback 모델 추가/삭제
+    if (hasChainSupport) {
       const addFallbackBtn = overlay.querySelector('#addFallbackStep');
       if (addFallbackBtn) {
         addFallbackBtn.addEventListener('click', () => {
@@ -5692,12 +5695,14 @@ export class AISettings {
       const updatedConfig = { ...config, serviceId };
 
       try {
-        // tool-worker면 실행 방식(단일/체인) + fallback 모델 저장
+        // tool-worker면 실행 방식(단일/체인) 저장
         if (isToolWorker) {
           const trMode = document.querySelector('input[name="albaToolRoutingMode"]:checked')?.value || 'single';
           await this.apiClient.post('/notifications/tool-routing/toggle', { mode: trMode });
+        }
 
-          // fallback 모델 목록 수집
+        // 체인 지원 알바 (tool-worker, verification-worker): fallback 모델 수집
+        if (hasChainSupport) {
           const fallbackModels = Array.from(overlay.querySelectorAll('.alba-fallback-model')).map(select => {
             const opt = select.options[select.selectedIndex];
             const optgroup = opt?.closest('optgroup');

@@ -277,9 +277,6 @@ SOUL_DATA_DIR=~/.soul
 | recall_memory | 과거 대화/기억 검색 |
 | get_profile | 사용자 프로필 조회 |
 | update_profile | 사용자 정보 저장 |
-| list_my_rules | 규칙/메모 조회 |
-| add_my_rule | 규칙 저장 |
-| delete_my_rule | 규칙 삭제 |
 
 ### 프로액티브 도구 (mcp-tools.js) - 토글 ON일 때만 전송
 | 도구 | 설명 |

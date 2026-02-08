@@ -4185,6 +4185,81 @@ body {
 }
 
 
+/* 필터 표시 (날조 감지) */
+.ai-filter-container {
+  margin-bottom: 8px;
+}
+.ai-filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(239, 83, 80, 0.1);
+  border: 1px solid rgba(239, 83, 80, 0.3);
+  border-radius: 16px;
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  color: #ef5350;
+  cursor: pointer;
+  font-weight: 500;
+}
+.ai-filter-toggle:hover {
+  background: rgba(239, 83, 80, 0.2);
+}
+.filter-chevron {
+  transition: transform 0.2s;
+  margin-left: 2px;
+}
+.ai-filter-container.expanded .filter-chevron {
+  transform: rotate(90deg);
+}
+.ai-filter-content {
+  display: none;
+  margin-top: 6px;
+  padding: 8px 12px;
+  background: rgba(239, 83, 80, 0.05);
+  border-left: 2px solid rgba(239, 83, 80, 0.4);
+  border-radius: 4px;
+}
+.ai-filter-container.expanded .ai-filter-content {
+  display: block;
+}
+.filter-type {
+  font-size: 0.7rem;
+  color: #ef5350;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.filter-detail {
+  font-size: 0.68rem;
+  color: rgba(255, 255, 255, 0.4);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* 검증 결과 표시 */
+.tool-thinking-verify {
+  font-size: 0.72rem;
+  margin-top: 3px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1.4;
+}
+.tool-thinking-verify.verify-pass {
+  color: rgba(76, 175, 80, 0.8);
+}
+.tool-thinking-verify.verify-fail {
+  color: #ef5350;
+  font-weight: 600;
+}
+.tool-thinking-verify.verify-note {
+  color: rgba(255, 193, 7, 0.8);
+}
+.tool-thinking-icon.error {
+  color: #ef5350;
+}
+
 /* 자기학습 규칙 */
 .self-rules-list {
   display: flex;

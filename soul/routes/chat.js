@@ -27,6 +27,7 @@ const { isProactiveActive } = require('../utils/proactive-messenger');
 const configManager = require('../utils/config');
 const { trackCall: trackAlba } = require('../utils/alba-stats');
 const { ToolIntentDetector } = require('../utils/tool-intent-detector');
+const { verifyToolResult, saveLieRecord, SKIP_VERIFICATION_TOOLS } = require('../utils/verification-worker');
 // alba-worker는 더 이상 사용하지 않음 (도구 선택은 tool-worker 알바가 {need} 단계에서 처리)
 
 // JSONL 대화 저장소 (lazy init)
@@ -130,6 +131,8 @@ router.post('/', async (req, res) => {
 
     // 실행된 도구 기록 (응답에 포함)
     const executedTools = [];
+    const verificationFailCounts = {}; // 검증 실패 카운터 (2번 기회)
+    const filteredContents = []; // 서버 필터로 제거된 내용
     let toolNeeds = []; // {need} 요청 내용
     let toolsSelected = []; // 알바가 선택한 도구 이름
     let visionWorkerResult = null; // vision-worker 사용 결과
@@ -185,42 +188,6 @@ router.post('/', async (req, res) => {
       console.warn('알바 목록 로드 실패:', roleError.message);
     }
 
-    // 1-2. 자기학습 메모 (내면 성찰)
-    try {
-      const SelfRule = require('../models/SelfRule');
-      const selfRules = await SelfRule.find({ isActive: true })
-        .sort({ priority: -1, useCount: -1 })
-        .limit(5)
-        .select('rule tokenCount');
-
-      if (selfRules.length > 0) {
-        let rulesText = '';
-        let tokenCount = 0;
-        const maxTokens = 300;
-
-        for (const rule of selfRules) {
-          const ruleTokens = rule.tokenCount || Math.ceil(rule.rule.length / 4);
-          if (tokenCount + ruleTokens > maxTokens) break;
-          rulesText += `- ${rule.rule}\n`;
-          tokenCount += ruleTokens;
-        }
-
-        // 사용 횟수 업데이트는 비동기로
-        SelfRule.updateMany(
-          { _id: { $in: selfRules.map(r => r._id) } },
-          { $inc: { useCount: 1 }, $set: { lastUsed: new Date() } }
-        ).exec().catch(err => console.warn('SelfRule update failed:', err.message));
-
-        if (rulesText) {
-          contextSection += `<!-- 출처: AI가 add_my_rule 도구로 자동 저장한 규칙 -->\n`;
-          contextSection += `<self_notes>
-이전 대화에서 스스로 깨닫거나 배운 것들:
-${rulesText}</self_notes>\n\n`;
-        }
-      }
-    } catch (ruleError) {
-      console.warn('자기학습 규칙 로드 실패:', ruleError.message);
-    }
 
     // 1-3. 사용자 프로필 (autoIncludeInContext인 필드만)
     let userProfileSection = '';
@@ -287,9 +254,9 @@ ${rulesText}</self_notes>\n\n`;
 사용자: "내 이름 뭐야?" → {need} 사용자의 프로필에서 이름 조회
 사용자: "투두 체크해줘" → {need} 투두 목록 읽기
 사용자: "어제 뭐 했지?" → {need} 어제 대화 기억 검색
-사용자: "이거 기억해둬" → {need} 규칙에 저장: (내용)
 
 **절대 금지:**
+- 도구 이름이나 파라미터를 직접 쓰지 마라 (예: list_my_memories, search_web 등). {need} 뒤에는 자연어 설명만 쓴다
 - <tool_history> 태그를 응답에 직접 작성하지 마라. 이건 시스템이 자동 삽입하는 것이다
 - 도구 결과를 날조/추측하지 마라. {need}로 요청해서 실제 결과를 받아야 한다
 - 이전 <tool_history>의 결과를 복사해서 새 응답에 붙이지 마라
@@ -298,6 +265,8 @@ ${rulesText}</self_notes>\n\n`;
 - {need}를 쓸 때 "나/내"를 "사용자"로 바꿔서 전달
 - "할 수 없다"고 거부하지 말고, {need}로 적극 요청할 것
 - 확실하지 않은 건 추측하지 말고 검색하거나 사용자에게 물어라
+
+도구실행 및 메시지는 자체적인 AI검증 시스템이 평가하여 사용자에게 공개되므로 솔직해야 한다.
 
 ## 응답 포맷
 - 긴 문장은 적절히 줄바꿈하여 가독성 유지
@@ -312,6 +281,8 @@ ${rulesText}</self_notes>\n\n`;
 - tool_use 기능으로만 호출 (텍스트로 태그 작성 금지)
 - 도구 결과 추측/날조 금지
 - <tool_use>, <function_call>, <thinking> 태그 직접 작성 금지
+
+도구실행 및 메시지는 자체적인 AI검증 시스템이 평가하여 사용자에게 공개되므로 솔직해야 한다.
 
 응답 포맷:
 - 긴 문장은 적절히 줄바꿈하여 가독성 유지
@@ -614,12 +585,6 @@ ${rulesText}</self_notes>\n\n`;
             return input.field || '전체';
           case 'update_profile':
             return `${input.field}: ${String(input.value || '').substring(0, 50)}`;
-          case 'list_my_rules':
-            return input.category || '전체';
-          case 'add_my_rule':
-            return String(input.rule || '').substring(0, 80);
-          case 'delete_my_rule':
-            return input.ruleId || '';
           case 'send_message':
             return String(input.message || '').substring(0, 50);
           case 'schedule_message':
@@ -726,14 +691,86 @@ ${rulesText}</self_notes>\n\n`;
 
           // 검색 결과 후처리: 중복 제거 (Jina deduplicate 활용)
           result = await deduplicateToolResult(actualToolName, result);
-          
-          // 실행된 도구 기록
+
+          // === 검증 단계 (검증 알바) ===
+          let verification = { verdict: 'skip', memo: null };
+          const failKey = `${toolName}_${JSON.stringify(input).substring(0, 100)}`;
+          const currentFailCount = verificationFailCounts[failKey] || 0;
+          const isFinal = currentFailCount > 0; // 2차 이상이면 최종 검증
+
+          if (!SKIP_VERIFICATION_TOOLS.has(actualToolName)) {
+            // 검증 시작 알림
+            if (global.io) {
+              global.io.emit('tool_verify_start', {
+                name: toolName,
+                display: parsed.display,
+                phase: isFinal ? 'final' : 'check'
+              });
+            }
+
+            verification = await verifyToolResult({
+              toolName: actualToolName,
+              input,
+              result,
+              userMessage: message
+            });
+
+            // 검증 결과 알림
+            if (global.io) {
+              global.io.emit('tool_verify', {
+                name: toolName,
+                display: parsed.display,
+                verdict: verification.verdict,
+                memo: verification.memo,
+                phase: isFinal ? 'final' : 'check'
+              });
+            }
+
+            // 거짓 감지 시 처리
+            if (verification.verdict === 'fail') {
+              verificationFailCounts[failKey] = currentFailCount + 1;
+
+              if (verificationFailCounts[failKey] <= 1) {
+                // 1차 실패: 간단 메모 + 에러 반환 → AI가 재시도
+                console.warn(`[Verify] ❌ 1차 거짓 감지: ${toolName} — ${verification.memo}`);
+                executedTools.push({
+                  name: toolName,
+                  display: parsed.display,
+                  success: false,
+                  error: `검증 실패: ${verification.memo}`,
+                  inputSummary: summarizeToolInput(toolName, input),
+                  verificationMemo: verification.memo,
+                  verificationVerdict: 'fail'
+                });
+                return `[검증 실패] ${verification.memo}\n자체 분석결과 거짓이므로 다시 실행합니다.`;
+              } else {
+                // 2차 실패: 거짓 확정 → 메모리 저장 + 박제
+                console.error(`[Verify] ❌❌ 2차 거짓 확정: ${toolName} — ${verification.memo}`);
+                await saveLieRecord({ toolName, input, result, memo: verification.memo, failCount: verificationFailCounts[failKey] });
+                executedTools.push({
+                  name: toolName,
+                  display: parsed.display,
+                  success: false,
+                  error: `❌ 거짓 확정: ${verification.memo}`,
+                  inputSummary: summarizeToolInput(toolName, input),
+                  verificationMemo: verification.memo,
+                  verificationVerdict: 'confirmed_lie',
+                  lieStamp: true
+                });
+                return `[❌ 거짓 확정] ${verification.memo}\n2회 연속 검증 실패. 거짓말 기록이 저장되었습니다.`;
+              }
+            }
+          }
+
+          // 실행된 도구 기록 (통과/참고/스킵)
           executedTools.push({
             name: toolName,
             display: parsed.display,
             success: true,
             inputSummary: summarizeToolInput(toolName, input),
-            resultPreview: typeof result === 'string' ? result.substring(0, 200) : JSON.stringify(result).substring(0, 200)
+            resultPreview: typeof result === 'string' ? result.substring(0, 200) : JSON.stringify(result).substring(0, 200),
+            verificationMemo: verification.memo,
+            verificationVerdict: verification.verdict
           });
           
           // 도구 실행 완료 알림
@@ -749,12 +786,7 @@ ${rulesText}</self_notes>\n\n`;
             const canvasToolMap = {
               'recall_memory': 'memory',
               'get_profile': 'profile',
-              'update_profile': 'profile',
-              'list_my_rules': 'todo',
-              'add_my_rule': 'todo',
-              'update_my_rule': 'todo',
-              'toggle_my_rule': 'todo',
-              'delete_my_rule': 'todo'
+              'update_profile': 'profile'
             };
             // MCP 도구도 매핑: 도구 이름에 todo/memo 관련 키워드 포함 시 todo 패널 업데이트
             let targetPanel = canvasToolMap[toolName];
@@ -852,14 +884,36 @@ ${rulesText}</self_notes>\n\n`;
 
         // 날조 감지: AI가 <tool_history>를 직접 작성한 경우 제거
         if (responseText && responseText.includes('<tool_history>')) {
+          const fabricated = responseText.match(/<tool_history>[\s\S]*?<\/tool_history>/g);
+          const fabricatedText = (fabricated || []).join('\n').substring(0, 500);
           console.warn('[Chat] ⚠️ AI가 <tool_history>를 날조함 — 제거 후 텍스트만 사용');
           responseText = responseText.replace(/<tool_history>[\s\S]*?<\/tool_history>/g, '').trim();
           if (typeof aiResult === 'object') aiResult.text = responseText;
           else aiResult = responseText;
+
+          // 필터 기록 추가
+          filteredContents.push({ type: 'tool_history_날조', content: fabricatedText });
+
+          // 증거 보존 (메모리)
+          try {
+            const Memory = require('../models/Memory');
+            Memory.upsert('lie_record', `fabrication_${Date.now()}`, {
+              type: 'tool_history_fabrication',
+              fabricatedContent: fabricatedText,
+              timestamp: new Date().toISOString()
+            }, {
+              importance: 9,
+              tags: ['거짓', 'fabrication', 'tool_history_날조'],
+              category: 'verification'
+            });
+            console.warn('[Chat] ❌ 날조 증거 메모리 저장 완료');
+          } catch (e) {
+            console.error('[Chat] 날조 기록 저장 실패:', e.message);
+          }
         }
 
         // 1) {need} 패턴 — 다양한 변형 인식
-        //    {need} 설명, {Need} 설명, {NEED} 설명, {need:} 설명, {need}: 설명
+        //    {need} 설명, {Need} 설명, {need:\n설명}, {\n need \n}\n설명
         const needPattern = /\{[Nn][Ee]{2}[Dd]\}[:\s]*\s*(.+?)(?:\n|$)/g;
         const needs = [];
         let match;
@@ -867,7 +921,14 @@ ${rulesText}</self_notes>\n\n`;
           needs.push(match[1].trim());
         }
 
-        // 1-b) [need] 설명, **{need}** 설명 등 마크다운으로 감싼 변형
+        // 1-b) 줄바꿈된 {need} — "{\n need\n}\n도구이름 파라미터" 형태
+        const needMultilinePattern = /\{\s*need\s*\}\s*\n\s*(.+?)(?:\n|$)/gi;
+        while ((match = needMultilinePattern.exec(responseText)) !== null) {
+          const desc = match[1].trim();
+          if (desc && !needs.includes(desc)) needs.push(desc);
+        }
+
+        // 1-c) [need] 설명, **{need}** 설명 등 마크다운으로 감싼 변형
         const needAltPattern = /(?:\*{0,2})\[?{[Nn]eed}\]?(?:\*{0,2})[:\s]*\s*(.+?)(?:\n|$)/g;
         while ((match = needAltPattern.exec(responseText)) !== null) {
           const desc = match[1].trim();
@@ -1068,8 +1129,9 @@ ${toolCatalog}`;
           }
 
           // 주모델 재호출: 1차 응답 이어서 + 도구만 쥐어줌 (대화 전체 재전송 X)
-          // 2차 호출 시스템 프롬프트 축약 (도구 실행에 불필요한 성격/포맷 지침 제거 → 토큰 절약)
-          const toolSystemPrompt = `당신은 사용자의 AI 어시스턴트입니다. 도구를 사용하여 사용자 요청을 처리하세요. 도구 결과를 자연스럽게 전달하세요. 한국어로 답변하세요.`;
+          // 2차 호출 시스템 프롬프트 축약 (성격/말투만 유지, 규칙·포맷 지침 제거 → 토큰 절약)
+          // basePrompt = 성격/말투, instructionsSection = 도구·포맷 규칙 → 성격만 남김
+          const toolSystemPrompt = basePrompt + '\n도구를 사용하여 사용자 요청을 처리하세요. 도구 결과를 자연스럽게 전달하세요.';
           // 1차 thinking 보존 (최종 응답에 다시 붙임)
           const firstThinkingMatch = responseText.match(/<thinking>([\s\S]*?)<\/thinking>/);
           const firstThinking = firstThinkingMatch ? firstThinkingMatch[0] : '';
@@ -1367,7 +1429,7 @@ ${toolCatalog}`;
     // 응답에서 내부 태그 제거 ({need}, {도구이름: ...} — 사용자에게 안 보이게)
     finalResponse = finalResponse
       .replace(/\{need\}\s*.+?(?:\n|$)/g, '')
-      .replace(/\{(recall_memory|get_profile|update_profile|list_my_rules|add_my_rule|update_my_rule|toggle_my_rule|delete_my_rule)[:\s]+.+?\}/gi, '')
+      .replace(/\{(recall_memory|get_profile|update_profile)[:\s]+.+?\}/gi, '')
       .trim();
     // 동적 도구 이름도 제거
     if (preloadedTools && preloadedTools.length > 0) {
@@ -1386,13 +1448,23 @@ ${toolCatalog}`;
     const latency = Date.now() - startTime;
     const tier = determineTier(routingResult.modelId, routingResult.tier);
 
+    // 9.4 확정된 거짓 → 응답 첫줄에 박제
+    const confirmedLies = executedTools.filter(t => t.lieStamp);
+    if (confirmedLies.length > 0) {
+      const lieStamps = confirmedLies.map(t =>
+        `❌ [거짓 감지] ${t.display || t.name}: ${t.verificationMemo}`
+      ).join('\n');
+      finalResponse = `${lieStamps}\n\n---\n\n${finalResponse}`;
+    }
+
     // 9.5 도구 실행 기록을 응답에 포함 (다음 턴에서 AI가 도구 사용 사실을 인지하도록)
     let responseToSave = finalResponse;
     if (executedTools.length > 0) {
       const toolSummary = executedTools.map(t => {
         const status = t.success ? '성공' : `실패: ${t.error || ''}`;
         const preview = t.resultPreview ? ` → ${t.resultPreview.substring(0, 100)}` : '';
-        return `- ${t.display || t.name} (${status})${t.success ? preview : ''}`;
+        const vMemo = t.verificationMemo ? ` [검증: ${t.verificationMemo}]` : '';
+        return `- ${t.display || t.name} (${status})${t.success ? preview : ''}${vMemo}`;
       }).join('\n');
       responseToSave = `<tool_history>\n${toolSummary}\n</tool_history>\n\n${finalResponse}`;
     }
@@ -1408,6 +1480,7 @@ ${toolCatalog}`;
         toolsUsed: executedTools.length > 0 ? executedTools : undefined,
         toolNeeds: toolNeeds.length > 0 ? toolNeeds : undefined,
         toolsSelected: toolsSelected.length > 0 ? toolsSelected : undefined,
+        filtered: filteredContents.length > 0 ? filteredContents : undefined,
         attachments: attachments.length > 0 ? attachments : undefined
       });
       console.log('[Chat] Response saved successfully');
@@ -1529,6 +1602,7 @@ ${toolCatalog}`;
       toolsUsed: executedTools, // 사용된 도구 목록
       toolNeeds: toolNeeds.length > 0 ? toolNeeds : undefined, // {need} 요청 내용
       toolsSelected: toolsSelected.length > 0 ? toolsSelected : undefined, // 알바 선택 도구
+      filtered: filteredContents.length > 0 ? filteredContents : undefined, // 서버 필터 내용
       usage: conversationData.usage,
       tokenUsage: detailedTokenUsage, // 상세 토큰 사용량 (실시간용)
       compressed: conversationData.compressed,

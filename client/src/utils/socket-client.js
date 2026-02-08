@@ -105,6 +105,24 @@ class SoulSocketClient {
       this._handleToolEnd(data);
     });
 
+    // 도구 검증 시작
+    this.socket.on('tool_verify_start', (data) => {
+      console.log('🔍 Tool verify start:', data);
+      this._handleToolVerifyStart(data);
+    });
+
+    // 도구 검증 결과
+    this.socket.on('tool_verify', (data) => {
+      console.log('🔍 Tool verify:', data);
+      this._handleToolVerify(data);
+    });
+
+    // 날조 감지 알림
+    this.socket.on('fabrication_detected', (data) => {
+      console.warn('🚨 Fabrication detected:', data);
+      this._handleFabricationDetected(data);
+    });
+
     // 캔버스 패널 실시간 업데이트
     this.socket.on('canvas_update', (data) => {
       console.log('🎨 Canvas update:', data);
@@ -266,7 +284,6 @@ class SoulSocketClient {
       </div>
     `;
     toolStatus.appendChild(needItem);
-    this._scrollToBottom();
   }
 
   /**
@@ -293,7 +310,6 @@ class SoulSocketClient {
       </div>
     `;
     toolStatus.appendChild(selectedItem);
-    this._scrollToBottom();
   }
 
   /**
@@ -370,9 +386,6 @@ class SoulSocketClient {
       </div>
     `;
     toolStatus.appendChild(toolItem);
-
-    // 스크롤
-    this._scrollToBottom();
   }
 
   /**
@@ -418,6 +431,93 @@ class SoulSocketClient {
   }
 
   /**
+   * 도구 검증 시작 처리
+   */
+  _handleToolVerifyStart(data) {
+    const toolStatus = document.querySelector('.tool-execution-status');
+    if (!toolStatus) return;
+
+    // 고유 ID로 같은 도구 여러 번 호출 시 구분
+    this._verifyCounter = (this._verifyCounter || 0) + 1;
+    const verifyId = `verify-${this._verifyCounter}`;
+
+    const isFinal = data.phase === 'final';
+    const item = document.createElement('div');
+    item.className = `tool-status-item running verify ${isFinal ? 'final' : ''}`;
+    item.dataset.verifyId = verifyId;
+    item.dataset.verifyTool = data.name;
+    item.dataset.verifyPhase = data.phase || 'check';
+    item.innerHTML = `
+      <div class="tool-step-indicator"></div>
+      <div class="tool-step-content">
+        <div class="tool-step-title">${isFinal ? '최종 검증 중' : '결과 검증 중'}</div>
+      </div>
+    `;
+    toolStatus.appendChild(item);
+  }
+
+  /**
+   * 도구 검증 결과 처리
+   */
+  _handleToolVerify(data) {
+    const phase = data.phase || 'check';
+    // running 상태인 것 중 같은 도구+phase인 마지막 것을 찾음
+    const items = document.querySelectorAll(`.tool-status-item.verify.running[data-verify-tool="${data.name}"][data-verify-phase="${phase}"]`);
+    const item = items.length > 0 ? items[items.length - 1] : null;
+    if (!item) return;
+
+    item.classList.remove('running');
+    const isFinal = phase === 'final';
+
+    const verdictMap = {
+      pass: { icon: '✅', cls: 'success', prefix: isFinal ? '최종: v통과' : 'v통과' },
+      fail: { icon: '❌', cls: 'error', prefix: isFinal ? '최종: x거짓' : '다시 실행 요청' },
+      note: { icon: '📝', cls: 'note', prefix: isFinal ? '최종: 참고' : '참고' }
+    };
+    const v = verdictMap[data.verdict] || verdictMap.pass;
+    item.classList.add(v.cls);
+
+    item.innerHTML = `
+      <div class="tool-step-indicator">${v.icon}</div>
+      <div class="tool-step-content">
+        <div class="tool-step-title">${v.prefix}</div>
+        ${data.memo ? `<div class="tool-step-desc">${this._escapeHtml(data.memo)}</div>` : ''}
+      </div>
+    `;
+  }
+
+  /**
+   * 날조 감지 처리 — 도구 안 쓰고 결과를 직접 작성한 경우
+   */
+  _handleFabricationDetected(data) {
+    let toolStatus = this._getOrCreateToolStatus();
+
+    const item = document.createElement('div');
+    item.className = 'tool-status-item fabrication error';
+    item.innerHTML = `
+      <div class="tool-step-indicator">🚨</div>
+      <div class="tool-step-content">
+        <div class="tool-step-title">날조 감지 — 도구 미사용 결과 작성 시도</div>
+        <div class="tool-step-desc">증거가 메모리에 저장되었습니다</div>
+      </div>
+    `;
+    toolStatus.appendChild(item);
+
+    // executedTools에도 기록 (펼침 영역에 표시)
+    this._toolExecutions.push({
+      name: 'fabrication_detected',
+      display: '날조 감지',
+      success: false,
+      result: null,
+      error: '도구 미사용 결과 날조 시도',
+      startTime: Date.now(),
+      verificationVerdict: 'confirmed_lie',
+      verificationMemo: '도구 없이 결과 직접 작성',
+      lieStamp: true
+    });
+  }
+
+  /**
    * 도구 실행 결과 요약 가져오기 (메모리 기반)
    * @returns {Object} { tools, toolNeeds, toolsSelected }
    */
@@ -429,7 +529,10 @@ class SoulSocketClient {
       error: t.success === false,
       inputSummary: t.inputSummary || '',
       resultPreview: t.success ? (t.result || '').substring(0, 200) : (t.error || ''),
-      duration: t.duration || 0
+      duration: t.duration || 0,
+      verificationMemo: t.verificationMemo || null,
+      verificationVerdict: t.verificationVerdict || null,
+      lieStamp: t.lieStamp || false
     }));
 
     return {
@@ -564,7 +667,11 @@ class SoulSocketClient {
   _scrollToBottom() {
     const scrollContainer = document.querySelector('.right-card-top');
     if (scrollContainer) {
-      scrollContainer.scrollTop = scrollContainer.scrollHeight;
+      // 사용자가 위로 스크롤한 상태면 강제 스크롤 안 함
+      const isNearBottom = scrollContainer.scrollHeight - scrollContainer.scrollTop - scrollContainer.clientHeight < 150;
+      if (isNearBottom) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight;
+      }
     }
   }
 

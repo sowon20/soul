@@ -120,6 +120,31 @@
   background: rgba(239, 68, 68, 0.3);
 }
 
+/* 검증 - 참고 (amber) */
+.tool-status-item.verify.note .tool-step-indicator {
+  background: rgba(251, 191, 36, 0.3);
+  border: 2px solid rgba(251, 191, 36, 0.3);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.tool-status-item.verify.note:not(:last-child)::before {
+  background: rgba(251, 191, 36, 0.15);
+}
+
+.tool-status-item.verify.note .tool-step-title {
+  color: rgba(251, 191, 36, 0.85);
+}
+
+/* 최종 검증 - 강조 */
+.tool-status-item.verify.final .tool-step-title {
+  font-weight: 700;
+}
+
+.tool-status-item.verify.final.error .tool-step-desc {
+  color: rgba(239, 68, 68, 0.95);
+  font-weight: 600;
+}
+
 /* 스텝 내용 */
 .tool-step-content {
   flex: 1;
