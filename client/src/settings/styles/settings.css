@@ -1064,6 +1064,50 @@ textarea.settings-field-input {
   cursor: not-allowed;
 }
 
+.cartesia-voice-tags-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 0;
+}
+
+.cartesia-voice-tags-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cartesia-voice-tags-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.cartesia-voice-tags-checkboxes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cartesia-voice-tag-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-primary, #4a4540);
+  cursor: pointer;
+}
+
+.cartesia-voice-tag-label.upcoming span {
+  opacity: 0.45;
+}
+
+.cartesia-voice-tag-label input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent-color, #8B7E74);
+}
+
 /* 비어있는 상태 (움푹) */
 .soul-input {
   width: 100%;

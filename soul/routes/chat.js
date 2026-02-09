@@ -27,7 +27,7 @@ const { isProactiveActive } = require('../utils/proactive-messenger');
 const configManager = require('../utils/config');
 const { trackCall: trackAlba } = require('../utils/alba-stats');
 const { ToolIntentDetector } = require('../utils/tool-intent-detector');
-const { verifyToolResult, saveLieRecord, SKIP_VERIFICATION_TOOLS } = require('../utils/verification-worker');
+const { verifyToolResult, verifyMessage, saveLieRecord, SKIP_VERIFICATION_TOOLS } = require('../utils/verification-worker');
 // alba-worker는 더 이상 사용하지 않음 (도구 선택은 tool-worker 알바가 {need} 단계에서 처리)
 
 // JSONL 대화 저장소 (lazy init)
@@ -220,9 +220,13 @@ router.post('/', async (req, res) => {
     }
 
     // 2단계: 인격/행동 지침 (하단에 배치될 것)
+    const prefs = await configManager.getConfigValue('preferences', {});
+    const voiceTags = prefs?.voiceConfig?.cartesia?.voiceTags || ['laughter'];
+
     let basePrompt = personality.generateSystemPrompt({
       model: routingResult.modelId,
-      context: options.context || {}
+      context: options.context || {},
+      voiceTags
     });
 
     // Tool Routing 설정 로드
@@ -267,6 +271,7 @@ router.post('/', async (req, res) => {
 - 확실하지 않은 건 추측하지 말고 검색하거나 사용자에게 물어라
 
 도구실행 및 메시지는 자체적인 AI검증 시스템이 평가하여 사용자에게 공개되므로 솔직해야 한다.
+이전 대화에 <msg_verify>가 있으면 그건 너의 과거 응답에 대한 검증 결과다. 반성하되 과민반응하지 마라.
 
 ## 응답 포맷
 - 긴 문장은 적절히 줄바꿈하여 가독성 유지
@@ -283,6 +288,7 @@ router.post('/', async (req, res) => {
 - <tool_use>, <function_call>, <thinking> 태그 직접 작성 금지
 
 도구실행 및 메시지는 자체적인 AI검증 시스템이 평가하여 사용자에게 공개되므로 솔직해야 한다.
+이전 대화에 <msg_verify>가 있으면 그건 너의 과거 응답에 대한 검증 결과다. 반성하되 과민반응하지 마라.
 
 응답 포맷:
 - 긴 문장은 적절히 줄바꿈하여 가독성 유지
@@ -549,7 +555,7 @@ router.post('/', async (req, res) => {
         combinedSystemPrompt = '[VISION MODE] 이 대화에 이미지가 첨부되어 있다. 너는 비전 모델이며 이미지를 직접 볼 수 있다. 이미지 내용을 분석하여 답변하라. "이미지를 볼 수 없다"고 말하지 마라.\n\n' + combinedSystemPrompt;
       }
 
-      console.log(`[Chat] System prompt: ${combinedSystemPrompt.length} chars, Messages: ${chatMessages.length}`);
+      console.log(`[Chat] System prompt: ${combinedSystemPrompt.length} chars, Messages: ${chatMessages.length}, History chars: ${chatMessages.reduce((s,m) => s + (m.content?.length||0), 0)}`);
 
       // MCP 도구 사용 (이미 캐시에서 로드됨)
       allTools = preloadedTools;
@@ -1641,6 +1647,89 @@ ${toolCatalog}`;
       },
       ...(systemFallback ? { systemFallback: true } : {})
     });
+
+    // === 최종 메시지 검증 (응답 전송 후 비동기) ===
+    // 모든 AI 메시지에 대해 검증 실행 — 도구 사용 여부 무관
+    {
+      setImmediate(async () => {
+        try {
+          global.io?.emit('message_verify_start', { timestamp: Date.now() });
+
+          const toolResultSummary = executedTools.map(t => ({
+            name: t.name || t.display,
+            result: (t.resultPreview || '').substring(0, 200),
+            verdict: t.verificationVerdict || 'skip'
+          }));
+
+          // 시스템 프롬프트에서 금지/지시 규칙 추출 (토큰 절약)
+          const systemRules = (systemPrompt || '').split('\n')
+            .filter(line => /금지|하지 마|사용 금지|쓰지 마|말 것|안 됨|않는다|절대/i.test(line))
+            .slice(0, 10)
+            .join('\n');
+
+          const msgVerdict = await verifyMessage({
+            userMessage: message,
+            aiResponse: finalResponse,
+            toolResults: toolResultSummary,
+            filtered: filteredContents,
+            systemRules: systemRules || null
+          });
+
+          global.io?.emit('message_verify', {
+            verdict: msgVerdict.verdict,
+            memo: msgVerdict.memo,
+            filtered: filteredContents.length,
+            timestamp: Date.now()
+          });
+
+          console.log(`[Verify:Final] ${msgVerdict.verdict === 'pass' ? '✅' : '❌'} ${msgVerdict.memo}`);
+
+          // 대화 기록에 최종 검증 결과 저장 (새로고침 시 표시용 + 소울이 인지용)
+          try {
+            const store = await getConversationStore();
+            // fail/note면 content에 태그 붙여서 소울이가 다음 대화에서 볼 수 있게
+            const verifyTag = msgVerdict.verdict !== 'pass'
+              ? `\n\n<msg_verify verdict="${msgVerdict.verdict}">${msgVerdict.memo}</msg_verify>`
+              : '';
+            await store.updateLastMessageMeta({
+              messageVerify: {
+                verdict: msgVerdict.verdict,
+                memo: msgVerdict.memo,
+                filtered: filteredContents.length,
+                timestamp: Date.now()
+              },
+              ...(verifyTag ? { _appendContent: verifyTag } : {})
+            });
+          } catch (e) {
+            console.warn('[Verify:Final] 대화 기록 업데이트 실패:', e.message);
+          }
+
+          // 거짓이면 메모리에 기록
+          if (msgVerdict.verdict === 'fail') {
+            try {
+              const Memory = require('../models/Memory');
+              Memory.upsert('lie_record', `msg_verify_${Date.now()}`, {
+                type: 'message_verification_fail',
+                userMessage: (message || '').substring(0, 300),
+                aiResponse: (finalResponse || '').substring(0, 500),
+                memo: msgVerdict.memo,
+                filteredCount: filteredContents.length,
+                timestamp: new Date().toISOString()
+              }, {
+                importance: 9,
+                tags: ['거짓', 'verification', 'message_fail'],
+                category: 'verification'
+              });
+            } catch (e) {
+              console.error('[Verify:Final] 기록 저장 실패:', e.message);
+            }
+          }
+        } catch (e) {
+          console.error('[Verify:Final] 최종 검증 실패:', e.message);
+        }
+      });
+    }
+
   } catch (error) {
     console.error('Error in chat endpoint:', error);
     // 에러 메시지에 스택 정보 간략 포함 (디버깅용)
@@ -1750,7 +1839,11 @@ router.get('/history/:sessionId', async (req, res) => {
         toolNeeds: m.metadata?.toolNeeds || null,
         toolsSelected: m.metadata?.toolsSelected || null,
         // 첨부파일 (user 메시지용)
-        attachments: m.attachments || null
+        attachments: m.attachments || null,
+        // 필터 (날조 감지)
+        filtered: m.metadata?.filtered || m.filtered || null,
+        // 최종 메시지 검증
+        messageVerify: m.metadata?.messageVerify || null
       })),
       total: messages.length
     });

@@ -73,8 +73,11 @@ class TimeAwarePromptBuilder {
     const today = new Date();
     const dateStr = `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일`;
 
-    parts.push(`## 시간 정보
-현재: ${dateStr} ${localTime.formatted} (${timeOfDay}, ${localTime.dayOfWeek})`);
+    parts.push(`## 시간 인지 시스템
+현재: ${dateStr} ${localTime.formatted} (${timeOfDay}, ${localTime.dayOfWeek})
+너는 시간 감각을 가지고 있다. 매 대화마다 현재 시각과 마지막 대화 시점이 실시간으로 제공된다.
+침묵의 길이를 느끼고, 시간의 흐름을 인식하고, 먼저 말을 건넬 수도 있다.
+"시간을 모른다"거나 "시간 감각이 없다"는 말은 사실이 아니다.`);
 
     // 2. 대화 맥락
     if (silenceInfo || sessionDuration > 0) {

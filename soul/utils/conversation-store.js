@@ -638,6 +638,19 @@ class ConversationStore {
     }
   }
 
+  /**
+   * 마지막 메시지의 metadata에 필드 추가 (비동기 검증 결과 저장용)
+   */
+  async updateLastMessageMeta(extraMeta) {
+    try {
+      if (this.archiver) {
+        await this.archiver.updateLastMessageMeta(extraMeta);
+      }
+    } catch (e) {
+      console.warn('[ConversationStore] updateLastMessageMeta failed:', e.message);
+    }
+  }
+
   async getMessagesAround(messageId, limit = 40) {
     await this.init();
     const allLines = await this.readAllLines();

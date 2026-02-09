@@ -123,6 +123,16 @@ class SoulSocketClient {
       this._handleFabricationDetected(data);
     });
 
+    // 최종 메시지 검증 (응답 완료 후)
+    this.socket.on('message_verify_start', () => {
+      console.log('🔍 Message verify start');
+      this._handleMessageVerifyStart();
+    });
+    this.socket.on('message_verify', (data) => {
+      console.log('🔍 Message verify:', data);
+      this._handleMessageVerify(data);
+    });
+
     // 캔버스 패널 실시간 업데이트
     this.socket.on('canvas_update', (data) => {
       console.log('🎨 Canvas update:', data);
@@ -515,6 +525,46 @@ class SoulSocketClient {
       verificationMemo: '도구 없이 결과 직접 작성',
       lieStamp: true
     });
+  }
+
+  /**
+   * 최종 메시지 검증 시작 — 응답 완료 후
+   */
+  _handleMessageVerifyStart() {
+    // 마지막 AI 메시지의 도구 사용 영역에 검증 중 표시 추가
+    this._pendingMessageVerify = true;
+  }
+
+  /**
+   * 최종 메시지 검증 결과
+   */
+  _handleMessageVerify(data) {
+    this._pendingMessageVerify = false;
+    this._messageVerifyResult = data;
+
+    // 마지막 AI 메시지 찾기
+    const allMessages = document.querySelectorAll('.chat-message.assistant');
+    const lastMsg = allMessages[allMessages.length - 1];
+    if (!lastMsg) return;
+
+    const verdictConfig = {
+      pass: { icon: '✓', label: '검증 통과', cls: 'message-verify-pass' },
+      note: { icon: '!', label: '검증 참고', cls: 'message-verify-warn' },
+      fail: { icon: '✗', label: '검증 실패', cls: 'message-verify-error' }
+    };
+    const vc = verdictConfig[data.verdict] || verdictConfig.pass;
+
+    // 메시지 맨 아래 (message-actions 바로 앞)에 최종 검증 표시
+    const verifyBar = document.createElement('div');
+    verifyBar.className = `message-verify-bar ${vc.cls}`;
+    verifyBar.innerHTML = `<span class="message-verify-icon">${vc.icon}</span><span class="message-verify-label">${vc.label}</span><span class="message-verify-memo">${this._escapeHtml(data.memo || '')}${data.filtered > 0 ? ` (날조 필터 ${data.filtered}건)` : ''}</span>`;
+
+    const actions = lastMsg.querySelector('.message-actions');
+    if (actions) {
+      lastMsg.insertBefore(verifyBar, actions);
+    } else {
+      lastMsg.appendChild(verifyBar);
+    }
   }
 
   /**

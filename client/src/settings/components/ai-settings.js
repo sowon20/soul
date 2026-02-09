@@ -6947,6 +6947,14 @@ export class AISettings {
       { value: '2.0', label: '2.0x 매우 크게' },
     ];
 
+    // voiceTags: 음성 태그 (배열)
+    const voiceTagsList = cart.voiceTags || ['laughter'];
+    const availableVoiceTags = [
+      { value: 'laughter', label: '웃음 [laughter]' },
+      { value: 'sigh', label: '한숨 [sigh]', upcoming: true },
+      { value: 'cough', label: '기침 [cough]', upcoming: true },
+    ];
+
     // emotion: 감정 (beta)
     const emotionVal = cart.emotion || 'neutral';
     const emotions = [
@@ -7056,6 +7064,21 @@ export class AISettings {
             <select class="neu-field-input" id="cartesiaEmotionSelect">
               ${emotionOptions}
             </select>
+          </div>
+        </div>
+
+        <div class="cartesia-voice-tags-row">
+          <span class="cartesia-badge cartesia-badge--optional">선택</span>
+          <div class="cartesia-voice-tags-body">
+            <span class="cartesia-voice-tags-title">음성 태그</span>
+            <div class="cartesia-voice-tags-checkboxes" id="cartesiaVoiceTagsGroup">
+              ${availableVoiceTags.map(tag => `
+                <label class="cartesia-voice-tag-label${tag.upcoming ? ' upcoming' : ''}">
+                  <input type="checkbox" value="${tag.value}" ${voiceTagsList.includes(tag.value) ? 'checked' : ''} ${tag.upcoming ? 'disabled' : ''}>
+                  <span>${tag.label}${tag.upcoming ? ' (예정)' : ''}</span>
+                </label>
+              `).join('')}
+            </div>
           </div>
         </div>
       </div>
@@ -7176,6 +7199,17 @@ export class AISettings {
         if (valueSpan) valueSpan.textContent = label;
         const field = e.target.closest('.neu-field');
         if (field) field.classList.remove('editing');
+      });
+    }
+
+    // voiceTags 체크박스 그룹
+    const voiceTagsGroup = document.getElementById('cartesiaVoiceTagsGroup');
+    if (voiceTagsGroup) {
+      voiceTagsGroup.addEventListener('change', () => {
+        const checked = [...voiceTagsGroup.querySelectorAll('input[type="checkbox"]:checked')].map(cb => cb.value);
+        this.handleCartesiaFieldChange('voiceTags', checked);
+        const valueSpan = voiceTagsGroup.closest('.neu-field')?.querySelector('.neu-field-value');
+        if (valueSpan) valueSpan.textContent = checked.length > 0 ? checked.map(t => `[${t}]`).join(' ') : '없음';
       });
     }
 

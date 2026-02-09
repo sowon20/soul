@@ -466,6 +466,51 @@ class ConversationArchiver {
   }
 
   /**
+   * 마지막 메시지의 metadata에 필드 추가 (비동기 검증 결과 저장용)
+   * 오늘 파일의 마지막 메시지 metadata를 업데이트
+   */
+  async updateLastMessageMeta(extraMeta) {
+    try {
+      const { filePath, monthDir } = this.getFilePath(new Date());
+
+      let messages = [];
+      if (this.useFTP) {
+        const content = await this.ftpStorage.readFile(filePath);
+        if (content) messages = JSON.parse(content);
+      } else {
+        const fs = require('fs');
+        if (fs.existsSync(filePath)) {
+          messages = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        }
+      }
+
+      if (messages.length === 0) return;
+
+      // 마지막 메시지의 metadata에 병합
+      const last = messages[messages.length - 1];
+
+      // content에 추가할 텍스트가 있으면 붙이기 (검증 태그 등)
+      if (extraMeta._appendContent) {
+        last.content = (last.content || '') + extraMeta._appendContent;
+        delete extraMeta._appendContent;
+      }
+
+      last.metadata = { ...(last.metadata || {}), ...extraMeta };
+
+      if (this.useFTP) {
+        await this.ftpStorage.writeFile(filePath, JSON.stringify(messages, null, 2));
+      } else {
+        const fs = require('fs');
+        fs.writeFileSync(filePath, JSON.stringify(messages, null, 2));
+      }
+
+      console.log('[Archiver] Last message meta updated');
+    } catch (e) {
+      console.warn('[Archiver] updateLastMessageMeta failed:', e.message);
+    }
+  }
+
+  /**
    * 최근 N개 메시지 가져오기 (여러 날짜 파일에서)
    */
   async getRecentMessages(limit = 50) {

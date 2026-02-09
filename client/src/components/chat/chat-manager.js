@@ -226,15 +226,15 @@ export class ChatManager {
           this.oldestMessageId = history.messages[0].id;
           this.oldestMessageTimestamp = history.messages[0].timestamp;
 
-          // DOM에 렌더링
-          history.messages.forEach(message => {
-            const messageElement = this.createMessageElement(message);
-            this.messagesArea.appendChild(messageElement);
-          });
-
-          // 맨 아래로 스크롤 (DOM 렌더링 완료 대기)
-          this.scrollToBottom(false);
-          setTimeout(() => this.scrollToBottom(false), 200);
+          // DOM에 렌더링 (개별 에러 시 해당 메시지만 스킵)
+          for (const message of history.messages) {
+            try {
+              const messageElement = this.createMessageElement(message);
+              this.messagesArea.appendChild(messageElement);
+            } catch (renderErr) {
+              console.warn('메시지 렌더링 실패 (스킵):', message.id, renderErr.message);
+            }
+          }
 
           // 더 불러올 메시지가 있는지 확인
           this.hasMoreHistory = history.messages.length >= limit;
@@ -243,8 +243,9 @@ export class ChatManager {
           this.addWelcomeMessage();
         }
 
-        // 로딩 완료 표시
+        // 로딩 완료 표시 → 스크롤은 loaded 후에
         this.messagesArea.classList.add('loaded');
+        this._scrollAfterLoad();
         return; // 성공 시 종료
 
       } catch (error) {
@@ -256,14 +257,33 @@ export class ChatManager {
           if (textEl) textEl.textContent = `서버 연결 대기중... (${attempt}/${maxRetries})`;
           await new Promise(r => setTimeout(r, retryDelay));
         } else {
-          // 최대 재시도 초과
+          // 최대 재시도 초과 — 이미 일부 메시지가 DOM에 있으면 welcome 안 보임
           console.error('최근 메시지 로드 실패 (재시도 초과)');
           this.hideLoadingIndicator();
           this.messagesArea.classList.add('loaded');
-          this.addWelcomeMessage();
+          const hasRendered = this.messagesArea.querySelectorAll('.chat-message').length > 0;
+          if (!hasRendered) {
+            this.addWelcomeMessage();
+          }
+          this._scrollAfterLoad();
         }
       }
     }
+  }
+
+  /**
+   * 로드 완료 후 스크롤 (loaded 클래스 추가 후 실행)
+   */
+  _scrollAfterLoad() {
+    // loaded 후 즉시
+    this.scrollToBottom(false);
+    // DOM 레이아웃 안정화 대기
+    requestAnimationFrame(() => {
+      this.scrollToBottom(false);
+      // 이미지/폰트 로딩 후 추가 스크롤
+      setTimeout(() => this.scrollToBottom(false), 300);
+      setTimeout(() => this.scrollToBottom(false), 1000);
+    });
   }
 
   /**
@@ -600,26 +620,51 @@ export class ChatManager {
           const inputText = tool.inputSummary || '';
           const resultText = formatResult(tool.name, tool.resultPreview || '');
 
-          // 검증 결과 표시
-          const vVerdict = tool.verificationVerdict;
-          const vMemo = tool.verificationMemo;
-          let verifyHtml = '';
-          if (vVerdict && vVerdict !== 'skip') {
-            const vIcon = vVerdict === 'pass' ? '✅' : vVerdict === 'fail' || vVerdict === 'confirmed_lie' ? '❌' : '📝';
-            const vLabel = vVerdict === 'pass' ? 'v통과' : vVerdict === 'confirmed_lie' ? 'x거짓 확정' : vVerdict === 'fail' ? 'x거짓' : '참고';
-            const vClass = vVerdict === 'pass' ? 'verify-pass' : vVerdict === 'fail' || vVerdict === 'confirmed_lie' ? 'verify-fail' : 'verify-note';
-            verifyHtml = `<div class="tool-thinking-verify ${vClass}">${vIcon} ${vLabel}${vMemo ? ` — ${escapeHtml(vMemo)}` : ''}</div>`;
-          }
-
           step.innerHTML = `
             <div class="tool-thinking-indicator">${tool.success ? '✓' : '✗'}</div>
             <div class="tool-thinking-content-wrap">
               <div class="tool-thinking-action">${escapeHtml(actionName)}${inputText ? `<span class="tool-thinking-input">${escapeHtml(inputText)}</span>` : ''}</div>
               ${resultText ? `<div class="tool-thinking-result">${escapeHtml(resultText)}</div>` : ''}
-              ${verifyHtml}
             </div>
           `;
           toolsContent.appendChild(step);
+        }
+
+        // 4. 검증 결과 — 맨 아래 별도 행 (필터 감지도 반영)
+        const verifiedTools = toolsUsedArr.filter(t => t.verificationVerdict && t.verificationVerdict !== 'skip');
+        const hasFiltered = message.filtered && message.filtered.length > 0;
+        if (verifiedTools.length > 0 || hasFiltered) {
+          // 최종 verdict 결정 (필터 걸리면 무조건 fail 이상)
+          const hasLie = verifiedTools.some(t => t.verificationVerdict === 'confirmed_lie' || t.lieStamp);
+          const hasFail = verifiedTools.some(t => t.verificationVerdict === 'fail') || hasFiltered;
+          const hasNote = verifiedTools.some(t => t.verificationVerdict === 'note');
+          const finalVerdict = hasLie ? 'confirmed_lie' : hasFail ? 'fail' : hasNote ? 'note' : 'pass';
+
+          const verdictConfig = {
+            pass: { icon: '✓', label: '검증 통과', cls: 'verify' },
+            note: { icon: '!', label: '검증 참고', cls: 'verify-warn' },
+            fail: { icon: '✗', label: '검증 실패', cls: 'verify-error' },
+            confirmed_lie: { icon: '✗', label: '거짓 확정', cls: 'verify-error' }
+          };
+          const vc = verdictConfig[finalVerdict] || verdictConfig.pass;
+
+          // 메모 모아서 표시 (필터 정보 포함)
+          const memos = verifiedTools.map(t => t.verificationMemo).filter(Boolean);
+          if (hasFiltered) {
+            memos.push(`날조 필터 ${message.filtered.length}건`);
+          }
+          const memoText = memos.join(', ');
+
+          const verifyStep = document.createElement('div');
+          verifyStep.className = `tool-thinking-step ${vc.cls}`;
+          verifyStep.innerHTML = `
+            <div class="tool-thinking-indicator">${vc.icon}</div>
+            <div class="tool-thinking-content-wrap">
+              <div class="tool-thinking-action">${vc.label}</div>
+              ${memoText ? `<div class="tool-thinking-result">${escapeHtml(memoText)}</div>` : ''}
+            </div>
+          `;
+          toolsContent.appendChild(verifyStep);
         }
 
         toolsContainer.appendChild(toolsToggle);
@@ -627,7 +672,7 @@ export class ChatManager {
         content.insertBefore(toolsContainer, content.firstChild);
       }
 
-      // 필터 표시 (서버에서 제거된 날조 내용)
+      // 필터 표시 (서버에서 제거된 날조 내용) — 도구사용 버튼 옆에 배치
       if (message.filtered && message.filtered.length > 0) {
         const filterContainer = document.createElement('div');
         filterContainer.className = 'ai-filter-container';
@@ -635,11 +680,11 @@ export class ChatManager {
         const filterToggle = document.createElement('button');
         filterToggle.type = 'button';
         filterToggle.className = 'ai-filter-toggle';
-        filterToggle.innerHTML = `<span class="filter-icon">🚨</span> <span>필터 ${message.filtered.length}건</span><span class="filter-chevron">›</span>`;
+        filterToggle.innerHTML = `<span class="filter-icon">!</span> <span>필터 ${message.filtered.length}건</span><span class="filter-chevron">›</span>`;
         filterToggle.addEventListener('click', function(e) {
           e.preventDefault();
           e.stopPropagation();
-          this.parentElement.classList.toggle('expanded');
+          filterContainer.classList.toggle('expanded');
         });
 
         const filterContent = document.createElement('div');
@@ -663,7 +708,19 @@ export class ChatManager {
 
         filterContainer.appendChild(filterToggle);
         filterContainer.appendChild(filterContent);
-        content.insertBefore(filterContainer, content.firstChild);
+
+        // 도구사용 토글이 있으면 그 옆에, 없으면 content 맨 앞에
+        const toolThinkingContainer = content.querySelector('.ai-tool-thinking-container');
+        if (toolThinkingContainer) {
+          // 도구사용 컨테이너 바로 뒤에 인라인 배치
+          toolThinkingContainer.style.display = 'inline-block';
+          filterContainer.style.display = 'inline-block';
+          filterContainer.style.marginLeft = '6px';
+          filterContainer.style.verticalAlign = 'top';
+          toolThinkingContainer.after(filterContainer);
+        } else {
+          content.insertBefore(filterContainer, content.firstChild);
+        }
       }
 
       // Process code blocks - add copy button and syntax highlighting
@@ -709,6 +766,29 @@ export class ChatManager {
           // data 속성으로 활성화 (CSS에서 호버 시 표시)
           routingInfo.dataset.active = 'true';
           routingInfo.dataset.tier = tier;
+        }
+      }
+
+      // 최종 메시지 검증 표시 (메시지 맨 아래, message-actions 바로 앞)
+      if (message.messageVerify) {
+        const mv = message.messageVerify;
+        const mvConfig = {
+          pass: { icon: '✓', label: '검증 통과', cls: 'message-verify-pass' },
+          note: { icon: '!', label: '검증 참고', cls: 'message-verify-warn' },
+          fail: { icon: '✗', label: '검증 실패', cls: 'message-verify-error' }
+        };
+        const mvc = mvConfig[mv.verdict] || mvConfig.pass;
+
+        const memoSafe = this.escapeHtml(mv.memo || '');
+        const verifyBar = document.createElement('div');
+        verifyBar.className = `message-verify-bar ${mvc.cls}`;
+        verifyBar.innerHTML = `<span class="message-verify-icon">${mvc.icon}</span><span class="message-verify-label">${mvc.label}</span><span class="message-verify-memo">${memoSafe}${mv.filtered > 0 ? ` (날조 필터 ${mv.filtered}건)` : ''}</span>`;
+
+        const actions = messageDiv.querySelector('.message-actions');
+        if (actions) {
+          messageDiv.insertBefore(verifyBar, actions);
+        } else {
+          messageDiv.appendChild(verifyBar);
         }
       }
 
@@ -1286,7 +1366,7 @@ export class ChatManager {
             if (toggleBtn) toggleBtn.textContent = '생각 완료';
           }
         } else if (chunk.type === 'content_replace') {
-          streamingContent = chunk.content;
+          // 무시 — 서버 최종 응답으로 교체되므로 스트리밍 중 깜빡임 방지
         }
       }
       pendingChunks = [];
@@ -1327,8 +1407,7 @@ export class ChatManager {
                 if (toggleBtn) toggleBtn.textContent = '생각 완료';
               }
             } else if (data.type === 'content_replace') {
-              streamingContent = data.content;
-              this._updateStreamingElement(streamingEl, streamingThinking, streamingContent);
+              // 무시 — 서버 최종 응답으로 교체되므로 스트리밍 중 깜빡임 방지
             }
             this.scrollToBottom();
           }
@@ -1360,17 +1439,12 @@ export class ChatManager {
       // 스트리밍 콜백 해제
       if (socketClient) socketClient.setStreamCallback(null);
 
-      // 스트리밍 엘리먼트 정리
-      if (streamingEl) {
-        streamingEl.remove();
-        streamingEl = null;
-      }
-      // 실시간 도구 상태 요소도 정리 (addMessage에서 접힌 형태로 다시 표시됨)
+      // Hide typing indicator (먼저 — addMessage 전에)
+      this.hideTypingIndicator();
+
+      // 실시간 도구 상태 요소 정리 (addMessage에서 접힌 형태로 다시 표시됨)
       const toolStatusEl = document.querySelector('.tool-execution-status');
       if (toolStatusEl) toolStatusEl.remove();
-
-      // Hide typing indicator
-      this.hideTypingIndicator();
 
       // 도구 실행 결과 수집 (접힘 형태로 메시지에 포함)
       let toolItems = [];
@@ -1429,7 +1503,14 @@ export class ChatManager {
         toolNeeds: toolNeeds.length > 0 ? toolNeeds : null,
         toolsSelected: toolsSelected.length > 0 ? toolsSelected : null,
         filtered: response.filtered || null,
+        messageVerify: response.messageVerify || null,
       });
+
+      // 스트리밍 엘리먼트 정리 (addMessage로 최종 메시지가 그려진 후 제거)
+      if (streamingEl) {
+        streamingEl.remove();
+        streamingEl = null;
+      }
 
       // system fallback 알림 (일시적, 저장 안 됨)
       if (response.systemFallback) {

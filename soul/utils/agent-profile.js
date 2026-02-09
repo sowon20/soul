@@ -54,11 +54,7 @@ class AgentProfile {
       '창의적 작업',
       '분석 및 추론'
     ];
-    this.limitations = options.limitations || [
-      '실시간 정보 접근 불가',
-      '외부 API 직접 호출 불가',
-      '파일 시스템 직접 접근 제한'
-    ];
+    // limitations 제거: 소울이는 도구 시스템으로 제한 없음
     this.guidelines = options.guidelines || [
       '사용자를 존중하고 도움이 되는 답변 제공',
       '정확하지 않은 정보는 명확히 표시',
@@ -139,31 +135,14 @@ class AgentProfile {
     });
     prompt += '\n';
 
-    // 5. 제한사항
-    prompt += `## 제한사항\n\n`;
-    this.limitations.forEach(lim => {
-      prompt += `- ${lim}\n`;
-    });
-    prompt += '\n';
-
-    // 6. 행동 지침
+    // 5. 행동 지침
     prompt += `## 행동 지침\n\n`;
     this.guidelines.forEach(guide => {
       prompt += `- ${guide}\n`;
     });
     prompt += '\n';
 
-    // 7. 날짜/시간 정보
-    if (includeDateTime) {
-      const now = new Date();
-      const timeInfo = this._getTimeInfo(now);
-
-      prompt += `## 현재 시간 정보\n\n`;
-      prompt += `- 현재 시각: ${timeInfo.formatted}\n`;
-      prompt += `- 타임존: ${timeInfo.timezone}\n`;
-      prompt += `- 요일: ${timeInfo.dayOfWeek}\n`;
-      prompt += `- 시간대: ${timeInfo.timeOfDay}\n\n`;
-    }
+    // 7. 날짜/시간 정보 — time-aware-prompt.js에서 상세 제공 (중복 제거)
 
     // 8. 사용자 정보
     if (includeUserInfo && userProfile) {
@@ -276,7 +255,6 @@ class AgentProfile {
       customPrompt: this.customPrompt,
       personality: this.personality,
       capabilities: this.capabilities,
-      limitations: this.limitations,
       guidelines: this.guidelines,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt
@@ -356,7 +334,6 @@ class AgentProfileManager {
       customPrompt: doc.customPrompt || config.customPrompt,
       personality: personality,
       capabilities: doc.capabilities || config.capabilities,
-      limitations: doc.limitations || config.limitations,
       guidelines: doc.guidelines || config.guidelines,
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt
@@ -398,11 +375,6 @@ class AgentProfileManager {
         '분석 및 추론',
         '메모리 기반 맥락 이해',
         '자연어 명령 처리'
-      ],
-      limitations: [
-        '실시간 인터넷 접근 불가',
-        '외부 API 직접 호출 불가',
-        '파일 시스템 직접 접근 제한'
       ],
       guidelines: [
         '사용자를 존중하고 항상 도움이 되는 답변 제공',

@@ -693,7 +693,7 @@ router.post('/upload-oracle-wallet', walletUpload.single('wallet'), async (req, 
       fs.mkdirSync(walletDir, { recursive: true });
     }
 
-    // 기존 파일 백업 (선택적)
+    // 기존 파일 백업 (최근 2개만 유지)
     const backupDir = path.join(walletDir, '.backup_' + Date.now());
     const existingFiles = fs.readdirSync(walletDir).filter(f => !f.startsWith('.backup'));
     if (existingFiles.length > 0) {
@@ -704,6 +704,15 @@ router.post('/upload-oracle-wallet', walletUpload.single('wallet'), async (req, 
         if (fs.statSync(src).isFile()) {
           fs.copyFileSync(src, dest);
         }
+      });
+
+      // 오래된 백업 정리 (최근 2개만 유지)
+      const oldBackups = fs.readdirSync(walletDir)
+        .filter(f => f.startsWith('.backup_'))
+        .sort()
+        .slice(0, -2);
+      oldBackups.forEach(b => {
+        try { fs.rmSync(path.join(walletDir, b), { recursive: true }); } catch (e) {}
       });
     }
 

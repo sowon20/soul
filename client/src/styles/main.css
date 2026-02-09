@@ -4185,40 +4185,51 @@ body {
 }
 
 
-/* 필터 표시 (날조 감지) */
+/* 필터 표시 (날조 감지) — 도구사용 버튼과 동일 스타일 */
 .ai-filter-container {
   margin-bottom: 8px;
 }
 .ai-filter-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  background: rgba(239, 83, 80, 0.1);
-  border: 1px solid rgba(239, 83, 80, 0.3);
+  gap: 6px;
+  padding: 5px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 16px;
-  padding: 4px 12px;
-  font-size: 0.75rem;
-  color: #ef5350;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.78rem;
   cursor: pointer;
-  font-weight: 500;
+  transition: all 0.2s;
 }
 .ai-filter-toggle:hover {
-  background: rgba(239, 83, 80, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.75);
+}
+.ai-filter-toggle .filter-icon {
+  color: rgba(239, 68, 68, 0.9);
+  font-size: 0.75rem;
+  font-weight: 700;
 }
 .filter-chevron {
-  transition: transform 0.2s;
-  margin-left: 2px;
+  font-size: 0.8rem;
+  transition: transform 0.2s ease;
+  opacity: 0.6;
 }
 .ai-filter-container.expanded .filter-chevron {
   transform: rotate(90deg);
 }
 .ai-filter-content {
   display: none;
-  margin-top: 6px;
+  margin-top: 8px;
   padding: 8px 12px;
   background: rgba(239, 83, 80, 0.05);
   border-left: 2px solid rgba(239, 83, 80, 0.4);
   border-radius: 4px;
+  /* 인라인 배치에서도 아래로 확장 */
+  position: relative;
+  width: max-content;
+  max-width: 100%;
 }
 .ai-filter-container.expanded .ai-filter-content {
   display: block;
@@ -4238,24 +4249,95 @@ body {
   overflow-y: auto;
 }
 
-/* 검증 결과 표시 */
-.tool-thinking-verify {
-  font-size: 0.72rem;
-  margin-top: 3px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  line-height: 1.4;
+/* 검증 스텝 — 민트 (통과) */
+.tool-thinking-step.verify .tool-thinking-indicator {
+  background: rgba(45, 212, 191, 0.3);
+  border: 2px solid rgba(45, 212, 191, 0.3);
+  color: rgba(255, 255, 255, 0.6);
 }
-.tool-thinking-verify.verify-pass {
-  color: rgba(76, 175, 80, 0.8);
+.tool-thinking-step.verify:not(:last-child)::before {
+  background: rgba(45, 212, 191, 0.12);
 }
-.tool-thinking-verify.verify-fail {
-  color: #ef5350;
-  font-weight: 600;
+.tool-thinking-step.verify .tool-thinking-action {
+  color: rgba(45, 212, 191, 0.85);
 }
-.tool-thinking-verify.verify-note {
-  color: rgba(255, 193, 7, 0.8);
+
+/* 검증 스텝 — 참고 (amber) */
+.tool-thinking-step.verify-warn .tool-thinking-indicator {
+  background: rgba(251, 191, 36, 0.3);
+  border: 2px solid rgba(251, 191, 36, 0.3);
+  color: rgba(255, 255, 255, 0.6);
 }
+.tool-thinking-step.verify-warn:not(:last-child)::before {
+  background: rgba(251, 191, 36, 0.12);
+}
+.tool-thinking-step.verify-warn .tool-thinking-action {
+  color: rgba(251, 191, 36, 0.85);
+}
+
+/* 검증 스텝 — 실패/거짓 (red) */
+.tool-thinking-step.verify-error .tool-thinking-indicator {
+  background: rgba(239, 68, 68, 0.9);
+  border: 2px solid rgba(239, 68, 68, 0.9);
+  color: #fff;
+}
+.tool-thinking-step.verify-error:not(:last-child)::before {
+  background: rgba(239, 68, 68, 0.2);
+}
+.tool-thinking-step.verify-error .tool-thinking-action {
+  color: rgba(239, 68, 68, 0.9);
+}
+
+/* 메시지 최종 검증 바 (메시지 맨 아래) */
+.message-verify-bar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 0;
+  margin-top: 6px;
+  font-size: 11px;
+  border-radius: 6px;
+  opacity: 0.7;
+}
+.message-verify-bar:hover {
+  opacity: 1;
+}
+.message-verify-icon {
+  font-size: 10px;
+  font-weight: 700;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.message-verify-label {
+  font-weight: 500;
+}
+.message-verify-memo {
+  opacity: 0.7;
+}
+.message-verify-pass .message-verify-icon {
+  color: #10b981;
+}
+.message-verify-pass .message-verify-label {
+  color: #10b981;
+}
+.message-verify-warn .message-verify-icon {
+  color: #f59e0b;
+}
+.message-verify-warn .message-verify-label {
+  color: #f59e0b;
+}
+.message-verify-error .message-verify-icon {
+  color: #ef4444;
+}
+.message-verify-error .message-verify-label {
+  color: #ef4444;
+}
+
 .tool-thinking-icon.error {
   color: #ef5350;
 }

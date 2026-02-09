@@ -45,9 +45,9 @@ class ConversationPipeline {
    *
    * 레벨:
    * - minimal (3턴): 감탄사, 맞장구, 이모지, 단답
-   * - light (15턴): 짧은 질문, 일상 대화
-   * - medium (20턴): 보통 대화 + 요약 400tok + 메모리 600tok
-   * - full (60턴 캡): 복잡한 질문 + 요약 800tok + 메모리 800tok
+   * - light (10턴): 짧은 질문, 일상 대화
+   * - medium (12턴): 보통 대화 + 요약 400tok + 메모리 600tok
+   * - full (30턴 캡): 복잡한 질문 + 요약 800tok + 메모리 800tok
    */
   _assessContextNeeds(message) {
     if (!message) return { level: 'minimal', maxMessages: 3, reason: 'empty' };
@@ -72,20 +72,20 @@ class ConversationPipeline {
 
     // === full: 이전 대화 참조, 복잡한 요청 (최대 60턴 캡!) ===
     const needsHistory = /아까|이전|방금|그때|위에|전에|앞에|말했던|말한|했던|했잖|그거|그건|그게|이어서|계속|다시|정리해|요약해|비교해|분석해|리뷰해/.test(trimmed);
-    if (needsHistory) return { level: 'full', maxMessages: 60, reason: 'reference' };
+    if (needsHistory) return { level: 'full', maxMessages: 30, reason: 'reference' };
 
-    if (len > 200) return { level: 'full', maxMessages: 60, reason: 'long_message' };
+    if (len > 200) return { level: 'full', maxMessages: 30, reason: 'long_message' };
     if (/[1-9]\.\s|첫째|둘째|그리고.*그리고|또한.*또한/.test(trimmed)) {
-      return { level: 'full', maxMessages: 60, reason: 'multi_step' };
+      return { level: 'full', maxMessages: 30, reason: 'multi_step' };
     }
 
     // === light: 짧은 질문/요청 (30자 이하) ===
     if (len <= 30) {
-      return { level: 'light', maxMessages: 15, reason: 'short_query' };
+      return { level: 'light', maxMessages: 10, reason: 'short_query' };
     }
 
     // === medium: 나머지 ===
-    return { level: 'medium', maxMessages: 20, reason: 'normal' };
+    return { level: 'medium', maxMessages: 12, reason: 'normal' };
   }
 
   /**
@@ -144,32 +144,8 @@ class ConversationPipeline {
       // 시간 프롬프트 내용 로깅
       console.log(`[Pipeline] Time prompt:\n${timePrompt?.substring(0, 800)}`);
 
-      // 메시지별 타임스탬프 목록 생성 (AI가 시간 맥락 파악용)
-      // 복잡도 미리 판단하여 minimal/light일 때는 타임라인 생략
+      // 복잡도 미리 판단
       const earlyContextNeeds = this._assessContextNeeds(userMessage);
-      let messageTimeline = '';
-      if (recentMsgs.length > 0 && earlyContextNeeds.level !== 'minimal') {
-        // light: 최근 8개만, medium/full: 전체
-        const timelineMsgs = earlyContextNeeds.level === 'light'
-          ? recentMsgs.slice(-8)
-          : recentMsgs;
-        const startIdx = recentMsgs.length - timelineMsgs.length;
-
-        const timeEntries = timelineMsgs.map((m, i) => {
-          if (m.timestamp) {
-            const d = new Date(m.timestamp);
-            const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
-            const timeStr = `${kst.getUTCMonth()+1}/${kst.getUTCDate()} ${kst.getUTCHours()}:${String(kst.getUTCMinutes()).padStart(2,'0')}`;
-            const preview = (m.content || '').substring(0, 20).replace(/\n/g, ' ');
-            return `${startIdx+i+1}. ${timeStr} (${m.role}) "${preview}..."`;
-          }
-          return null;
-        }).filter(Boolean);
-
-        if (timeEntries.length > 0) {
-          messageTimeline = `\n\n<message_timeline>\n대화 히스토리의 각 메시지 전송 시각:\n${timeEntries.join('\n')}\n</message_timeline>`;
-        }
-      }
 
       // === 세션 요약 + 메모리 주입 (레벨별 예산표) ===
       // 오미 피드백: 각 레벨에 요약/메모리 예산 명시
@@ -204,7 +180,6 @@ class ConversationPipeline {
       if (sessionSummarySection) {
         contextContent += '\n\n' + sessionSummarySection;
       }
-      contextContent += messageTimeline;
       contextContent += '\n</context>';
 
       messages.push({
@@ -322,13 +297,22 @@ class ConversationPipeline {
       const rawResult = this.memoryManager.shortTerm.getWithinTokenLimit(rawTokenBudget, maxMessages);
       console.log(`[Pipeline] Context: ${rawResult.messages.length}/${maxMessages} raw messages, ${rawResult.totalTokens} tokens (budget: ${rawTokenBudget})`);
 
-      // 메시지 (assistant의 <thinking> 태그는 제거 — DeepSeek 등에서 reasoning_content를 다음 턴에 포함하면 안 됨)
-      const rawMessages = rawResult.messages.map(m => ({
-        role: m.role,
-        content: m.role === 'assistant' && m.content
+      // 메시지 (assistant의 <thinking> 태그는 제거 + 타임스탬프 인라인)
+      const rawMessages = rawResult.messages.map(m => {
+        let content = m.role === 'assistant' && m.content
           ? m.content.replace(/<thinking>[\s\S]*?<\/thinking>\s*/g, '').trim()
-          : m.content
-      }));
+          : m.content;
+
+        // 타임스탬프를 메시지 앞에 인라인 (별도 timeline 섹션 대신)
+        if (m.timestamp) {
+          const d = new Date(m.timestamp);
+          const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+          const timeStr = `${kst.getUTCMonth()+1}/${kst.getUTCDate()} ${kst.getUTCHours()}:${String(kst.getUTCMinutes()).padStart(2,'0')}`;
+          content = `[${timeStr}] ${content}`;
+        }
+
+        return { role: m.role, content };
+      });
 
       // 2. 주간 요약 - 자동 로드 제거
       // 설계 의도: AI가 필요할 때 recall_memory 도구로 직접 조회

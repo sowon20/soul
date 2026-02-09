@@ -4,7 +4,7 @@
  */
 
 import { ThemeManager } from './utils/theme-manager.js';
-import { ChatManager } from './components/chat/chat-manager.js?v=18';
+import { ChatManager } from './components/chat/chat-manager.js?v=19';
 import { PanelManager } from './components/shared/panel-manager.js';
 import { MenuManager } from './components/sidebar/menu-manager.js';
 import { APIClient } from './utils/api-client.js';
@@ -2183,6 +2183,18 @@ class SoulApp {
     const iframe = document.createElement('iframe');
     iframe.className = 'canvas-mcp-iframe';
     iframe.src = url;
+    // iframe 로드 후 줄바꿈 스타일 주입 (same-origin만 가능)
+    iframe.addEventListener('load', () => {
+      try {
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+        const style = iframeDoc.createElement('style');
+        style.textContent = `
+          * { word-wrap: break-word; overflow-wrap: break-word; }
+          body { overflow-x: hidden; }
+        `;
+        iframeDoc.head.appendChild(style);
+      } catch (e) { /* cross-origin — 무시 */ }
+    });
     container.appendChild(iframe);
 
     // MCP 상태 오버레이 (연결 끊김 시 표시)

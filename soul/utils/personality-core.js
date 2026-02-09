@@ -162,7 +162,7 @@ class PersonalityCore {
    * 개인 AI - 프로필에서 사용자 정보 동적 로드
    */
   generateSystemPrompt(options = {}) {
-    const { model, context = {} } = options;
+    const { model, context = {}, voiceTags } = options;
 
     if (!this.config.enablePersonality) {
       return 'You are a personal AI assistant.';
@@ -208,7 +208,7 @@ class PersonalityCore {
 ${speechStyle}
 - 길이: ${this._describeLevel(profile.communication.verbosity, '간결하게', '자세히')}
 - 언어: 한국어 기본, 코드/기술용어는 영어 OK
-- 감정 표현: 웃을 때 [laughter] 태그 사용 가능 (예: "진짜? [laughter] 대박이다")
+${voiceTags && voiceTags.length > 0 ? `- 대괄호 태그는 음성 제어 전용. 허용: ${(Array.isArray(voiceTags) ? voiceTags : [voiceTags]).map(t => '[' + t + ']').join(', ')}. 그 외 대괄호 태그 금지` : '- 대괄호 [] 태그 사용 금지'}
 
 `;
 
