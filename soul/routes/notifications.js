@@ -85,6 +85,7 @@ router.post('/proactive/toggle', async (req, res) => {
     const { getProactiveMessenger, resetProactiveMessenger, isProactiveActive } = require('../utils/proactive-messenger');
     const { clearCache } = require('../utils/mcp-tools');
     const { invalidateToolsCache } = require('./chat');
+    const SystemConfig = require('../models/SystemConfig');
 
     if (enabled) {
       const io = req.app.get('io');
@@ -96,6 +97,13 @@ router.post('/proactive/toggle', async (req, res) => {
       console.log('[Proactive] Stopped via toggle');
     }
 
+    // DB에 상태 저장 (서버 재시작 후에도 유지)
+    await SystemConfig.findOneAndUpdate(
+      { configKey: 'proactive_enabled' },
+      { configKey: 'proactive_enabled', value: { enabled: !!enabled } },
+      { upsert: true }
+    );
+
     // 도구 캐시 무효화 (프로액티브 도구 포함/제외 반영)
     clearCache();
     invalidateToolsCache();
@@ -106,61 +114,6 @@ router.post('/proactive/toggle', async (req, res) => {
     });
   } catch (error) {
     console.error('Error toggling proactive:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-/**
- * GET /api/notifications/tool-routing/status
- * 도구 라우팅({need}) 상태 조회
- */
-router.get('/tool-routing/status', async (req, res) => {
-  try {
-    const configManager = require('../utils/config');
-    const config = await configManager.getConfigValue('toolRouting', { enabled: false, mode: 'single' });
-    res.json({
-      success: true,
-      enabled: config?.enabled === true,
-      mode: config?.mode || 'single'
-    });
-  } catch (error) {
-    res.json({ success: true, enabled: false, mode: 'single' });
-  }
-});
-
-/**
- * POST /api/notifications/tool-routing/toggle
- * 도구 라우팅({need}) ON/OFF + 모드 설정
- */
-router.post('/tool-routing/toggle', async (req, res) => {
-  try {
-    const { enabled, mode } = req.body;
-    const configManager = require('../utils/config');
-    const { invalidateToolsCache } = require('./chat');
-
-    // 기존 설정 로드 후 부분 업데이트
-    const current = await configManager.getConfigValue('toolRouting') || { enabled: false, mode: 'single' };
-    const newConfig = {
-      enabled: enabled !== undefined ? !!enabled : current.enabled,
-      mode: mode || current.mode || 'single'
-    };
-    await configManager.setConfigValue('toolRouting', newConfig, 'Tool routing configuration');
-
-    // 도구 캐시 무효화
-    invalidateToolsCache();
-
-    console.log(`[ToolRouting] ${enabled ? 'Enabled' : 'Disabled'} (${newConfig.mode}) via toggle`);
-
-    res.json({
-      success: true,
-      enabled: newConfig.enabled,
-      mode: newConfig.mode
-    });
-  } catch (error) {
-    console.error('Error toggling tool routing:', error);
     res.status(500).json({
       success: false,
       error: error.message

@@ -109,7 +109,7 @@ export class APIClient {
     // 🔍 DEBUG: AI 입력/출력 데이터 표시
     if (response._debug) {
       const d = response._debug;
-      const toolMode = d.toolMode === 'need' ? '{need} 모드' : `${d.toolCount}개`;
+      const toolMode = `${d.toolCount}개`;
 
       // 시스템 프롬프트 — 항상 바로 보임
       console.log(

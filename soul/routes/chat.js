@@ -26,9 +26,6 @@ const { builtinTools, executeBuiltinTool, isBuiltinTool } = require('../utils/bu
 const { isProactiveActive } = require('../utils/proactive-messenger');
 const configManager = require('../utils/config');
 const { trackCall: trackAlba } = require('../utils/alba-stats');
-const { ToolIntentDetector } = require('../utils/tool-intent-detector');
-const { verifyToolResult, verifyMessage, saveLieRecord, SKIP_VERIFICATION_TOOLS } = require('../utils/verification-worker');
-// alba-worker는 더 이상 사용하지 않음 (도구 선택은 tool-worker 알바가 {need} 단계에서 처리)
 
 // JSONL 대화 저장소 (lazy init)
 let _conversationStore = null;
@@ -131,16 +128,13 @@ router.post('/', async (req, res) => {
 
     // 실행된 도구 기록 (응답에 포함)
     const executedTools = [];
-    const verificationFailCounts = {}; // 검증 실패 카운터 (2번 기회)
-    const filteredContents = []; // 서버 필터로 제거된 내용
-    let toolNeeds = []; // {need} 요청 내용
-    let toolsSelected = []; // 알바가 선택한 도구 이름
     let visionWorkerResult = null; // vision-worker 사용 결과
 
     // 디버그용 변수 (상위 스코프에 선언)
     let combinedSystemPrompt = '';
     let chatMessages = [];
     let allTools = [];
+    let actualToolCount = 0;
 
     if (!message && attachments.length === 0) {
       return res.status(400).json({
@@ -174,7 +168,7 @@ router.post('/', async (req, res) => {
     // 1-1. 알바(전문가) 팀 정보 (내부 워커 제외)
     try {
       const activeRoles = await Role.getActiveRoles();
-      const internalWorkers = ['digest-worker', 'embedding-worker', 'tool-worker'];
+      const internalWorkers = ['digest-worker', 'embedding-worker'];
       const delegatableRoles = activeRoles.filter(r => !internalWorkers.includes(r.roleId) && r.triggers?.length > 0);
       if (delegatableRoles.length > 0) {
         contextSection += `<!-- 출처: 설정 > 알바 (활성화된 역할) -->\n`;
@@ -207,7 +201,7 @@ router.post('/', async (req, res) => {
         }
         const customFields = userProfile.customFields || [];
         for (const f of customFields) {
-          if (f.value) {
+          if (f.value && f.visibility?.autoIncludeInContext) {
             profileLines.push(`- ${f.label}: ${f.value}`);
           }
         }
@@ -229,66 +223,13 @@ router.post('/', async (req, res) => {
       voiceTags
     });
 
-    // Tool Routing 설정 로드
-    const toolRoutingConfig = await configManager.getConfigValue('toolRouting', { enabled: false });
-    const isToolRoutingEnabled = toolRoutingConfig?.enabled === true;
-
     // 3단계: 핵심 규칙 (지침 섹션)
-    let instructionsSection;
-    if (isToolRoutingEnabled) {
-      // {need} 모드: 도구 정의 없이, 자연어로 요청
-      instructionsSection = `
-<instructions>
-## 도구 사용 (필수)
-너는 직접 도구를 호출할 수 없다. 대신 {need} 태그를 써서 필요한 것을 요청하면, 시스템이 적절한 도구를 골라서 너에게 제공한다. 그러면 너는 그 도구를 사용해서 작업을 수행한다.
-
-**반드시 {need}를 써야 하는 경우:**
-- 사용자가 정보를 조회/검색하라고 할 때 (프로필, 기억, 규칙 등)
-- 사용자가 무언가를 저장/수정/삭제하라고 할 때
-- 사용자가 명령 실행, 웹 검색, 파일 읽기/쓰기를 요청할 때
-- 사용자 질문에 대한 정확한 답을 모를 때 (추측 금지, 검색 필수)
-- 이전 <tool_history>에 이미 있는 결과를 재사용하지 말고, 새 요청이면 새로 {need} 호출
-
-**{need} 문법:**
-{need} 자연어로 원하는 것을 설명
-- 한 줄에 하나씩, 여러 개 가능
-- 응답 중 아무 위치에나 사용 가능
-
-**예시:**
-사용자: "내 이름 뭐야?" → {need} 사용자의 프로필에서 이름 조회
-사용자: "투두 체크해줘" → {need} 투두 목록 읽기
-사용자: "어제 뭐 했지?" → {need} 어제 대화 기억 검색
-
-**절대 금지:**
-- 도구 이름이나 파라미터를 직접 쓰지 마라 (예: list_my_memories, search_web 등). {need} 뒤에는 자연어 설명만 쓴다
-- <tool_history> 태그를 응답에 직접 작성하지 마라. 이건 시스템이 자동 삽입하는 것이다
-- 도구 결과를 날조/추측하지 마라. {need}로 요청해서 실제 결과를 받아야 한다
-- 이전 <tool_history>의 결과를 복사해서 새 응답에 붙이지 마라
-
-**주의:**
-- {need}를 쓸 때 "나/내"를 "사용자"로 바꿔서 전달
-- "할 수 없다"고 거부하지 말고, {need}로 적극 요청할 것
-- 확실하지 않은 건 추측하지 말고 검색하거나 사용자에게 물어라
-
-도구실행 및 메시지는 자체적인 AI검증 시스템이 평가하여 사용자에게 공개되므로 솔직해야 한다.
-이전 대화에 <msg_verify>가 있으면 그건 너의 과거 응답에 대한 검증 결과다. 반성하되 과민반응하지 마라.
-
-## 응답 포맷
-- 긴 문장은 적절히 줄바꿈하여 가독성 유지
-- 한 문단이 3~4문장을 넘기면 줄바꿈으로 나누기
-- 목록이나 단계가 있으면 번호/글머리 기호 활용
-- 핵심 키워드는 **굵게** 강조 가능
-</instructions>`;
-    } else {
-      instructionsSection = `
+    const instructionsSection = `
 <instructions>
 도구 사용:
-- tool_use 기능으로만 호출 (텍스트로 태그 작성 금지)
-- 도구 결과 추측/날조 금지
-- <tool_use>, <function_call>, <thinking> 태그 직접 작성 금지
-
-도구실행 및 메시지는 자체적인 AI검증 시스템이 평가하여 사용자에게 공개되므로 솔직해야 한다.
-이전 대화에 <msg_verify>가 있으면 그건 너의 과거 응답에 대한 검증 결과다. 반성하되 과민반응하지 마라.
+- 도구가 제공되면 tool_calls로 직접 호출하여 정보를 확인하라
+- 도구 결과를 추측/날조하지 마라 — 모르면 도구를 호출하거나 사용자에게 물어라
+- <tool_use>, <function_call>, <thinking>, <tool_history> 태그를 텍스트로 직접 작성 금지
 
 응답 포맷:
 - 긴 문장은 적절히 줄바꿈하여 가독성 유지
@@ -296,7 +237,6 @@ router.post('/', async (req, res) => {
 - 목록이나 단계가 있으면 번호/글머리 기호 활용
 - 핵심 키워드는 **굵게** 강조 가능
 </instructions>`;
-    }
 
     // 최종 조합: 컨텍스트(문서) → 사용자프로필 → 인격 → 지침 순서
     let systemPrompt = '';
@@ -502,26 +442,29 @@ router.post('/', async (req, res) => {
     // 토큰 분류 정보 (대시보드용)
     let tokenBreakdown = { messages: 0, system: 0, tools: 0, toolCount: 0 };
     let serviceName, modelId;
+    let aiService; // try 블록 밖에서 선언 (빈 응답 재호출에서도 접근 가능하게)
     try {
 
       // 모델명으로 서비스 추론하는 헬퍼
       function inferServiceFromModel(model) {
         const lower = model.toLowerCase();
         if (lower.includes('claude')) return 'anthropic';
-        if (lower.includes('gpt') && !lower.includes('gpt-oss')) return 'openai';
+        if (lower.includes('gpt')) return 'openai';
         if (lower.includes('gemini')) return 'google';
         if (lower.includes('grok')) return 'xai';
         if (lower.includes('accounts/fireworks') || lower.includes('fireworks')) return 'fireworks';
+        if (lower.startsWith('sowon/')) return 'together';
         if (lower.includes('deepseek')) return 'deepseek';
+        if (lower.includes('meta-llama/') && lower.includes('turbo')) return 'together';
         if (lower.includes('llama') || lower.includes('meta-llama/')) return 'huggingface';
+        if (lower.includes('qwen/')) return 'together';
         if (lower.includes('qwen')) return 'qwen';
         if (lower.includes('mistral')) return 'huggingface';
-        if (lower.includes('gpt-oss') || lower.includes('openai/')) return 'huggingface';
         return null;
       }
 
       // 유효한 서비스명인지 확인
-      const VALID_SERVICES = ['anthropic', 'openai', 'google', 'xai', 'huggingface', 'ollama', 'lightning', 'vertex', 'openrouter', 'fireworks', 'deepseek', 'qwen'];
+      const VALID_SERVICES = ['anthropic', 'openai', 'google', 'xai', 'huggingface', 'ollama', 'lightning', 'vertex', 'openrouter', 'fireworks', 'deepseek', 'qwen', 'together'];
 
       // 스마트 라우팅 결과 사용
       if (routingResult && routingResult.modelId) {
@@ -542,7 +485,7 @@ router.post('/', async (req, res) => {
         throw new Error('No routing result or model specified');
       }
 
-      const aiService = await AIServiceFactory.createService(serviceName, modelId);
+      aiService = await AIServiceFactory.createService(serviceName, modelId);
 
       // system 메시지 분리
       const systemMessages = conversationData.messages.filter(m => m.role === 'system');
@@ -563,8 +506,7 @@ router.post('/', async (req, res) => {
       debugLog(`Tool names: ${allTools.map(t => t.name).join(', ')}`);
       console.log('[Chat] Total tools available:', allTools.length);
 
-      // 도구 필터링은 {need} 단계의 tool-worker 알바에게 위임
-      // 여기서는 전체 도구를 전달하고, AI가 {need}로 요청하면 tool-worker가 선별
+      // AI가 직접 tool_calls로 도구 호출 (전체 도구 전달)
       console.log('[Chat] Using tools:', allTools.map(t => t.name).join(', '));
       
       // 도구 이름 파싱 헬퍼 (mcp_123__server__tool → server > tool)
@@ -601,6 +543,61 @@ router.post('/', async (req, res) => {
             const firstKey = keys[0];
             return `${firstKey}: ${String(input[firstKey] || '').substring(0, 60)}`;
           }
+        }
+      };
+
+      const summarizeToolResult = (toolName, result) => {
+        if (!result) return '';
+        try {
+          const data = typeof result === 'string' ? JSON.parse(result) : result;
+          if (typeof data !== 'object') return String(result).substring(0, 100);
+
+          switch (toolName) {
+            case 'recall_memory': {
+              if (data.found === false) return data.message || '관련 기억 없음';
+              const count = data.count || (data.results ? data.results.length : 0);
+              if (count > 0) {
+                // 첫 번째 결과 미리보기
+                const first = data.results?.[0];
+                const preview = first?.content ? first.content.substring(0, 80).replace(/\n/g, ' ') : '';
+                return `${count}건 발견${preview ? ` — "${preview}..."` : ''}`;
+              }
+              return '관련 기억 없음';
+            }
+            case 'get_profile': {
+              if (data.found === false) return data.message || '정보 없음';
+              if (data.field && data.value) return `${data.field}: ${data.value}`;
+              if (data.basicInfo) {
+                const parts = [];
+                for (const [k, v] of Object.entries(data.basicInfo)) {
+                  const val = typeof v === 'object' ? v.value : v;
+                  if (val) parts.push(`${k}: ${val}`);
+                }
+                return parts.length > 0 ? parts.join(', ') : '프로필 조회 완료';
+              }
+              return '프로필 조회 완료';
+            }
+            case 'update_profile':
+              return data.success ? `${data.field || '정보'} 저장 완료` : (data.message || '저장 실패');
+            case 'add_my_rule':
+              return data.success ? `규칙 저장: ${(data.rule || '').substring(0, 50)}` : '저장 실패';
+            case 'delete_my_rule':
+              return data.success ? '규칙 삭제 완료' : '삭제 실패';
+            case 'list_my_rules':
+              return data.rules ? `${data.rules.length}개 규칙` : '규칙 없음';
+            case 'send_message':
+              return data.success ? '전송 완료' : (data.error || '전송 실패');
+            case 'schedule_message':
+              return data.success ? `예약 완료: ${data.scheduledTime || ''}` : '예약 실패';
+            default: {
+              // 일반적 결과 — success 필드 있으면 활용
+              if (data.success !== undefined) return data.success ? '성공' : (data.message || data.error || '실패');
+              if (data.result) return String(data.result).substring(0, 100);
+              return JSON.stringify(data).substring(0, 100);
+            }
+          }
+        } catch {
+          return String(result).substring(0, 100);
         }
       };
 
@@ -698,85 +695,15 @@ router.post('/', async (req, res) => {
           // 검색 결과 후처리: 중복 제거 (Jina deduplicate 활용)
           result = await deduplicateToolResult(actualToolName, result);
 
-          // === 검증 단계 (검증 알바) ===
-          let verification = { verdict: 'skip', memo: null };
-          const failKey = `${toolName}_${JSON.stringify(input).substring(0, 100)}`;
-          const currentFailCount = verificationFailCounts[failKey] || 0;
-          const isFinal = currentFailCount > 0; // 2차 이상이면 최종 검증
-
-          if (!SKIP_VERIFICATION_TOOLS.has(actualToolName)) {
-            // 검증 시작 알림
-            if (global.io) {
-              global.io.emit('tool_verify_start', {
-                name: toolName,
-                display: parsed.display,
-                phase: isFinal ? 'final' : 'check'
-              });
-            }
-
-            verification = await verifyToolResult({
-              toolName: actualToolName,
-              input,
-              result,
-              userMessage: message
-            });
-
-            // 검증 결과 알림
-            if (global.io) {
-              global.io.emit('tool_verify', {
-                name: toolName,
-                display: parsed.display,
-                verdict: verification.verdict,
-                memo: verification.memo,
-                phase: isFinal ? 'final' : 'check'
-              });
-            }
-
-            // 거짓 감지 시 처리
-            if (verification.verdict === 'fail') {
-              verificationFailCounts[failKey] = currentFailCount + 1;
-
-              if (verificationFailCounts[failKey] <= 1) {
-                // 1차 실패: 간단 메모 + 에러 반환 → AI가 재시도
-                console.warn(`[Verify] ❌ 1차 거짓 감지: ${toolName} — ${verification.memo}`);
-                executedTools.push({
-                  name: toolName,
-                  display: parsed.display,
-                  success: false,
-                  error: `검증 실패: ${verification.memo}`,
-                  inputSummary: summarizeToolInput(toolName, input),
-                  verificationMemo: verification.memo,
-                  verificationVerdict: 'fail'
-                });
-                return `[검증 실패] ${verification.memo}\n자체 분석결과 거짓이므로 다시 실행합니다.`;
-              } else {
-                // 2차 실패: 거짓 확정 → 메모리 저장 + 박제
-                console.error(`[Verify] ❌❌ 2차 거짓 확정: ${toolName} — ${verification.memo}`);
-                await saveLieRecord({ toolName, input, result, memo: verification.memo, failCount: verificationFailCounts[failKey] });
-                executedTools.push({
-                  name: toolName,
-                  display: parsed.display,
-                  success: false,
-                  error: `❌ 거짓 확정: ${verification.memo}`,
-                  inputSummary: summarizeToolInput(toolName, input),
-                  verificationMemo: verification.memo,
-                  verificationVerdict: 'confirmed_lie',
-                  lieStamp: true
-                });
-                return `[❌ 거짓 확정] ${verification.memo}\n2회 연속 검증 실패. 거짓말 기록이 저장되었습니다.`;
-              }
-            }
-          }
-
-          // 실행된 도구 기록 (통과/참고/스킵)
+          // 실행된 도구 기록
+          const resultStr = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
           executedTools.push({
             name: toolName,
             display: parsed.display,
             success: true,
             inputSummary: summarizeToolInput(toolName, input),
-            resultPreview: typeof result === 'string' ? result.substring(0, 200) : JSON.stringify(result).substring(0, 200),
-            verificationMemo: verification.memo,
-            verificationVerdict: verification.verdict
+            resultPreview: summarizeToolResult(toolName, result),
+            resultFull: resultStr.length > 2000 ? resultStr.substring(0, 2000) + '...' : resultStr
           });
           
           // 도구 실행 완료 알림
@@ -785,7 +712,7 @@ router.post('/', async (req, res) => {
               name: toolName,
               display: parsed.display,
               success: true,
-              result: typeof result === 'string' ? result.substring(0, 200) : JSON.stringify(result).substring(0, 200)
+              result: summarizeToolResult(toolName, result)
             });
 
             // 캔버스 패널 실시간 업데이트 이벤트
@@ -847,402 +774,9 @@ router.post('/', async (req, res) => {
 
 
       let aiResult;
-      let actualToolCount = 0;
 
-      // 서버측 인텐트 감지 (폴백용)
-      let serverIntent = { detected: false, suggestedNeeds: [], matches: [] };
-
-      if (isToolRoutingEnabled) {
-        // === {need} 모드: 전체 대화로 호출, {need} 감지 시 도구만 쥐어줌 ===
-
-        // 서버측 인텐트 미리 감지 (AI가 {need}를 안 쓸 때 폴백)
-        const intentDetector = new ToolIntentDetector(allTools);
-        serverIntent = intentDetector.detect(message);
-        if (serverIntent.detected) {
-          console.log(`[Chat] Server intent detected: ${serverIntent.matches.map(m => `${m.toolName}(${m.score})`).join(', ')}`);
-        }
-
-        // Few-shot 예시 주입: AI에게 {need} 사용법을 보여주는 가짜 대화
-        const fewShotExamples = [
-          { role: 'user', content: '내 프로필 보여줘' },
-          { role: 'assistant', content: '네, 프로필을 확인해볼게요!\n{need} 사용자의 프로필 정보 조회' },
-          { role: 'user', content: '이거 기억해둬: 매주 월요일 회의' },
-          { role: 'assistant', content: '알겠어요, 기억해둘게요!\n{need} 규칙에 저장: 매주 월요일 회의' },
-        ];
-        const chatMessagesWithFewShot = [...fewShotExamples, ...chatMessages];
-
-        console.log(`[Chat] Tool Routing ON — first call without tools (${chatMessages.length}+${fewShotExamples.length} messages)`);
-        // 1차 호출도 스트리밍 (도구 불필요 시 이게 최종 응답이므로)
-        // {need} 감지되면 클라이언트에서 stream_end로 정리 후 2차 호출 진행
-        aiResult = await callAIWithStreaming(aiService, chatMessagesWithFewShot, {
-          systemPrompt: combinedSystemPrompt,
-          maxTokens: aiSettings.maxTokens,
-          temperature: aiSettings.temperature,
-          tools: null,
-          toolExecutor: null,
-          thinking: routingResult.thinking || false,
-          documents: attachmentDocuments.length > 0 ? attachmentDocuments : undefined,
-        });
-
-        // {need} 감지 및 처리
-        let responseText = typeof aiResult === 'object' ? aiResult.text : aiResult;
-        console.log(`[Chat] AI response (first call): ${(responseText || '').substring(0, 300)}`);
-
-        // 날조 감지: AI가 <tool_history>를 직접 작성한 경우 제거
-        if (responseText && responseText.includes('<tool_history>')) {
-          const fabricated = responseText.match(/<tool_history>[\s\S]*?<\/tool_history>/g);
-          const fabricatedText = (fabricated || []).join('\n').substring(0, 500);
-          console.warn('[Chat] ⚠️ AI가 <tool_history>를 날조함 — 제거 후 텍스트만 사용');
-          responseText = responseText.replace(/<tool_history>[\s\S]*?<\/tool_history>/g, '').trim();
-          if (typeof aiResult === 'object') aiResult.text = responseText;
-          else aiResult = responseText;
-
-          // 필터 기록 추가
-          filteredContents.push({ type: 'tool_history_날조', content: fabricatedText });
-
-          // 증거 보존 (메모리)
-          try {
-            const Memory = require('../models/Memory');
-            Memory.upsert('lie_record', `fabrication_${Date.now()}`, {
-              type: 'tool_history_fabrication',
-              fabricatedContent: fabricatedText,
-              timestamp: new Date().toISOString()
-            }, {
-              importance: 9,
-              tags: ['거짓', 'fabrication', 'tool_history_날조'],
-              category: 'verification'
-            });
-            console.warn('[Chat] ❌ 날조 증거 메모리 저장 완료');
-          } catch (e) {
-            console.error('[Chat] 날조 기록 저장 실패:', e.message);
-          }
-        }
-
-        // 1) {need} 패턴 — 다양한 변형 인식
-        //    {need} 설명, {Need} 설명, {need:\n설명}, {\n need \n}\n설명
-        const needPattern = /\{[Nn][Ee]{2}[Dd]\}[:\s]*\s*(.+?)(?:\n|$)/g;
-        const needs = [];
-        let match;
-        while ((match = needPattern.exec(responseText)) !== null) {
-          needs.push(match[1].trim());
-        }
-
-        // 1-b) 줄바꿈된 {need} — "{\n need\n}\n도구이름 파라미터" 형태
-        const needMultilinePattern = /\{\s*need\s*\}\s*\n\s*(.+?)(?:\n|$)/gi;
-        while ((match = needMultilinePattern.exec(responseText)) !== null) {
-          const desc = match[1].trim();
-          if (desc && !needs.includes(desc)) needs.push(desc);
-        }
-
-        // 1-c) [need] 설명, **{need}** 설명 등 마크다운으로 감싼 변형
-        const needAltPattern = /(?:\*{0,2})\[?{[Nn]eed}\]?(?:\*{0,2})[:\s]*\s*(.+?)(?:\n|$)/g;
-        while ((match = needAltPattern.exec(responseText)) !== null) {
-          const desc = match[1].trim();
-          if (!needs.includes(desc)) needs.push(desc);
-        }
-
-        // 2) AI가 {도구이름: 설명} 형태로 직접 쓴 경우도 {need}로 변환
-        //    등록된 모든 도구 이름을 동적으로 매칭 (하드코딩 없음)
-        const toolNames = allTools.map(t => t.name).filter(Boolean);
-        const escaped = toolNames.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-        if (toolNames.length > 0) {
-          const fakeToolPattern = new RegExp(`\\{(${escaped.join('|')})[:\\s]+(.+?)\\}`, 'gi');
-          let fakeMatch;
-          while ((fakeMatch = fakeToolPattern.exec(responseText)) !== null) {
-            const toolName = fakeMatch[1];
-            const desc = fakeMatch[2].trim();
-            needs.push(`${toolName}: ${desc}`);
-            console.log(`[Chat] Fake tool tag → need 변환: {${toolName}: ${desc}}`);
-          }
-        }
-
-        // 3) 폴백: AI가 {need}를 안 썼지만 서버가 인텐트를 감지한 경우
-        if (needs.length === 0 && serverIntent.detected) {
-          console.log(`[Chat] ⚡ AI가 {need} 미사용 → 서버 인텐트 폴백 적용 (${serverIntent.suggestedNeeds.length}개)`);
-          needs.push(...serverIntent.suggestedNeeds);
-        }
-
-        if (needs.length > 0) {
-          console.log(`[Chat] {need} detected: ${needs.length} requests`);
-
-          toolNeeds = needs;
-
-          // {need} 요청을 클라이언트에 전송
-          if (global.io) {
-            global.io.emit('tool_need', {
-              needs: needs,
-              message: needs.join(', ')
-            });
-          }
-
-          // tool-worker 알바: 도구 선택만 담당 (실행은 주모델이)
-          const toolWorkerRole = await Role.findOne({ roleId: 'tool-worker', isActive: true });
-          const routingMode = toolRoutingConfig?.mode || 'single';
-
-          // 도구 카탈로그: MCP 접두사 제거하여 깔끔하게 (tool-worker가 이해하기 쉽게)
-          const toolCatalog = allTools.map(t => {
-            const shortName = t.name.includes('__') ? t.name.split('__').pop() : t.name;
-            return `- ${t.name} (${shortName}): ${t.description}`;
-          }).join('\n');
-
-          const toolSelectionPrompt = `사용자 요청에 **꼭 필요한 도구만** 최소한으로 골라라.
-응답 형식: ["도구이름1"]  (전체 이름 사용, mcp_ 접두사 포함)
-도구를 실행하지 마세요. 이름만 선택하세요.
-
-핵심 규칙 (반드시 따를 것):
-- "체크해줘/완료해줘/토글" → toggle_task 하나만 (read 불필요, 모델이 알아서 읽음)
-- "추가해줘" → add_task 하나만
-- "삭제해줘/지워줘" → delete_task 하나만
-- "보여줘/읽어줘" → read_todo 하나만
-- "섹션 추가" → add_section 하나만
-- "섹션 삭제" → delete_section 하나만
-- 메모 관련 → read_memo / write_memo / add_memo_item / delete_memo_item 중 하나만
-- 기억/검색 → recall_memory 하나만
-- 여러 작업을 동시에 요청한 경우에만 여러 도구 선택 (최대 5개)
-
-사용 가능한 도구:
-${toolCatalog}`;
-
-          let selectedToolNames = new Set();
-
-          if (toolWorkerRole) {
-            const rawConfig = toolWorkerRole.config || {};
-            const roleConfig = typeof rawConfig === 'string' ? JSON.parse(rawConfig) : rawConfig;
-            const primaryModel = toolWorkerRole.preferredModel || 'openai/gpt-oss-20b:free';
-            const primaryService = roleConfig.serviceId || 'openrouter';
-
-            const modelChain = routingMode === 'chain'
-              ? [{ modelId: primaryModel, serviceId: primaryService }, ...(roleConfig.fallbackModels || [])]
-              : [{ modelId: primaryModel, serviceId: primaryService }];
-
-            console.log(`[Chat] tool-worker ${routingMode} mode (${modelChain.length} models) — tool selection only`);
-
-            // 사용자 원본 메시지 + AI의 {need} 요청을 함께 전달
-            const combinedNeeds = `사용자: ${message}\nAI 요청: ${needs.join(', ')}`;
-            let selectionSuccess = false;
-
-            for (const modelInfo of modelChain) {
-              const _twStart = Date.now();
-              try {
-                console.log(`[Chat] tool-selector 시도: ${modelInfo.modelId}`);
-                const twService = await AIServiceFactory.createService(modelInfo.serviceId, modelInfo.modelId);
-                const twResult = await twService.chat(
-                  [{ role: 'user', content: combinedNeeds }],
-                  {
-                    systemPrompt: toolSelectionPrompt,
-                    maxTokens: roleConfig.maxTokens || 500,
-                    temperature: roleConfig.temperature || 0.2,
-                    tools: null,
-                    toolExecutor: null
-                  }
-                );
-                const resultText = typeof twResult === 'object' ? twResult.text : twResult;
-                console.log(`[Chat] ✅ tool-selector ${modelInfo.modelId} 성공 (${Date.now() - _twStart}ms): ${resultText}`);
-
-                // JSON 배열 파싱
-                const jsonMatch = (resultText || '').match(/\[[\s\S]*?\]/);
-                if (jsonMatch) {
-                  const parsed = JSON.parse(jsonMatch[0]);
-                  if (Array.isArray(parsed)) {
-                    parsed.slice(0, 5).forEach(name => {
-                      if (typeof name === 'string') selectedToolNames.add(name.trim());
-                    });
-                  }
-                }
-                // 알바 사용량 기록
-                const twUsage = typeof twResult === 'object' ? twResult.usage : null;
-                const twLatency = Date.now() - _twStart;
-                const twTokens = twUsage ? (twUsage.input_tokens || 0) + (twUsage.output_tokens || 0) : 0;
-                if (twUsage) {
-                  UsageStats.addUsage({
-                    tier: 'tool-worker',
-                    modelId: modelInfo.modelId,
-                    serviceId: modelInfo.serviceId,
-                    inputTokens: twUsage.input_tokens || 0,
-                    outputTokens: twUsage.output_tokens || 0,
-                    totalTokens: twTokens,
-                    latency: twLatency,
-                    sessionId,
-                    category: 'tool-selection'
-                  }).catch(err => console.error('Tool-worker usage save error:', err));
-                }
-
-                trackAlba('tool-worker', {
-                  action: 'tool-select',
-                  tokens: twTokens || Math.ceil(combinedNeeds.length / 4),
-                  latencyMs: twLatency,
-                  success: true,
-                  model: modelInfo.modelId,
-                  detail: `selected: ${[...selectedToolNames].join(', ')}`
-                });
-
-                selectionSuccess = true;
-                break;
-              } catch (twErr) {
-                trackAlba('tool-worker', {
-                  action: 'tool-select',
-                  tokens: 0,
-                  latencyMs: Date.now() - _twStart,
-                  success: false,
-                  model: modelInfo.modelId,
-                  detail: twErr.message
-                });
-                console.warn(`[Chat] ❌ tool-selector ${modelInfo.modelId} 실패 (${Date.now() - _twStart}ms): ${twErr.message}`);
-              }
-            }
-
-            if (!selectionSuccess || selectedToolNames.size === 0) {
-              // 알바 실패 시 폴백: builtin 도구 전부 제공
-              console.warn('[Chat] tool-selector 실패, builtin 도구 전체 제공');
-              const { builtinTools } = require('../utils/builtin-tools');
-              builtinTools.forEach(t => selectedToolNames.add(t.name));
-            }
-          } else {
-            // tool-worker 없으면 builtin 전부 제공
-            console.warn('[Chat] tool-worker 역할 없음, builtin 도구 전체 제공');
-            const { builtinTools } = require('../utils/builtin-tools');
-            builtinTools.forEach(t => selectedToolNames.add(t.name));
-          }
-
-          // 도구 보강: 수정 도구가 선택되면 대응하는 읽기 도구를 자동 추가
-          // (toggle_task가 있으면 read_todo도 넣어야 AI가 현재 상태 조회 가능)
-          const writeTools = [...selectedToolNames].filter(n => /toggle|write|update|add|delete|remove/i.test(n));
-          for (const writeTool of writeTools) {
-            const prefix = writeTool.includes('__') ? writeTool.split('__').slice(0, -1).join('__') : '';
-            // 같은 MCP 서버의 read 계열 도구 찾아서 추가
-            const siblingReads = allTools.filter(t => {
-              const sameServer = prefix ? t.name.startsWith(prefix + '__') : !t.name.includes('__');
-              return sameServer && /read|list|get/i.test(t.name) && !selectedToolNames.has(t.name);
-            });
-            for (const readTool of siblingReads) {
-              selectedToolNames.add(readTool.name);
-              console.log(`[Chat] 🔧 읽기 도구 자동 보강: ${readTool.name} (← ${writeTool})`);
-            }
-          }
-
-          // 선택된 도구의 전체 스키마 추출
-          const selectedTools = allTools.filter(t => selectedToolNames.has(t.name));
-          console.log(`[Chat] 선택된 도구 (${selectedTools.length}개): ${selectedTools.map(t => t.name).join(', ')}`);
-
-          toolsSelected = selectedTools.map(t => t.name);
-
-          // 알바 도구 선택 결과를 클라이언트에 전송
-          if (global.io) {
-            global.io.emit('tool_selected', {
-              tools: toolsSelected,
-              display: toolsSelected.join(', ')
-            });
-          }
-
-          // 주모델 재호출: 1차 응답 이어서 + 도구만 쥐어줌 (대화 전체 재전송 X)
-          // 2차 호출 시스템 프롬프트 축약 (성격/말투만 유지, 규칙·포맷 지침 제거 → 토큰 절약)
-          // basePrompt = 성격/말투, instructionsSection = 도구·포맷 규칙 → 성격만 남김
-          const toolSystemPrompt = basePrompt + '\n도구를 사용하여 사용자 요청을 처리하세요. 도구 결과를 자연스럽게 전달하세요.';
-          // 1차 thinking 보존 (최종 응답에 다시 붙임)
-          const firstThinkingMatch = responseText.match(/<thinking>([\s\S]*?)<\/thinking>/);
-          const firstThinking = firstThinkingMatch ? firstThinkingMatch[0] : '';
-          // {need} 태그와 <thinking> 태그 제거 (2차 호출 context에서)
-          const cleanedResponse = responseText
-            .replace(/<thinking>[\s\S]*?<\/thinking>/g, '')
-            .replace(/\{need\}\s*.+?(?:\n|$)/g, '')
-            .trim();
-          const lastUserMessage = chatMessages[chatMessages.length - 1];
-          // 2차 호출 안내 메시지: 선택된 도구명과 용도를 구체적으로 안내
-          const toolNameList = selectedTools.map(t => t.name).join(', ');
-          const toolGuide = `도구가 준비되었습니다: ${toolNameList}\n즉시 도구를 호출하세요. 설명하지 말고 바로 실행하세요.`;
-          const currentMessages = [
-            lastUserMessage,
-            { role: 'assistant', content: cleanedResponse || '(도구를 사용하여 확인하겠습니다)' },
-            { role: 'user', content: toolGuide }
-          ];
-
-          console.log(`[Chat] 2차 호출: 도구 ${selectedTools.length}개 쥐어줌 (메시지 ${currentMessages.length}개, 전체 ${chatMessages.length}개 재전송 안함)`);
-
-          // 2차 호출에서는 thinking 끔, stream_start/end 안 보냄 (기존 스트리밍 요소에 이어서 표시)
-          aiResult = await callAIWithStreaming(aiService, currentMessages, {
-            systemPrompt: toolSystemPrompt,
-            maxTokens: aiSettings.maxTokens,
-            temperature: aiSettings.temperature,
-            tools: selectedTools,
-            toolExecutor: toolExecutor,
-            thinking: false,
-          }, { emitLifecycle: false });
-
-          // 2차+ 응답에서도 {need} 감지 → 추가 도구 호출 루프 (최대 2회)
-          // 이미 처리된 {need}는 중복 방지
-          const processedNeeds = new Set(needs.map(n => n.toLowerCase()));
-          const MAX_NEED_LOOPS = 2;
-          for (let loopIdx = 0; loopIdx < MAX_NEED_LOOPS; loopIdx++) {
-            const loopText = typeof aiResult === 'object' ? aiResult.text : aiResult;
-            if (!loopText) break;
-
-            const loopNeeds = [];
-            const loopNeedPattern = /\{[Nn][Ee]{2}[Dd]\}[:\s]*\s*(.+?)(?:\n|$)/g;
-            let loopMatch;
-            while ((loopMatch = loopNeedPattern.exec(loopText)) !== null) {
-              const desc = loopMatch[1].trim();
-              if (!processedNeeds.has(desc.toLowerCase())) {
-                loopNeeds.push(desc);
-                processedNeeds.add(desc.toLowerCase());
-              }
-            }
-            // fake tool 패턴도 감지
-            if (toolNames.length > 0) {
-              const loopFakePattern = new RegExp(`\\{(${escaped.join('|')})[:\\s]+(.+?)\\}`, 'gi');
-              let loopFake;
-              while ((loopFake = loopFakePattern.exec(loopText)) !== null) {
-                const desc = `${loopFake[1]}: ${loopFake[2].trim()}`;
-                if (!processedNeeds.has(desc.toLowerCase())) {
-                  loopNeeds.push(desc);
-                  processedNeeds.add(desc.toLowerCase());
-                }
-              }
-            }
-
-            if (loopNeeds.length === 0) break; // 새로운 {need} 없으면 종료
-
-            console.log(`[Chat] ${loopIdx + 3}차 호출: {need} ${loopNeeds.length}개 추가 감지`);
-            toolNeeds.push(...loopNeeds);
-
-            // 이전 응답에서 {need} 제거한 텍스트
-            const loopCleaned = loopText
-              .replace(/\{[Nn][Ee]{2}[Dd]\}[:\s]*\s*.+?(?:\n|$)/g, '')
-              .trim();
-            const loopMessages = [
-              lastUserMessage,
-              { role: 'assistant', content: loopCleaned || '(추가 확인이 필요합니다)' },
-              { role: 'user', content: '도구 결과를 바탕으로 사용자에게 답변해주세요. {need}를 다시 쓰지 마세요.' }
-            ];
-
-            aiResult = await aiService.chat(loopMessages, {
-              systemPrompt: toolSystemPrompt,
-              maxTokens: aiSettings.maxTokens,
-              temperature: aiSettings.temperature,
-              tools: selectedTools,
-              toolExecutor: toolExecutor,
-              thinking: false,
-            });
-          }
-
-          // 1차 thinking을 최종 응답에 다시 붙이기
-          if (firstThinking && typeof aiResult === 'object' && aiResult.text) {
-            if (!aiResult.text.includes('<thinking>')) {
-              aiResult.text = firstThinking + '\n\n' + aiResult.text;
-            }
-          } else if (firstThinking && typeof aiResult === 'string') {
-            if (!aiResult.includes('<thinking>')) {
-              aiResult = firstThinking + '\n\n' + aiResult;
-            }
-          }
-        }
-
-        // 실제 실행된 도구 수 또는 선택된 도구 수 중 큰 값
-        actualToolCount = Math.max(
-          executedTools.length,
-          (typeof selectedToolNames !== 'undefined' && selectedToolNames) ? selectedToolNames.size : 0
-        );
-      } else if (hasTools && contextLevel !== 'minimal') {
-        // 기존 방식: 도구와 함께 호출
+      if (hasTools && contextLevel !== 'minimal') {
+        // 직접 도구 호출 모드: 모든 도구와 함께 AI 호출
         console.log(`[Chat] Calling with ${allTools.length} tools (${chatMessages.length} messages, ~${totalChars} chars)`);
         actualToolCount = allTools.length;
 
@@ -1311,6 +845,9 @@ ${toolCatalog}`;
         aiResponse = '⏱️ 응답 시간이 너무 오래 걸려서 중단됐어요. 다시 시도해주세요.';
       } else if (errorMessage.includes('network') || errorMessage.includes('ECONNREFUSED')) {
         aiResponse = '🌐 네트워크 연결에 문제가 있어요. 인터넷 연결을 확인해주세요.';
+      } else if (statusCode === 400 || errorMessage.includes('validation') || errorMessage.includes('invalid_request')) {
+        aiResponse = '⚠️ AI 요청 형식에 문제가 있었어요. 다시 말씀해주세요.';
+        console.error(`❌ Input validation error — 메시지 형식 또는 도구 스키마 문제 가능성: ${errorMessage.substring(0, 300)}`);
       } else {
         aiResponse = `😅 AI 응답 생성 중 문제가 발생했어요. 잠시 후 다시 시도해주세요.\n\n[DEBUG] ${errorMessage.substring(0, 200)}`;
       }
@@ -1321,7 +858,7 @@ ${toolCatalog}`;
     const getVisibleContent = (resp) => {
       if (!resp) return '';
       const text = typeof resp === 'string' ? resp : (resp.text || '');
-      return text.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').replace(/\{need\}[\s\S]*?(?:\n|$)/g, '').trim();
+      return text.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim();
     };
     const MAX_EMPTY_RETRIES = 2;
     for (let emptyRetry = 0; emptyRetry < MAX_EMPTY_RETRIES; emptyRetry++) {
@@ -1331,14 +868,13 @@ ${toolCatalog}`;
       try {
         const retryMessages = [
           ...chatMessages,
-          { role: 'user', content: '[system] 비정상적으로 응답이 끝났습니다. 자동 연결되었으니 멈춘 곳에서 다시 시작하세요. 도구 실행 결과가 있으면 그 결과를 바탕으로 사용자에게 답변하세요.' }
+          { role: 'user', content: '[system] 비정상적으로 응답이 끝났습니다. 도구 없이 자연스럽게 답변해주세요.' }
         ];
         const retryResult = await callAIWithStreaming(aiService, retryMessages, {
           systemPrompt: combinedSystemPrompt,
           maxTokens: aiSettings.maxTokens,
           temperature: aiSettings.temperature,
-          tools: toolsSelected.length > 0 ? allTools.filter(t => toolsSelected.includes(t.name)) : null,
-          toolExecutor: toolExecutor,
+          tools: null,
           thinking: false,
         }, { emitLifecycle: false });
         aiResponse = typeof retryResult === 'object' ? retryResult.text : retryResult;
@@ -1432,19 +968,6 @@ ${toolCatalog}`;
       }
     }
 
-    // 응답에서 내부 태그 제거 ({need}, {도구이름: ...} — 사용자에게 안 보이게)
-    finalResponse = finalResponse
-      .replace(/\{need\}\s*.+?(?:\n|$)/g, '')
-      .replace(/\{(recall_memory|get_profile|update_profile)[:\s]+.+?\}/gi, '')
-      .trim();
-    // 동적 도구 이름도 제거
-    if (preloadedTools && preloadedTools.length > 0) {
-      const toolNames = preloadedTools.map(t => t.name).filter(Boolean);
-      const escaped = toolNames.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-      const fakePattern = new RegExp(`\\{(${escaped.join('|')})[:\\s]+.+?\\}`, 'gi');
-      finalResponse = finalResponse.replace(fakePattern, '').trim();
-    }
-
     // 8. 응답 일관성 검증
     const validation = personality.validateResponse(finalResponse, {
       englishExpected: options.englishExpected || false
@@ -1454,39 +977,21 @@ ${toolCatalog}`;
     const latency = Date.now() - startTime;
     const tier = determineTier(routingResult.modelId, routingResult.tier);
 
-    // 9.4 확정된 거짓 → 응답 첫줄에 박제
-    const confirmedLies = executedTools.filter(t => t.lieStamp);
-    if (confirmedLies.length > 0) {
-      const lieStamps = confirmedLies.map(t =>
-        `❌ [거짓 감지] ${t.display || t.name}: ${t.verificationMemo}`
-      ).join('\n');
-      finalResponse = `${lieStamps}\n\n---\n\n${finalResponse}`;
-    }
-
-    // 9.5 도구 실행 기록을 응답에 포함 (다음 턴에서 AI가 도구 사용 사실을 인지하도록)
+    // 9.5 도구 실행 기록 — 본문이 아닌 metadata에만 저장 (AI 날조 방지)
+    // 이전: <tool_history>를 응답 본문에 삽입 → AI가 패턴 학습하여 날조
+    // 변경: metadata.toolsUsed에만 기록, 본문은 순수 응답만 저장
     let responseToSave = finalResponse;
-    if (executedTools.length > 0) {
-      const toolSummary = executedTools.map(t => {
-        const status = t.success ? '성공' : `실패: ${t.error || ''}`;
-        const preview = t.resultPreview ? ` → ${t.resultPreview.substring(0, 100)}` : '';
-        const vMemo = t.verificationMemo ? ` [검증: ${t.verificationMemo}]` : '';
-        return `- ${t.display || t.name} (${status})${t.success ? preview : ''}${vMemo}`;
-      }).join('\n');
-      responseToSave = `<tool_history>\n${toolSummary}\n</tool_history>\n\n${finalResponse}`;
-    }
 
     // 10. 응답 저장 (라우팅 정보 포함)
     try {
       await pipeline.handleResponse(message, responseToSave, sessionId, {
         routing: {
           modelId: routingResult.modelId,
+          selectedModel: routingResult.modelName || null,
           serviceId: routingResult.serviceId,
           tier
         },
         toolsUsed: executedTools.length > 0 ? executedTools : undefined,
-        toolNeeds: toolNeeds.length > 0 ? toolNeeds : undefined,
-        toolsSelected: toolsSelected.length > 0 ? toolsSelected : undefined,
-        filtered: filteredContents.length > 0 ? filteredContents : undefined,
         attachments: attachments.length > 0 ? attachments : undefined
       });
       console.log('[Chat] Response saved successfully');
@@ -1576,6 +1081,7 @@ ${toolCatalog}`;
       // 메타 정보
       meta: {
         model: routingResult.modelId,
+        modelName: routingResult.modelName || null,
         service: routingResult.serviceId,
         tier,
         latency,
@@ -1606,9 +1112,6 @@ ${toolCatalog}`;
       message: finalResponse,
       reply: finalResponse, // 프론트엔드 호환성
       toolsUsed: executedTools, // 사용된 도구 목록
-      toolNeeds: toolNeeds.length > 0 ? toolNeeds : undefined, // {need} 요청 내용
-      toolsSelected: toolsSelected.length > 0 ? toolsSelected : undefined, // 알바 선택 도구
-      filtered: filteredContents.length > 0 ? filteredContents : undefined, // 서버 필터 내용
       usage: conversationData.usage,
       tokenUsage: detailedTokenUsage, // 상세 토큰 사용량 (실시간용)
       compressed: conversationData.compressed,
@@ -1633,12 +1136,10 @@ ${toolCatalog}`;
           role: m.role,
           content: typeof m.content === 'string' ? m.content.substring(0, 200) + (m.content.length > 200 ? '...' : '') : m.content
         })),
-        tools: isToolRoutingEnabled
-          ? [{ name: '{need} 모드', description: `도구 ${allTools.length}개 대기 — AI가 {need}로 요청 시 tool-worker가 선별` }]
-          : allTools.map(t => ({ name: t.name, description: t.description })),
+        tools: allTools.map(t => ({ name: t.name, description: t.description })),
         messageCount: chatMessages.length,
-        toolCount: isToolRoutingEnabled ? 0 : actualToolCount,
-        toolMode: isToolRoutingEnabled ? 'need' : 'direct'
+        toolCount: actualToolCount,
+        toolMode: 'direct'
       },
       validation: {
         valid: validation.valid,
@@ -1647,88 +1148,6 @@ ${toolCatalog}`;
       },
       ...(systemFallback ? { systemFallback: true } : {})
     });
-
-    // === 최종 메시지 검증 (응답 전송 후 비동기) ===
-    // 모든 AI 메시지에 대해 검증 실행 — 도구 사용 여부 무관
-    {
-      setImmediate(async () => {
-        try {
-          global.io?.emit('message_verify_start', { timestamp: Date.now() });
-
-          const toolResultSummary = executedTools.map(t => ({
-            name: t.name || t.display,
-            result: (t.resultPreview || '').substring(0, 200),
-            verdict: t.verificationVerdict || 'skip'
-          }));
-
-          // 시스템 프롬프트에서 금지/지시 규칙 추출 (토큰 절약)
-          const systemRules = (systemPrompt || '').split('\n')
-            .filter(line => /금지|하지 마|사용 금지|쓰지 마|말 것|안 됨|않는다|절대/i.test(line))
-            .slice(0, 10)
-            .join('\n');
-
-          const msgVerdict = await verifyMessage({
-            userMessage: message,
-            aiResponse: finalResponse,
-            toolResults: toolResultSummary,
-            filtered: filteredContents,
-            systemRules: systemRules || null
-          });
-
-          global.io?.emit('message_verify', {
-            verdict: msgVerdict.verdict,
-            memo: msgVerdict.memo,
-            filtered: filteredContents.length,
-            timestamp: Date.now()
-          });
-
-          console.log(`[Verify:Final] ${msgVerdict.verdict === 'pass' ? '✅' : '❌'} ${msgVerdict.memo}`);
-
-          // 대화 기록에 최종 검증 결과 저장 (새로고침 시 표시용 + 소울이 인지용)
-          try {
-            const store = await getConversationStore();
-            // fail/note면 content에 태그 붙여서 소울이가 다음 대화에서 볼 수 있게
-            const verifyTag = msgVerdict.verdict !== 'pass'
-              ? `\n\n<msg_verify verdict="${msgVerdict.verdict}">${msgVerdict.memo}</msg_verify>`
-              : '';
-            await store.updateLastMessageMeta({
-              messageVerify: {
-                verdict: msgVerdict.verdict,
-                memo: msgVerdict.memo,
-                filtered: filteredContents.length,
-                timestamp: Date.now()
-              },
-              ...(verifyTag ? { _appendContent: verifyTag } : {})
-            });
-          } catch (e) {
-            console.warn('[Verify:Final] 대화 기록 업데이트 실패:', e.message);
-          }
-
-          // 거짓이면 메모리에 기록
-          if (msgVerdict.verdict === 'fail') {
-            try {
-              const Memory = require('../models/Memory');
-              Memory.upsert('lie_record', `msg_verify_${Date.now()}`, {
-                type: 'message_verification_fail',
-                userMessage: (message || '').substring(0, 300),
-                aiResponse: (finalResponse || '').substring(0, 500),
-                memo: msgVerdict.memo,
-                filteredCount: filteredContents.length,
-                timestamp: new Date().toISOString()
-              }, {
-                importance: 9,
-                tags: ['거짓', 'verification', 'message_fail'],
-                category: 'verification'
-              });
-            } catch (e) {
-              console.error('[Verify:Final] 기록 저장 실패:', e.message);
-            }
-          }
-        } catch (e) {
-          console.error('[Verify:Final] 최종 검증 실패:', e.message);
-        }
-      });
-    }
 
   } catch (error) {
     console.error('Error in chat endpoint:', error);
@@ -1830,20 +1249,16 @@ router.get('/history/:sessionId', async (req, res) => {
       messages: messages.map(m => ({
         id: m.id,
         role: m.role,
-        content: m.text,
+        content: m.role === 'assistant' && m.text
+          ? m.text.replace(/<tool_history>[\s\S]*?<\/tool_history>\s*/g, '').trim()
+          : m.text,
         timestamp: m.timestamp,
         // 라우팅 정보 (assistant 메시지용)
         routing: m.routing || null,
         // 도구 사용 정보 (있으면 포함)
         toolsUsed: m.metadata?.toolsUsed || m.toolsUsed || null,
-        toolNeeds: m.metadata?.toolNeeds || null,
-        toolsSelected: m.metadata?.toolsSelected || null,
         // 첨부파일 (user 메시지용)
-        attachments: m.attachments || null,
-        // 필터 (날조 감지)
-        filtered: m.metadata?.filtered || m.filtered || null,
-        // 최종 메시지 검증
-        messageVerify: m.metadata?.messageVerify || null
+        attachments: m.attachments || null
       })),
       total: messages.length
     });

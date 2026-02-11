@@ -307,19 +307,7 @@ export class RoleManager {
     const rawConfig = role.config || {};
     const config = typeof rawConfig === 'string' ? JSON.parse(rawConfig) : rawConfig;
     const currentServiceId = config.serviceId || '';
-    const isToolWorker = config.purpose === 'tool-routing';
-    console.log('[RoleManager] editSystemRole', roleId, 'config:', config, 'isToolWorker:', isToolWorker);
-
-    // tool-worker면 현재 도구 라우팅 상태 로드
-    let toolRoutingEnabled = false;
-    let toolRoutingMode = 'single';
-    if (isToolWorker) {
-      try {
-        const res = await this.apiClient.get('/notifications/tool-routing/status');
-        toolRoutingEnabled = res.enabled;
-        toolRoutingMode = res.mode || 'single';
-      } catch (e) { /* 기본값 사용 */ }
-    }
+    console.log('[RoleManager] editSystemRole', roleId, 'config:', config);
 
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
@@ -334,34 +322,6 @@ export class RoleManager {
             <p class="system-role-desc">${role.description || ''}</p>
             <span class="role-badge role-badge-system">시스템 역할</span>
           </div>
-
-          ${isToolWorker ? `
-          <div class="form-group" style="padding: 12px; background: var(--bg-secondary, #f5f5f5); border-radius: 8px;">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-              <label style="margin: 0; font-weight: 600;">활성화</label>
-              <label class="mcp-toggle">
-                <input type="checkbox" id="toolRoutingToggle" ${toolRoutingEnabled ? 'checked' : ''}>
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <small style="color: var(--text-secondary, #888);">ON: 메인 AI에 도구를 보내지 않고 이 알바가 대신 실행 (토큰 절약)</small>
-
-            <div id="toolRoutingModeSection" style="margin-top: 12px; ${toolRoutingEnabled ? '' : 'display: none;'}">
-              <label style="font-size: 13px; margin-bottom: 6px; display: block;">실행 방식</label>
-              <div style="display: flex; gap: 16px;">
-                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
-                  <input type="radio" name="toolRoutingMode" value="single" ${toolRoutingMode === 'single' ? 'checked' : ''}>
-                  단일
-                </label>
-                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
-                  <input type="radio" name="toolRoutingMode" value="chain" ${toolRoutingMode === 'chain' ? 'checked' : ''}>
-                  체인
-                </label>
-              </div>
-              <small style="color: var(--text-secondary, #888); margin-top: 4px; display: block;">단일: 선택한 모델만 사용 / 체인: 실패 시 다음 모델로 자동 전환</small>
-            </div>
-          </div>
-          ` : ''}
 
           <div class="form-group">
             <label>이름</label>
@@ -405,17 +365,6 @@ export class RoleManager {
       modelSelect.innerHTML = this.renderModelOptions(serviceSelect.value, '');
     });
 
-    // tool-worker: 토글 변경 시 모드 섹션 표시/숨김
-    if (isToolWorker) {
-      const toggle = document.getElementById('toolRoutingToggle');
-      const modeSection = document.getElementById('toolRoutingModeSection');
-      if (toggle && modeSection) {
-        toggle.addEventListener('change', () => {
-          modeSection.style.display = toggle.checked ? '' : 'none';
-        });
-      }
-    }
-
     // 폼 제출
     document.getElementById('editSystemRoleForm').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -428,13 +377,6 @@ export class RoleManager {
       const updatedConfig = { ...config, serviceId: newServiceId };
 
       try {
-        // tool-worker면 도구 라우팅 설정도 저장
-        if (isToolWorker) {
-          const enabled = document.getElementById('toolRoutingToggle')?.checked || false;
-          const mode = formData.get('toolRoutingMode') || 'single';
-          await this.apiClient.post('/notifications/tool-routing/toggle', { enabled, mode });
-        }
-
         const response = await this.apiClient.patch(`/roles/${roleId}`, {
           name: newName,
           preferredModel: newModel,
@@ -871,9 +813,7 @@ export class RoleManager {
    */
   getModelDisplayName(modelId) {
     if (!modelId) return '미설정';
-    // 긴 모델명은 마지막 부분만
-    const parts = modelId.split('/');
-    return parts[parts.length - 1];
+    return modelId;
   }
 
   /**

@@ -1222,10 +1222,10 @@ JSON만 응답하고 다른 설명은 하지 마.`
 
 /**
  * HuggingFace Inference API 서비스
- * OpenAI 호환 API 사용 (gpt-oss-20b 등)
+ * OpenAI 호환 API
  */
 class HuggingFaceService extends AIService {
-  constructor(apiKey, modelName = 'openai/gpt-oss-20b') {
+  constructor(apiKey, modelName) {
     super(apiKey);
     this.modelName = modelName;
     this.baseUrl = 'https://router.huggingface.co/v1';
@@ -1390,7 +1390,7 @@ JSON만 응답해.`
  * Google Gemini 서비스
  */
 class GoogleService extends AIService {
-  constructor(apiKey, modelName = 'gemini-2.0-flash-exp') {
+  constructor(apiKey, modelName) {
     super(apiKey);
     this.modelName = modelName;
     this.baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
@@ -1846,10 +1846,9 @@ class XAIService extends AIService {
 
 /**
  * OpenRouter 서비스 (OpenAI 호환 — 여러 AI 제공사 통합)
- * 다이제스트 전용 무료 모델(GPT-OSS-20B) + 다양한 유료/무료 모델
  */
 class OpenRouterService extends AIService {
-  constructor(apiKey, modelName = 'openai/gpt-oss-20b:free') {
+  constructor(apiKey, modelName) {
     super(apiKey);
     this.modelName = modelName;
     this.baseUrl = 'https://openrouter.ai/api/v1';
@@ -2052,7 +2051,7 @@ class OpenRouterService extends AIService {
  * Lightning AI 서비스 (OpenAI 호환)
  */
 class LightningAIService extends AIService {
-  constructor(apiKey, modelName = 'lightning-ai/gpt-oss-20b') {
+  constructor(apiKey, modelName) {
     super(apiKey);
     this.modelName = modelName;
     this.baseUrl = 'https://lightning.ai/api/v1';
@@ -3039,6 +3038,363 @@ class FireworksAIService extends AIService {
 }
 
 /**
+ * Together AI 서비스 (OpenAI-compatible)
+ */
+class TogetherAIService extends AIService {
+  constructor(apiKey, modelName = 'Qwen/Qwen3-235B-A22B-Instruct-2507') {
+    super(apiKey);
+    this.modelName = modelName;
+    this.baseUrl = 'https://api.together.xyz/v1';
+  }
+
+  async chat(messages, options = {}) {
+    const {
+      systemPrompt = null,
+      maxTokens = 4096,
+      temperature = 0.7,
+      tools = null,
+      toolExecutor = null,
+      documents = null,
+    } = options;
+
+    const apiMessages = messages.filter(msg => msg.content && (typeof msg.content !== 'string' || msg.content.trim()));
+    if (systemPrompt) {
+      apiMessages.unshift({
+        role: 'system',
+        content: systemPrompt
+      });
+    }
+
+    AIService.attachDocumentsOpenAI(apiMessages, documents, 'TogetherAI');
+
+    const requestBody = {
+      model: this.modelName,
+      messages: apiMessages,
+      max_tokens: maxTokens,
+      temperature: temperature,
+    };
+
+    if (tools && tools.length > 0) {
+      requestBody.tools = tools.map(t => ({
+        type: 'function',
+        function: {
+          name: t.name,
+          description: t.description || '',
+          parameters: t.input_schema || { type: 'object', properties: {} }
+        }
+      }));
+    }
+
+    let response = await fetch(`${this.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.apiKey}`
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[TogetherAI] Error response:', errorText);
+      throw new Error(`Together AI API error (${response.status}): ${errorText || 'Unknown error'}`);
+    }
+
+    let data = await response.json();
+
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      console.error('[TogetherAI] Invalid data structure:', data);
+      throw new Error('Invalid response from Together AI API');
+    }
+
+    // 도구 호출 루프
+    while (data.choices[0].finish_reason === 'tool_calls' && toolExecutor) {
+      const toolCalls = data.choices[0].message.tool_calls;
+      if (!toolCalls || toolCalls.length === 0) break;
+
+      // tool_calls의 arguments JSON 유효성 검증 후 push
+      const sanitizedMessage = { ...data.choices[0].message };
+      if (sanitizedMessage.tool_calls) {
+        sanitizedMessage.tool_calls = sanitizedMessage.tool_calls.map(tc => {
+          try { JSON.parse(tc.function.arguments || '{}'); }
+          catch { tc = { ...tc, function: { ...tc.function, arguments: '{}' } }; console.warn(`[TogetherAI] 깨진 JSON arguments 복구: ${tc.function?.name}`); }
+          return tc;
+        });
+      }
+      apiMessages.push(sanitizedMessage);
+
+      const executedNames = new Set();
+      for (const tc of toolCalls) {
+        if (executedNames.has(tc.function.name)) {
+          console.log(`[TogetherAI Tool] Skipped duplicate: ${tc.function.name}`);
+          apiMessages.push({ role: 'tool', tool_call_id: tc.id, content: '이미 이번 턴에서 실행됨.' });
+          continue;
+        }
+        executedNames.add(tc.function.name);
+        let input;
+        try { input = JSON.parse(tc.function.arguments || '{}'); }
+        catch { console.warn(`[TogetherAI] 도구 arguments JSON 파싱 실패, 빈 입력 사용: ${tc.function.name}`); input = {}; }
+        console.log(`[TogetherAI Tool] Executing: ${tc.function.name}`, input);
+        const result = await toolExecutor(tc.function.name, input);
+        let toolContent = typeof result === 'string' ? result : JSON.stringify(result);
+        if (!toolContent) toolContent = '(empty)';
+        if (toolContent.length > 8000) toolContent = toolContent.substring(0, 8000) + '...(truncated)';
+        apiMessages.push({
+          role: 'tool',
+          tool_call_id: tc.id,
+          content: toolContent
+        });
+      }
+
+      requestBody.messages = apiMessages;
+      response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Together AI API error (${response.status}): ${errorText}`);
+      }
+      data = await response.json();
+    }
+
+    const usage = {
+      input_tokens: data.usage?.prompt_tokens || 0,
+      output_tokens: data.usage?.completion_tokens || 0
+    };
+
+    return { text: data.choices[0].message.content, usage };
+  }
+
+  async streamChat(messages, options = {}, onChunk) {
+    const {
+      systemPrompt = null,
+      maxTokens = 4096,
+      temperature = 0.7,
+      tools = null,
+      toolExecutor = null,
+      documents = null,
+    } = options;
+
+    const apiMessages = messages.filter(msg => msg.content && (typeof msg.content !== 'string' || msg.content.trim()));
+    if (systemPrompt) {
+      apiMessages.unshift({ role: 'system', content: systemPrompt });
+    }
+
+    AIService.attachDocumentsOpenAI(apiMessages, documents, 'TogetherAI');
+
+    const requestBody = {
+      model: this.modelName,
+      messages: apiMessages,
+      max_tokens: maxTokens,
+      temperature: temperature,
+      stream: true,
+    };
+
+    if (tools && tools.length > 0) {
+      requestBody.tools = tools.map(t => ({
+        type: 'function',
+        function: {
+          name: t.name,
+          description: t.description || '',
+          parameters: t.input_schema || { type: 'object', properties: {} }
+        }
+      }));
+    }
+
+    const response = await fetch(`${this.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.apiKey}`
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Together AI Stream error (${response.status}): ${errorText}`);
+    }
+
+    let fullContent = '';
+    let usage = { input_tokens: 0, output_tokens: 0 };
+    let toolCallsBuffer = {};  // index → { id, name, arguments }
+    let finishReason = null;
+
+    const reader = response.body;
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    for await (const chunk of reader) {
+      buffer += decoder.decode(chunk, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6).trim();
+        if (data === '[DONE]') continue;
+
+        try {
+          const parsed = JSON.parse(data);
+          const delta = parsed.choices?.[0]?.delta;
+          finishReason = parsed.choices?.[0]?.finish_reason || finishReason;
+
+          if (delta) {
+            // content (텍스트 응답)
+            if (delta.content) {
+              fullContent += delta.content;
+              if (onChunk) onChunk('content', delta.content);
+            }
+
+            // tool_calls (스트리밍에서는 청크로 나눠서 옴)
+            if (delta.tool_calls) {
+              for (const tc of delta.tool_calls) {
+                const idx = tc.index;
+                if (!toolCallsBuffer[idx]) {
+                  toolCallsBuffer[idx] = { id: tc.id || '', name: tc.function?.name || '', arguments: '' };
+                }
+                if (tc.id) toolCallsBuffer[idx].id = tc.id;
+                if (tc.function?.name) toolCallsBuffer[idx].name = tc.function.name;
+                if (tc.function?.arguments) toolCallsBuffer[idx].arguments += tc.function.arguments;
+              }
+            }
+          }
+
+          if (parsed.usage) {
+            usage = {
+              input_tokens: parsed.usage.prompt_tokens || 0,
+              output_tokens: parsed.usage.completion_tokens || 0
+            };
+          }
+        } catch (e) {
+          // JSON 파싱 실패 — 무시
+        }
+      }
+    }
+
+    // 도구 호출이 있으면 실행 후 non-streaming으로 재호출
+    const toolCallsList = Object.values(toolCallsBuffer);
+    if (toolCallsList.length > 0 && toolExecutor) {
+      if (onChunk) onChunk('tool_start', toolCallsList.map(t => t.name));
+
+      // arguments JSON 유효성 검증
+      const sanitizedToolCalls = toolCallsList.map(tc => {
+        let args = tc.arguments;
+        try { JSON.parse(args || '{}'); }
+        catch { console.warn(`[TogetherAI Stream] 깨진 JSON arguments 복구: ${tc.name}`); args = '{}'; }
+        return { id: tc.id, type: 'function', function: { name: tc.name, arguments: args } };
+      });
+
+      apiMessages.push({
+        role: 'assistant',
+        content: fullContent || null,
+        tool_calls: sanitizedToolCalls
+      });
+
+      const executedNames = new Set();
+      for (const tc of toolCallsList) {
+        if (executedNames.has(tc.name)) {
+          apiMessages.push({ role: 'tool', tool_call_id: tc.id, content: '이미 이번 턴에서 실행됨.' });
+          continue;
+        }
+        executedNames.add(tc.name);
+        let input;
+        try { input = JSON.parse(tc.arguments || '{}'); }
+        catch { console.warn(`[TogetherAI Stream] 도구 arguments JSON 파싱 실패, 빈 입력 사용: ${tc.name}`); input = {}; }
+        console.log(`[TogetherAI Stream Tool] Executing: ${tc.name}`, input);
+        const result = await toolExecutor(tc.name, input);
+        let toolContent = typeof result === 'string' ? result : JSON.stringify(result);
+        if (!toolContent) toolContent = '(empty)';
+        if (toolContent.length > 8000) toolContent = toolContent.substring(0, 8000) + '...(truncated)';
+        apiMessages.push({
+          role: 'tool',
+          tool_call_id: tc.id,
+          content: toolContent
+        });
+      }
+
+      if (onChunk) onChunk('tool_end', null);
+
+      // 도구 결과로 최종 응답 — 모델이 또 도구를 부르면 반복
+      const MAX_TOOL_LOOPS = 20;
+      for (let toolLoop = 0; toolLoop < MAX_TOOL_LOOPS; toolLoop++) {
+        requestBody.messages = apiMessages;
+        requestBody.stream = false;
+        // 디버그: 마지막 tool 메시지 확인
+        const lastToolMsg = apiMessages.filter(m => m.role === 'tool').slice(-1)[0];
+        if (lastToolMsg) {
+          console.log(`[TogetherAI] Tool result (${lastToolMsg.tool_call_id}): ${(lastToolMsg.content || '').length} chars`);
+        }
+        const finalResp = await fetch(`${this.baseUrl}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.apiKey}`
+          },
+          body: JSON.stringify(requestBody)
+        });
+        const finalData = await finalResp.json();
+        if (finalData.error) {
+          console.error(`[TogetherAI] API error: ${JSON.stringify(finalData.error).substring(0, 500)}`);
+          throw new Error(finalData.error.message);
+        }
+
+        const finalMsg = finalData.choices?.[0]?.message;
+        usage = {
+          input_tokens: (usage.input_tokens || 0) + (finalData.usage?.prompt_tokens || 0),
+          output_tokens: (usage.output_tokens || 0) + (finalData.usage?.completion_tokens || 0)
+        };
+
+        // 모델이 또 도구를 호출하면 → 실행하고 다시 루프
+        if (finalMsg?.tool_calls && finalMsg.tool_calls.length > 0 && toolExecutor) {
+          console.log(`[TogetherAI Stream] 추가 도구 호출 (loop ${toolLoop + 1}): ${finalMsg.tool_calls.map(tc => tc.function.name).join(', ')}`);
+          // arguments JSON 유효성 검증
+          const sanitizedFinalCalls = finalMsg.tool_calls.map(tc => {
+            try { JSON.parse(tc.function.arguments || '{}'); return tc; }
+            catch { console.warn(`[TogetherAI Stream] 깨진 JSON arguments 복구: ${tc.function.name}`); return { ...tc, function: { ...tc.function, arguments: '{}' } }; }
+          });
+          apiMessages.push({
+            role: 'assistant',
+            content: finalMsg.content || null,
+            tool_calls: sanitizedFinalCalls
+          });
+          for (const tc of finalMsg.tool_calls) {
+            let input;
+            try { input = JSON.parse(tc.function.arguments || '{}'); }
+            catch { console.warn(`[TogetherAI Stream] 도구 arguments 파싱 실패: ${tc.function.name}`); input = {}; }
+            console.log(`[TogetherAI Stream Tool] Executing: ${tc.function.name}`, input);
+            const result = await toolExecutor(tc.function.name, input);
+            let toolContent2 = typeof result === 'string' ? result : JSON.stringify(result);
+            if (!toolContent2) toolContent2 = '(empty)';
+            if (toolContent2.length > 8000) toolContent2 = toolContent2.substring(0, 8000) + '...(truncated)';
+            apiMessages.push({
+              role: 'tool',
+              tool_call_id: tc.id,
+              content: toolContent2
+            });
+          }
+          continue;
+        }
+
+        // 도구 호출 없으면 최종 응답
+        fullContent = finalMsg?.content || '';
+        if (onChunk) onChunk('content_replace', fullContent);
+        break;
+      }
+    }
+
+    if (onChunk) onChunk('done', { text: fullContent, usage });
+    return { text: fullContent, usage };
+  }
+}
+
+/**
  * Ollama 로컬 모델 서비스
  */
 class OllamaService extends AIService {
@@ -3647,6 +4003,15 @@ class AIServiceFactory {
         break;
       }
 
+      case 'together': {
+        const apiKey = await this.getApiKey('together');
+        if (!apiKey) {
+          throw new Error('TOGETHER_API_KEY not configured. Please save it in Settings.');
+        }
+        serviceInstance = new TogetherAIService(apiKey, model);
+        break;
+      }
+
       case 'ollama':
         serviceInstance = new OllamaService(
           process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
@@ -3809,6 +4174,18 @@ class AIServiceFactory {
           if (!openrouterResponse.ok) {
             const errorData = await openrouterResponse.json().catch(() => ({}));
             throw new Error(errorData.error?.message || 'OpenRouter API 인증 실패');
+          }
+
+          return { valid: true, message: 'API 키가 유효합니다' };
+
+        case 'together':
+          const togetherResponse = await fetch('https://api.together.xyz/v1/models', {
+            headers: { 'Authorization': `Bearer ${apiKey}` }
+          });
+
+          if (!togetherResponse.ok) {
+            const errorData = await togetherResponse.json().catch(() => ({}));
+            throw new Error(errorData.error?.message || 'Together AI API 인증 실패');
           }
 
           return { valid: true, message: 'API 키가 유효합니다' };
@@ -4105,6 +4482,31 @@ class AIServiceFactory {
           }));
           return { success: true, models: fireworksModels };
 
+        case 'together':
+          // Together AI 모델 목록
+          const togetherModelsResponse = await fetch('https://api.together.xyz/v1/models', {
+            headers: { 'Authorization': `Bearer ${apiKey}` }
+          });
+
+          if (!togetherModelsResponse.ok) {
+            return {
+              success: false,
+              error: 'Together AI API 호출 실패',
+              models: []
+            };
+          }
+
+          const togetherData = await togetherModelsResponse.json();
+          const togetherModels = (togetherData || [])
+            .filter(m => m.type === 'chat')
+            .map(m => ({
+              id: m.id,
+              name: m.display_name || m.id,
+              contextWindow: m.context_length || 0,
+              description: `Context: ${m.context_length || 'N/A'}`
+            }));
+          return { success: true, models: togetherModels };
+
         case 'ollama':
           const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
           const ollamaResponse = await fetch(`${ollamaBaseUrl}/api/tags`);
@@ -4126,16 +4528,20 @@ class AIServiceFactory {
           return { success: true, models: ollamaModels };
 
         case 'huggingface':
-          // HuggingFace에서 사용 가능한 모델 (고정 목록)
-          const hfModels = [
-            { id: 'openai/gpt-oss-20b', name: 'GPT-OSS-20B', description: 'OpenAI 오픈소스 20B 모델' },
-            { id: 'openai/gpt-oss-120b', name: 'GPT-OSS-120B', description: 'OpenAI 오픈소스 120B 모델' },
-            { id: 'meta-llama/Llama-3.3-70B-Instruct', name: 'Llama 3.3 70B', description: 'Meta Llama 3.3' },
-            { id: 'mistralai/Mistral-7B-Instruct-v0.3', name: 'Mistral 7B', description: 'Mistral AI 7B' },
-            { id: 'Qwen/Qwen2.5-72B-Instruct', name: 'Qwen 2.5 72B', description: 'Alibaba Qwen 2.5' },
-            { id: 'Qwen/Qwen3-VL-Embedding-8B', name: 'Qwen3 VL Embedding 8B', description: '임베딩 모델 (벡터 검색용)' },
-          ];
-          return { success: true, models: hfModels };
+          // HuggingFace — API에서 모델 목록 조회 시도, 실패 시 빈 목록
+          try {
+            const hfRes = await fetch('https://router.huggingface.co/v1/models', {
+              headers: { 'Authorization': `Bearer ${apiKey}` }
+            });
+            if (hfRes.ok) {
+              const hfData = await hfRes.json();
+              const hfModels = (hfData.data || []).map(m => ({
+                id: m.id, name: m.id, description: m.owned_by || 'HuggingFace'
+              }));
+              if (hfModels.length > 0) return { success: true, models: hfModels };
+            }
+          } catch (e) { /* fallback */ }
+          return { success: true, models: [] };
 
         case 'openrouter':
           // OpenRouter 모델 목록 (API에서 가져오기)
@@ -4280,7 +4686,7 @@ class AIServiceFactory {
     if (process.env.GOOGLE_API_KEY) {
       services.push({
         name: 'google',
-        models: ['gemini-2.0-flash-exp', 'gemini-1.5-pro', 'gemini-1.5-flash']
+        models: []  // API에서 동적 조회
       });
     }
 

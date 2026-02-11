@@ -71,12 +71,7 @@ async function initializeBuiltinServices() {
       serviceId: 'huggingface',
       name: 'HuggingFace',
       baseUrl: 'https://router.huggingface.co/v1',
-      models: [
-        { id: 'openai/gpt-oss-20b', name: 'GPT-OSS-20B', contextWindow: 32000 },
-        { id: 'openai/gpt-oss-120b', name: 'GPT-OSS-120B', contextWindow: 32000 },
-        { id: 'meta-llama/Llama-3.3-70B-Instruct', name: 'Llama 3.3 70B', contextWindow: 128000 },
-        { id: 'Qwen/Qwen2.5-72B-Instruct', name: 'Qwen 2.5 72B', contextWindow: 128000 }
-      ],
+      models: [],
       isActive: 0,
       config: {}
     },
@@ -84,12 +79,7 @@ async function initializeBuiltinServices() {
       serviceId: 'openrouter',
       name: 'OpenRouter',
       baseUrl: 'https://openrouter.ai/api/v1',
-      models: [
-        { id: 'openai/gpt-oss-20b:free', name: 'GPT-OSS 20B (Free)', contextWindow: 131072 },
-        { id: 'openai/gpt-oss-120b:free', name: 'GPT-OSS 120B (Free)', contextWindow: 131072 },
-        { id: 'google/gemini-2.0-flash-exp:free', name: 'Gemini Flash 2.0 (Free)', contextWindow: 1000000 },
-        { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (Free)', contextWindow: 131072 }
-      ],
+      models: [],
       isActive: 0,
       config: {}
     },
@@ -128,6 +118,14 @@ async function initializeBuiltinServices() {
         { id: 'qwen-vl-max', name: 'Qwen VL Max', contextWindow: 32768 },
         { id: 'qwen-vl-plus', name: 'Qwen VL Plus', contextWindow: 131072 }
       ],
+      isActive: 0,
+      config: {}
+    },
+    {
+      serviceId: 'together',
+      name: 'Together AI',
+      baseUrl: 'https://api.together.xyz/v1',
+      models: [],
       isActive: 0,
       config: {}
     }

@@ -226,11 +226,13 @@ function createTables() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS scheduled_messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      schedule_id INTEGER,
       message TEXT NOT NULL,
-      scheduled_time TEXT NOT NULL,
+      send_at TEXT NOT NULL,
       status TEXT DEFAULT 'pending',
       metadata TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
     )
   `);
 
@@ -295,6 +297,118 @@ function createTables() {
     )
   `);
 
+  // Embeddings - 벡터 임베딩 (messages와 분리 — DELETE FROM messages해도 안전)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS embeddings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      content TEXT NOT NULL,
+      embedding TEXT,
+      embedding_blob BLOB,
+      role TEXT DEFAULT 'system',
+      source TEXT,
+      source_date TEXT,
+      timestamp TEXT DEFAULT (datetime('now')),
+      meta TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_embeddings_source_date ON embeddings(source_date)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_embeddings_timestamp ON embeddings(timestamp)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_embeddings_source ON embeddings(source)`);
+
+  // Phase 2 마이그레이션: embedding_blob 컬럼이 없으면 추가 + 기존 JSON→BLOB 변환
+  try {
+    const columns = db.pragma('table_info(embeddings)');
+    const hasBlob = columns.some(c => c.name === 'embedding_blob');
+    if (!hasBlob) {
+      db.exec('ALTER TABLE embeddings ADD COLUMN embedding_blob BLOB');
+      console.log('[DB] Added embedding_blob column');
+    }
+
+    // NOT NULL 제약 제거: embedding 컬럼이 NOT NULL이면 새 테이블로 이관
+    const embCol = columns.find(c => c.name === 'embedding');
+    if (embCol && embCol.notnull === 1) {
+      console.log('[DB] Relaxing embedding NOT NULL constraint...');
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS embeddings_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          content TEXT NOT NULL,
+          embedding TEXT,
+          embedding_blob BLOB,
+          role TEXT DEFAULT 'system',
+          source TEXT,
+          source_date TEXT,
+          timestamp TEXT DEFAULT (datetime('now')),
+          meta TEXT,
+          created_at TEXT DEFAULT (datetime('now'))
+        );
+        INSERT INTO embeddings_new SELECT id, content, embedding,
+          ${hasBlob ? 'embedding_blob' : 'NULL'},
+          role, source, source_date, timestamp, meta, created_at
+          FROM embeddings;
+        DROP TABLE embeddings;
+        ALTER TABLE embeddings_new RENAME TO embeddings;
+      `);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_embeddings_source_date ON embeddings(source_date)`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_embeddings_timestamp ON embeddings(timestamp)`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_embeddings_source ON embeddings(source)`);
+      console.log('[DB] Embedding table rebuilt with nullable embedding column');
+    }
+
+    // 기존 JSON TEXT → BLOB 변환 (embedding_blob가 NULL이고 embedding이 있는 행)
+    const toMigrate = db.prepare(
+      "SELECT COUNT(*) as c FROM embeddings WHERE embedding IS NOT NULL AND embedding != '' AND embedding_blob IS NULL"
+    ).get()?.c || 0;
+
+    if (toMigrate > 0) {
+      console.log(`[DB] Migrating ${toMigrate} embeddings from JSON to BLOB...`);
+      const rows = db.prepare(
+        "SELECT id, embedding FROM embeddings WHERE embedding IS NOT NULL AND embedding != '' AND embedding_blob IS NULL"
+      ).all();
+
+      const update = db.prepare('UPDATE embeddings SET embedding_blob = ?, embedding = NULL WHERE id = ?');
+      const migrate = db.transaction(() => {
+        for (const row of rows) {
+          try {
+            const arr = JSON.parse(row.embedding);
+            if (Array.isArray(arr) && arr.length > 0) {
+              const float32 = new Float32Array(arr);
+              update.run(Buffer.from(float32.buffer), row.id);
+            }
+          } catch { /* skip malformed */ }
+        }
+      });
+      migrate();
+      console.log(`[DB] Migrated ${toMigrate} embeddings to BLOB format`);
+    }
+  } catch (e) {
+    console.warn('[DB] Embedding BLOB migration:', e.message);
+  }
+
+  // 마이그레이션: messages 테이블에 session_id='embeddings'로 저장된 기존 임베딩 이관
+  try {
+    const existingCount = db.prepare("SELECT COUNT(*) as c FROM embeddings").get()?.c || 0;
+    if (existingCount === 0) {
+      const embeddingRows = db.prepare(
+        "SELECT content, embedding, role, timestamp, meta FROM messages WHERE session_id = 'embeddings' AND embedding IS NOT NULL AND embedding != ''"
+      ).all();
+      if (embeddingRows.length > 0) {
+        const insert = db.prepare(
+          "INSERT INTO embeddings (content, embedding, role, source, timestamp, meta) VALUES (?, ?, ?, 'migrated', ?, ?)"
+        );
+        const migrate = db.transaction(() => {
+          for (const row of embeddingRows) {
+            insert.run(row.content, row.embedding, row.role, row.timestamp, row.meta);
+          }
+        });
+        migrate();
+        console.log(`[DB] Migrated ${embeddingRows.length} embeddings to new table`);
+      }
+    }
+  } catch (e) {
+    console.warn('[DB] Embedding migration skipped:', e.message);
+  }
+
   // UserProfile - 사용자 프로필
   db.exec(`
     CREATE TABLE IF NOT EXISTS user_profiles (
@@ -327,6 +441,20 @@ function createTables() {
     )
   `);
 
+  // SoulMemory - 소울이가 자율 관리하는 기억 저장소
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS soul_memories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      category TEXT NOT NULL DEFAULT 'general',
+      content TEXT NOT NULL,
+      tags TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      source_date TEXT,
+      is_active INTEGER DEFAULT 1
+    )
+  `);
+
   // 인덱스 생성
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_system_configs_key ON system_configs(config_key);
@@ -338,6 +466,8 @@ function createTables() {
     CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, timestamp);
     CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id);
     CREATE INDEX IF NOT EXISTS idx_api_keys_service ON api_keys(service);
+    CREATE INDEX IF NOT EXISTS idx_soul_memories_category ON soul_memories(category);
+    CREATE INDEX IF NOT EXISTS idx_soul_memories_active ON soul_memories(is_active);
   `);
 
   console.log('[DB] Tables created');
@@ -615,7 +745,8 @@ const models = {
   Memory: null,
   Message: null,
   UserProfile: null,
-  APIKey: null
+  APIKey: null,
+  SoulMemory: null
 };
 
 // 모델 초기화 (lazy)
@@ -637,7 +768,8 @@ function getModel(name) {
       Memory: 'memories',
       Message: 'messages',
       UserProfile: 'user_profiles',
-      APIKey: 'api_keys'
+      APIKey: 'api_keys',
+      SoulMemory: 'soul_memories'
     };
 
     models[name] = createModel(tableMap[name]);
@@ -662,5 +794,6 @@ module.exports = {
   get Memory() { return getModel('Memory'); },
   get Message() { return getModel('Message'); },
   get UserProfile() { return getModel('UserProfile'); },
-  get APIKey() { return getModel('APIKey'); }
+  get APIKey() { return getModel('APIKey'); },
+  get SoulMemory() { return getModel('SoulMemory'); }
 };

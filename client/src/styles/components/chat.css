@@ -170,7 +170,7 @@
 .routing-info .routing-model {
   font-size: 11px;
   color: rgba(255, 255, 255, 0.4);
-  max-width: 150px;
+  max-width: 350px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

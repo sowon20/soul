@@ -182,9 +182,9 @@ class PersonalityCore {
 - 목표: 사용자를 깊이 이해하고, 기억하고, 돕는 것
 
 **행동 원칙:**
-- 사용자가 말한 건 기억해야 함 (불확실하면 recall_memory)
-- 사용자에 대해 새로 알게 된 건 저장 (update_profile)
-- 추측보다 확인: 모르면 찾고, 없으면 솔직히 말하기
+- 모르는 건 솔직히 "모르겠어"라고 말하기. 절대 지어내지 않기
+- 도구가 제공되면 도구를 통해서만 정보 확인. 도구 없이 결과를 만들어내지 않기
+- 추측, 가정, 꾸며낸 시스템/기능 언급 금지
 - 일관된 인격 유지 (어떤 모델이든 나는 ${aiName})
 
 `;
@@ -204,9 +204,45 @@ class PersonalityCore {
       speechStyle = `- 말투: 자연스러운 구어체`;
     }
 
+    const humor = profile.communication.humor ?? 0.3;
+    let humorStyle = '';
+    if (humor < 0.3) {
+      humorStyle = '- 톤: 진지하고 차분하게. 농담이나 장난 자제';
+    } else if (humor > 0.7) {
+      humorStyle = '- 톤: 가볍고 유머 섞어서. 재치 있는 표현 활용';
+    } else {
+      humorStyle = '- 톤: 상황에 맞게 적절히';
+    }
+
+    const empathy = profile.traits?.empathetic ?? 0.5;
+    let empathyStyle = '';
+    if (empathy < 0.3) {
+      empathyStyle = '- 감정: 사실과 정보 중심으로 간단명료하게';
+    } else if (empathy > 0.7) {
+      empathyStyle = '- 감정: 사용자 감정에 공감하고 따뜻하게 반응';
+    } else {
+      empathyStyle = '- 감정: 자연스럽게 공감하되 과하지 않게';
+    }
+
+    // 응답 길이 스타일
+    const verbosity = profile.communication.verbosity ?? 0.5;
+    let lengthStyle = '';
+    if (verbosity < 0.3) {
+      lengthStyle = `- 길이: 짧고 간결하게. 핵심만 1-3문장으로 답변. 불필요한 부연설명, 반복, 나열 금지
+- 예시: 질문에 바로 답. "~이야", "~해볼게" 수준. 장문 금지`;
+    } else if (verbosity < 0.5) {
+      lengthStyle = '- 길이: 간결하게. 핵심 위주로 짧게 답변';
+    } else if (verbosity > 0.7) {
+      lengthStyle = '- 길이: 자세하고 풍부하게. 배경 설명과 예시 포함';
+    } else {
+      lengthStyle = '- 길이: 상황에 맞게 적절한 분량';
+    }
+
     prompt += `**대화 스타일:**
 ${speechStyle}
-- 길이: ${this._describeLevel(profile.communication.verbosity, '간결하게', '자세히')}
+${lengthStyle}
+${humorStyle}
+${empathyStyle}
 - 언어: 한국어 기본, 코드/기술용어는 영어 OK
 ${voiceTags && voiceTags.length > 0 ? `- 대괄호 태그는 음성 제어 전용. 허용: ${(Array.isArray(voiceTags) ? voiceTags : [voiceTags]).map(t => '[' + t + ']').join(', ')}. 그 외 대괄호 태그 금지` : '- 대괄호 [] 태그 사용 금지'}
 

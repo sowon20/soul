@@ -283,11 +283,15 @@ class SessionDigest {
         return null; // digest-worker 역할 미설정 → 조용히 패스
       }
 
-      const modelId = digestRole.preferredModel || 'openai/gpt-oss-20b:free';
+      const modelId = digestRole.preferredModel;
       const roleConfig = typeof digestRole.config === 'string'
         ? JSON.parse(digestRole.config)
         : (digestRole.config || {});
-      const serviceId = roleConfig.serviceId || 'openrouter';
+      const serviceId = roleConfig.serviceId;
+      if (!modelId || !serviceId) {
+        console.warn('[Digest] digest-worker 모델/서비스 미설정 — 다이제스트 스킵');
+        return null;
+      }
       const temperature = roleConfig.temperature || 0.3;
       const maxTokens = roleConfig.maxTokens || 800;
 
@@ -453,59 +457,16 @@ class SessionDigest {
   }
 
   /**
-   * 다이제스트 결과를 벡터 임베딩 (fire-and-forget)
+   * 다이제스트 결과를 벡터 임베딩 — 비활성화
+   *
+   * Phase 3: 원문 대화 턴을 직접 임베딩하므로 다이제스트 요약 임베딩은 중단.
+   * 다이제스트 JSON 파일 저장은 유지 (세션 컨텍스트용).
+   * embedding-scheduler가 매일 원문을 임베딩함.
    */
   async _embedDigestResults(digest) {
-    try {
-      const vectorStore = require('./vector-store');
-      let embedded = 0;
-
-      // 키워드+엔티티를 태그로 활용
-      const extraTags = [
-        ...(digest.keywords || []),
-        ...(digest.entities || [])
-      ];
-
-      // 1. 세션 요약 임베딩 (키워드/엔티티 포함)
-      if (digest.summary && digest.summary.length >= 10) {
-        // 요약 + 키워드/엔티티를 합쳐서 임베딩 (검색 적중률 향상)
-        const enrichedSummary = extraTags.length > 0
-          ? `${digest.summary}\n[키워드: ${extraTags.join(', ')}]`
-          : digest.summary;
-
-        await vectorStore.addMessage({
-          id: `digest_summary_${Date.now()}`,
-          content: enrichedSummary,
-          role: 'system',
-          sessionId: 'embeddings',
-          timestamp: digest.timestamp,
-          tags: ['digest', 'summary', ...extraTags]
-        });
-        embedded++;
-      }
-
-      // 2. 추출된 메모리 각각 임베딩
-      for (const mem of (digest.memories || [])) {
-        const memText = typeof mem === 'string' ? mem : (mem.text || '');
-        if (!memText || memText.length < 10) continue;
-
-        await vectorStore.addMessage({
-          id: `digest_mem_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-          content: memText,
-          role: 'system',
-          sessionId: 'embeddings',
-          timestamp: digest.timestamp,
-          tags: ['digest', 'memory', ...extraTags]
-        });
-        embedded++;
-      }
-
-      if (embedded > 0) {
-        console.log(`[SessionDigest] Embedded ${embedded} items (tags: ${extraTags.length} keywords/entities)`);
-      }
-    } catch (e) {
-      console.warn('[SessionDigest] Embedding failed:', e.message);
-    }
+    // Phase 3: 원문 임베딩으로 전환 — 다이제스트 임베딩 스킵
+    // 다이제스트 JSON은 _saveDigest()에서 계속 저장됨
+    console.log(`[SessionDigest] Embedding skipped (Phase 3: raw conversation embedding enabled)`);
   }
 
   async _saveDigest(digest) {

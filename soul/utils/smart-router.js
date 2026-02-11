@@ -128,7 +128,7 @@ class SmartRouter {
         modelId: this.config.singleModel.modelId,
         serviceId: this.config.singleModel.serviceId || null,
         thinking: this.config.singleModel.thinking || false,
-        modelName: 'Single Model',
+        modelName: this.config.singleModel.name || this.config.singleModel.modelId,
         reason: 'Single model mode',
         tier: 'single',
         confidence: 1.0,
@@ -733,6 +733,24 @@ async function getSmartRouter(config = {}) {
       console.log('[SmartRouter] Loading routing config from DB:', JSON.stringify(routingConfig, null, 2));
       mode = routingConfig.mode || 'auto';
       singleModel = routingConfig.singleModel || null;
+      // singleModel에 name이 없으면 DB에서 조회
+      if (singleModel && !singleModel.name) {
+        try {
+          const { getAIServiceManager } = require('./ai-service');
+          const aiManager = getAIServiceManager();
+          const services = await aiManager.getServices();
+          for (const svc of services) {
+            const models = typeof svc.models === 'string' ? JSON.parse(svc.models) : (svc.models || []);
+            const found = models.find(m => m.id === singleModel.modelId);
+            if (found) {
+              singleModel.name = found.name || singleModel.modelId;
+              break;
+            }
+          }
+        } catch (e) {
+          console.warn('[SmartRouter] Could not resolve model name:', e.message);
+        }
+      }
       manager = updateModelsFromConfig(routingConfig);
       managerModel = routingConfig.managerModel || null;
     } catch (err) {

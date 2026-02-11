@@ -25,12 +25,12 @@ Role.initializeDefaultRoles = async function() {
       name: '자동 요약',
       description: '대화를 자동으로 요약하고 중요한 기억을 추출합니다.',
       systemPrompt: '',  // session-digest.js 내부 프롬프트 사용
-      preferredModel: 'openai/gpt-oss-20b:free',
+      preferredModel: '',  // UI에서 설정
       tools: '[]',
       isActive: 1,
       isSystem: 1,
       config: JSON.stringify({
-        serviceId: 'openrouter',
+        serviceId: '',
         temperature: 0.3,
         maxTokens: 800,
         purpose: 'digest'
@@ -48,29 +48,6 @@ Role.initializeDefaultRoles = async function() {
       config: JSON.stringify({
         serviceId: 'openrouter',
         purpose: 'embedding'
-      })
-    },
-    {
-      roleId: 'tool-worker',
-      name: '도구 실행',
-      description: '{need} 요청을 받아 적절한 도구를 선택하고 실행합니다.',
-      systemPrompt: `당신은 도구 선택 전문가입니다.
-요청을 분석하여 필요한 도구 이름을 JSON 배열로만 반환합니다.
-응답 형식: ["도구이름1", "도구이름2"]
-도구를 실행하지 마세요. 이름만 선택하세요.`,
-      preferredModel: 'openai/gpt-oss-20b:free',
-      tools: '[]',
-      isActive: 1,
-      isSystem: 1,
-      config: JSON.stringify({
-        serviceId: 'openrouter',
-        temperature: 0.2,
-        maxTokens: 1000,
-        purpose: 'tool-routing',
-        fallbackModels: [
-          { modelId: 'google/gemini-2.0-flash-exp:free', serviceId: 'openrouter' },
-          { modelId: 'meta-llama/llama-4-scout:free', serviceId: 'openrouter' }
-        ]
       })
     },
     {
@@ -95,26 +72,6 @@ Role.initializeDefaultRoles = async function() {
         purpose: 'vision'
       })
     },
-    {
-      roleId: 'verification-worker',
-      name: '도구 검증',
-      description: '도구 실행 결과를 검증하여 AI의 거짓/날조를 감지합니다.',
-      systemPrompt: '',  // verification-worker.js 내부 프롬프트 사용
-      preferredModel: 'openai/gpt-oss-20b:free',
-      tools: '[]',
-      isActive: 1,
-      isSystem: 1,
-      config: JSON.stringify({
-        serviceId: 'openrouter',
-        temperature: 0.1,
-        maxTokens: 300,
-        purpose: 'verification',
-        fallbackModels: [
-          { modelId: 'google/gemini-2.0-flash-exp:free', serviceId: 'openrouter' },
-          { modelId: 'meta-llama/llama-4-scout:free', serviceId: 'openrouter' }
-        ]
-      })
-    }
   ];
 
   for (const roleData of defaultRoles) {

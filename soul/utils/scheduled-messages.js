@@ -1,13 +1,21 @@
 /**
  * scheduled-messages.js
  * DB 기반 예약 메시지 관리 (서버 재시작해도 유지)
+ * SQLite 호환 버전
  */
 
-const ScheduledMessage = require('../models/ScheduledMessage');
 const { getProactiveMessenger } = require('./proactive-messenger');
 
 // 메모리에 타이머만 추적
 const timers = new Map();
+
+/**
+ * DB 접근 헬퍼 (lazy init)
+ */
+function getDb() {
+  const db = require('../db');
+  return db.db;
+}
 
 /**
  * 메시지 발송 실행
@@ -18,7 +26,10 @@ async function sendScheduledMessage(doc) {
     if (messenger) {
       await messenger.sendNow({ type: 'scheduled', message: doc.message });
     }
-    await ScheduledMessage.findByIdAndUpdate(doc._id, { status: 'sent' });
+    // DB에서 status 업데이트
+    const db = getDb();
+    db.prepare('UPDATE scheduled_messages SET status = ?, updated_at = ? WHERE id = ?')
+      .run('sent', new Date().toISOString(), doc.id);
     timers.delete(doc.scheduleId);
     console.log(`[Scheduled] Sent #${doc.scheduleId}: "${doc.message}"`);
   } catch (err) {
@@ -30,12 +41,15 @@ async function sendScheduledMessage(doc) {
  * 단일 예약에 타이머 설정
  */
 function setTimer(doc) {
-  const delay = doc.sendAt.getTime() - Date.now();
+  // sendAt이 문자열이면 Date로 변환
+  const sendAtTime = typeof doc.sendAt === 'string' ? new Date(doc.sendAt).getTime() : doc.sendAt.getTime();
+  const delay = sendAtTime - Date.now();
+
   if (delay <= 0) {
     sendScheduledMessage(doc);
     return;
   }
-  
+
   const timeoutId = setTimeout(() => sendScheduledMessage(doc), delay);
   timers.set(doc.scheduleId, timeoutId);
 }
@@ -44,11 +58,22 @@ function setTimer(doc) {
  * 서버 시작 시 DB에서 복구
  */
 async function restoreScheduledMessages() {
-  const pending = await ScheduledMessage.find({ status: 'pending' });
-  console.log(`[Scheduled] Restoring ${pending.length} scheduled messages`);
-  
-  for (const doc of pending) {
-    setTimer(doc);
+  try {
+    const db = getDb();
+    const rows = db.prepare("SELECT * FROM scheduled_messages WHERE status = 'pending'").all();
+    console.log(`[Scheduled] Restoring ${rows.length} scheduled messages`);
+
+    for (const row of rows) {
+      setTimer({
+        id: row.id,
+        scheduleId: row.schedule_id,
+        message: row.message,
+        sendAt: row.send_at,
+        status: row.status
+      });
+    }
+  } catch (err) {
+    console.error('[Scheduled] Restore error:', err.message);
   }
 }
 
@@ -56,13 +81,28 @@ async function restoreScheduledMessages() {
  * 예약 생성
  */
 async function schedule(message, delaySeconds) {
-  const lastDoc = await ScheduledMessage.findOne().sort({ scheduleId: -1 });
-  const scheduleId = (lastDoc?.scheduleId || 0) + 1;
+  const db = getDb();
+
+  // 다음 schedule_id 계산
+  const lastRow = db.prepare('SELECT schedule_id FROM scheduled_messages ORDER BY schedule_id DESC LIMIT 1').get();
+  const scheduleId = (lastRow?.schedule_id || 0) + 1;
   const sendAt = new Date(Date.now() + delaySeconds * 1000);
-  
-  const doc = await ScheduledMessage.create({ scheduleId, message, sendAt });
+  const now = new Date().toISOString();
+
+  const sendAtStr = sendAt.toISOString();
+  const result = db.prepare(
+    'INSERT INTO scheduled_messages (schedule_id, message, send_at, scheduled_time, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  ).run(scheduleId, message, sendAtStr, sendAtStr, 'pending', now, now);
+
+  const doc = {
+    id: result.lastInsertRowid,
+    scheduleId,
+    message,
+    sendAt: sendAt.toISOString()
+  };
   setTimer(doc);
-  
+
+  console.log(`[Scheduled] Created #${scheduleId}: "${message}" → ${sendAt.toISOString()}`);
   return { scheduleId, sendAt: sendAt.toISOString() };
 }
 
@@ -70,34 +110,46 @@ async function schedule(message, delaySeconds) {
  * 예약 취소
  */
 async function cancel(scheduleId) {
-  const doc = await ScheduledMessage.findOne({ scheduleId, status: 'pending' });
-  if (!doc) return null;
-  
+  const db = getDb();
+  const row = db.prepare("SELECT * FROM scheduled_messages WHERE schedule_id = ? AND status = 'pending'").get(scheduleId);
+  if (!row) return null;
+
   clearTimeout(timers.get(scheduleId));
   timers.delete(scheduleId);
-  await ScheduledMessage.findByIdAndUpdate(doc._id, { status: 'cancelled' });
-  
-  return { message: doc.message };
+
+  db.prepare('UPDATE scheduled_messages SET status = ?, updated_at = ? WHERE id = ?')
+    .run('cancelled', new Date().toISOString(), row.id);
+
+  console.log(`[Scheduled] Cancelled #${scheduleId}`);
+  return { message: row.message };
 }
 
 /**
  * 예약 수정
  */
 async function update(scheduleId, { message, delaySeconds }) {
-  const doc = await ScheduledMessage.findOne({ scheduleId, status: 'pending' });
-  if (!doc) return null;
-  
+  const db = getDb();
+  const row = db.prepare("SELECT * FROM scheduled_messages WHERE schedule_id = ? AND status = 'pending'").get(scheduleId);
+  if (!row) return null;
+
   clearTimeout(timers.get(scheduleId));
-  
-  const newMessage = message || doc.message;
-  const newSendAt = delaySeconds ? new Date(Date.now() + delaySeconds * 1000) : doc.sendAt;
-  
-  doc.message = newMessage;
-  doc.sendAt = newSendAt;
-  await doc.save();
-  
-  setTimer(doc);
-  
+
+  const newMessage = message || row.message;
+  const newSendAt = delaySeconds
+    ? new Date(Date.now() + delaySeconds * 1000)
+    : new Date(row.send_at);
+
+  db.prepare('UPDATE scheduled_messages SET message = ?, send_at = ?, updated_at = ? WHERE id = ?')
+    .run(newMessage, newSendAt.toISOString(), new Date().toISOString(), row.id);
+
+  setTimer({
+    id: row.id,
+    scheduleId,
+    message: newMessage,
+    sendAt: newSendAt.toISOString()
+  });
+
+  console.log(`[Scheduled] Updated #${scheduleId}`);
   return { message: newMessage, sendAt: newSendAt.toISOString() };
 }
 
@@ -105,7 +157,17 @@ async function update(scheduleId, { message, delaySeconds }) {
  * 예약 목록
  */
 async function list() {
-  return ScheduledMessage.find({ status: 'pending' }).sort({ sendAt: 1 });
+  const db = getDb();
+  const rows = db.prepare("SELECT * FROM scheduled_messages WHERE status = 'pending' ORDER BY send_at ASC").all();
+
+  return rows.map(r => ({
+    id: r.id,
+    scheduleId: r.schedule_id,
+    message: r.message,
+    sendAt: r.send_at,
+    status: r.status,
+    createdAt: r.created_at
+  }));
 }
 
 module.exports = { restoreScheduledMessages, schedule, cancel, update, list };

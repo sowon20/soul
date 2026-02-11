@@ -86,23 +86,23 @@ Message.clearSession = async function(sessionId) {
 };
 
 /**
- * 임베딩으로 유사 메시지 검색
+ * 임베딩으로 유사 메시지 검색 (embeddings 테이블 사용)
+ * 호환성을 위해 유지 — 새 코드는 vector-store.search() 사용 권장
  */
 Message.findSimilar = async function(queryEmbedding, options = {}) {
   const db = require('../db');
   if (!db.db) db.init();
 
   const {
-    sessionId = 'main-conversation',
     limit = 10,
     minSimilarity = 0.5,
     startDate = null,
     endDate = null
   } = options;
 
-  // 동적 WHERE 절 (시간 필터 지원)
-  let whereClause = 'session_id = ? AND embedding IS NOT NULL';
-  const params = [sessionId];
+  // embeddings 테이블에서 조회
+  let whereClause = 'embedding IS NOT NULL';
+  const params = [];
 
   if (startDate) {
     whereClause += ' AND timestamp >= ?';
@@ -113,12 +113,10 @@ Message.findSimilar = async function(queryEmbedding, options = {}) {
     params.push(endDate instanceof Date ? endDate.toISOString() : endDate);
   }
 
-  const stmt = db.db.prepare(`
-    SELECT * FROM messages
-    WHERE ${whereClause}
-  `);
-
-  const messages = stmt.all(...params).map(row => parseRow(row));
+  const rows = db.db.prepare(`
+    SELECT id, content, embedding, role, source, source_date, timestamp, meta
+    FROM embeddings WHERE ${whereClause}
+  `).all(...params);
 
   // 코사인 유사도 계산
   const cosineSimilarity = (a, b) => {
@@ -132,18 +130,28 @@ Message.findSimilar = async function(queryEmbedding, options = {}) {
     return dot / (Math.sqrt(normA) * Math.sqrt(normB));
   };
 
-  // 유사도 계산 및 정렬
-  const scored = messages
-    .map(msg => ({
-      ...msg,
-      similarity: cosineSimilarity(queryEmbedding, msg.embedding)
-    }))
-    .filter(msg => msg.similarity >= minSimilarity)
+  // JSON 파싱 + 유사도 계산
+  const scored = rows
+    .map(row => {
+      let emb;
+      try { emb = JSON.parse(row.embedding); } catch { return null; }
+      return {
+        id: row.id,
+        _id: row.id,
+        content: row.content,
+        role: row.role,
+        source: row.source,
+        sourceDate: row.source_date,
+        timestamp: row.timestamp,
+        meta: row.meta,
+        similarity: cosineSimilarity(queryEmbedding, emb)
+      };
+    })
+    .filter(r => r && r.similarity >= minSimilarity)
     .sort((a, b) => b.similarity - a.similarity)
     .slice(0, limit);
 
-  // embedding 필드 제거
-  return scored.map(({ embedding, ...rest }) => rest);
+  return scored;
 };
 
 /**

@@ -313,7 +313,9 @@ router.post('/:id/refresh-models', async (req, res) => {
     // 모델 목록 가져오기
     // openai-compatible 타입은 serviceId로 판단
     let effectiveType = serviceType;
-    if (serviceType === 'openai-compatible') {
+    if (service.serviceId === 'together') {
+      effectiveType = 'together';
+    } else if (serviceType === 'openai-compatible') {
       if (service.serviceId === 'xai') {
         effectiveType = 'xai';
       } else if (service.serviceId === 'lightning') {
@@ -381,7 +383,9 @@ router.post('/:id/test', async (req, res) => {
     // 연결 테스트 (API 키 검증)
     // openai-compatible 타입은 serviceId로 판단
     let effectiveType = serviceType;
-    if (serviceType === 'openai-compatible') {
+    if (service.serviceId === 'together') {
+      effectiveType = 'together';
+    } else if (serviceType === 'openai-compatible') {
       if (service.serviceId === 'xai') {
         effectiveType = 'xai';
       } else if (service.serviceId === 'lightning') {

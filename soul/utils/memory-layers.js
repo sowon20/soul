@@ -175,10 +175,7 @@ class ShortTermMemory {
       console.error('[ShortTermMemory] Failed to save to DB:', err.message);
     });
     
-    // 벡터 스토어에 비동기 저장
-    this._saveToVectorStore(messageWithMeta).catch(err => {
-      console.error('[ShortTermMemory] Failed to save to vector store:', err.message);
-    });
+    // 벡터 스토어 저장은 conversation-pipeline에서 턴 단위로 처리 (중복 방지)
 
     // 최대 개수 초과 시 오래된 메시지 제거
     if (this.messages.length > this.maxMessages) {
@@ -1490,7 +1487,7 @@ class MemoryManager {
     try {
       // 백그라운드 워커 역할 확인
       const Role = require('../models/Role');
-      const bgWorker = await Role.findOne({ category: 'background', active: true });
+      const bgWorker = await Role.findOne({ roleId: 'background-worker', isActive: 1 });
       
       if (!bgWorker) {
         // 백그라운드 워커가 없거나 비활성화면 스킵

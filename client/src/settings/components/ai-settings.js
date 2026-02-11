@@ -234,6 +234,13 @@ export class AISettings {
                       </div>
                       <input type="range" class="timeline-range${this.agentProfile?.temperature == null ? ' unset' : ''}" data-field="temperature" min="0" max="1" step="0.1" value="${this.agentProfile?.temperature ?? 0.5}">
                     </div>
+                    <div class="timeline-slider-item">
+                      <div class="slider-labels">
+                        <span>짧게</span>
+                        <span>길게</span>
+                      </div>
+                      <input type="range" class="timeline-range${this.agentProfile?.maxTokens == null ? ' unset' : ''}" data-field="maxTokens" min="256" max="32000" step="256" value="${this.agentProfile?.maxTokens || 4096}">
+                    </div>
                   </div>
                 </div>
               </div>
@@ -466,160 +473,7 @@ export class AISettings {
 
           </div>
 
-          <!-- 온보딩 카드 섹션 (기존) -->
-          <div class="onboarding-cards" style="display: none;">
-            <!-- 정체성 카드 -->
-            <div class="onboarding-item">
-              <div class="onboarding-card" data-target="onboard-identity">
-                <div class="onboarding-card-label">정체성</div>
-              </div>
-              <div class="onboarding-content" id="onboard-identity">
-                <div class="soul-form">
-                  <div class="neu-field ${this.agentProfile.name ? 'has-value' : ''}">
-                    <div class="neu-field-display">
-                      <span class="neu-field-title">이름 : </span>
-                      <span class="neu-field-value">${this.agentProfile.name || ''}</span>
-                    </div>
-                    <input type="text" class="neu-field-input" id="soulName" data-label="이름" placeholder="이름" value="${this.agentProfile.name || ''}">
-                  </div>
-                  <div class="neu-field ${this.agentProfile.role ? 'has-value' : ''}">
-                    <div class="neu-field-display">
-                      <span class="neu-field-title">역할 : </span>
-                      <span class="neu-field-value">${this.agentProfile.role || ''}</span>
-                    </div>
-                    <input type="text" class="neu-field-input" id="soulRole" data-label="역할" placeholder="역할 (예: 개발 도우미, 글쓰기 파트너)" value="${this.agentProfile.role || ''}">
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 성격 카드 -->
-            <div class="onboarding-item">
-              <div class="onboarding-card" data-target="onboard-personality">
-                <div class="onboarding-card-label">성격</div>
-              </div>
-              <div class="onboarding-content" id="onboard-personality">
-                <div class="soul-form">
-                  <div class="neu-field ${this.agentProfile.description ? 'has-value' : ''}">
-                    <div class="neu-field-display">
-                      <span class="neu-field-title">설명 : </span>
-                      <span class="neu-field-value">${this.agentProfile.description || ''}</span>
-                    </div>
-                    <textarea class="neu-field-input neu-field-textarea-sm" id="soulDescription" data-label="설명" placeholder="설명" rows="2">${this.agentProfile.description || ''}</textarea>
-                  </div>
-                  <div class="neu-field ${this.agentProfile.systemPrompt ? 'has-value' : ''}">
-                    <div class="neu-field-display">
-                      <span class="neu-field-title">시스템 프롬프트 : </span>
-                      <span class="neu-field-value">${this.agentProfile.systemPrompt || ''}</span>
-                    </div>
-                    <textarea class="neu-field-input neu-field-textarea-lg" id="soulSystemPrompt" data-label="시스템 프롬프트" placeholder="시스템 프롬프트" rows="7">${this.agentProfile.systemPrompt || ''}</textarea>
-                  </div>
-                  <!-- 대화 스타일 -->
-                  <div class="soul-style-section">
-                    <div class="soul-style-label">대화 스타일</div>
-                    <div class="personality-sliders">
-                      <div class="personality-slider-item">
-                        <div class="slider-header">
-                          <span class="slider-label-left">🎉 캐주얼</span>
-                          <span class="slider-label-right">🎩 격식</span>
-                        </div>
-                        <input type="range" class="personality-range" id="soulFormality" min="0" max="1" step="0.1" value="${this.agentProfile.personality?.communication?.formality ?? 0.5}">
-                      </div>
-                      <div class="personality-slider-item">
-                        <div class="slider-header">
-                          <span class="slider-label-left">⚡ 간결</span>
-                          <span class="slider-label-right">�� 상세</span>
-                        </div>
-                        <input type="range" class="personality-range" id="soulVerbosity" min="0" max="1" step="0.1" value="${this.agentProfile.personality?.communication?.verbosity ?? 0.5}">
-                      </div>
-                      <div class="personality-slider-item">
-                        <div class="slider-header">
-                          <span class="slider-label-left">🌸 완곡</span>
-                          <span class="slider-label-right">🎯 직접적</span>
-                        </div>
-                        <input type="range" class="personality-range" id="soulDirectness" min="0" max="1" step="0.1" value="${this.agentProfile.personality?.communication?.directness ?? 0.7}">
-                      </div>
-                      <div class="personality-slider-item">
-                        <div class="slider-header">
-                          <span class="slider-label-left">📝 일반 용어</span>
-                          <span class="slider-label-right">🔧 기술 용어</span>
-                        </div>
-                        <input type="range" class="personality-range" id="soulTechnicality" min="0" max="1" step="0.1" value="${this.agentProfile.personality?.communication?.technicality ?? 0.5}">
-                      </div>
-                      <div class="personality-slider-item">
-                        <div class="slider-header">
-                          <span class="slider-label-left">😐 이모지 없음</span>
-                          <span class="slider-label-right">😊 이모지 많이</span>
-                        </div>
-                        <input type="range" class="personality-range" id="soulEmoji" min="0" max="1" step="0.1" value="${this.agentProfile.personality?.communication?.emoji ?? 0.3}">
-                      </div>
-                      <div class="personality-slider-item">
-                        <div class="slider-header">
-                          <span class="slider-label-left">🧐 진지</span>
-                          <span class="slider-label-right">😄 유머러스</span>
-                        </div>
-                        <input type="range" class="personality-range" id="soulHumor" min="0" max="1" step="0.1" value="${this.agentProfile.personality?.communication?.humor ?? 0.5}">
-                      </div>
-                      <div class="personality-slider-item">
-                        <div class="slider-header">
-                          <span class="slider-label-left">🤖 기계적</span>
-                          <span class="slider-label-right">💕 공감적</span>
-                        </div>
-                        <input type="range" class="personality-range" id="soulEmpathy" min="0" max="1" step="0.1" value="${this.agentProfile.personality?.traits?.empathetic ?? 0.5}">
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 두뇌 카드 -->
-            <div class="onboarding-item">
-              <div class="onboarding-card" data-target="onboard-brain">
-                <div class="onboarding-card-label">두뇌</div>
-              </div>
-              <div class="onboarding-content" id="onboard-brain">
-                <div class="soul-form">
-                  <div class="soul-radio-group">
-                    <label class="soul-radio">
-                      <input type="radio" name="modelMode" value="single" ${this.agentProfile.modelMode !== 'smart' ? 'checked' : ''}>
-                      <span>단일 모델</span>
-                    </label>
-                    <label class="soul-radio">
-                      <input type="radio" name="modelMode" value="smart" ${this.agentProfile.modelMode === 'smart' ? 'checked' : ''}>
-                      <span>스마트 라우팅</span>
-                    </label>
-                  </div>
-                  <div class="soul-model-options">
-                  </div>
-                  <div class="soul-slider-row">
-                    <label>창의성</label>
-                    <input type="range" class="soul-range" id="soulCreativity" min="0" max="1" step="0.1" value="${this.agentProfile.temperature || 0.7}">
-                    <input type="text" class="soul-input-mini" id="soulCreativityValue" value="${this.agentProfile.temperature || 0.7}">
-                  </div>
-                  <div class="soul-slider-row">
-                    <label>응답 길이</label>
-                    <input type="range" class="soul-range" id="soulLength" min="256" max="32000" step="256" value="${this.agentProfile.maxTokens || 4096}">
-                    <input type="text" class="soul-input-mini" id="soulLengthValue" value="${this.agentProfile.maxTokens || 4096}">
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 알바 카드 -->
-            <div class="onboarding-item">
-              <div class="onboarding-card" data-target="onboard-alba">
-                <div class="onboarding-card-label">알바</div>
-                <label class="toggle-switch toggle-switch-sm" onclick="event.stopPropagation()">
-                  <input type="checkbox">
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
-              <div class="onboarding-content" id="onboard-alba">
-                <p>여기에 알바 설정 내용이 들어갑니다.</p>
-              </div>
-            </div>
-          </div>
+          <!-- 온보딩 카드 섹션 제거됨 (타임라인 뷰로 통합) -->
 
           <!-- 메모리 설정: 시스템 자동 관리 (UI 노출 제거) -->
 
@@ -988,11 +842,7 @@ export class AISettings {
   getModelDisplayName(modelId) {
     if (!modelId) return '미설정';
     const model = this.availableModels.find(m => m.id === modelId);
-    if (model) {
-      return model.name || modelId;
-    }
-    // 모델 ID에서 간단한 이름 추출
-    return modelId.split('-').slice(0, 2).join(' ');
+    return model?.name || modelId;
   }
 
   /**
@@ -2455,6 +2305,10 @@ export class AISettings {
         bg: 'linear-gradient(135deg, #ff6b35 0%, #f7a837 100%)',
         displayName: 'Qwen'
       },
+      'together': {
+        bg: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        displayName: 'Together AI'
+      },
       'cartesia': {
         bg: 'linear-gradient(135deg, #7a9ab0 0%, #6a9aa8 100%)',
         displayName: 'Cartesia'
@@ -2665,13 +2519,18 @@ export class AISettings {
           verbosity: { left: '간결', right: '상세' },
           humor: { left: '진지', right: '유머' },
           empathy: { left: '기계적', right: '공감적' },
-          temperature: { left: '정확', right: '창의' }
+          temperature: { left: '정확', right: '창의' },
+          maxTokens: { left: '짧게', right: '길게' }
         };
         const labels = sliderLabels[field];
         if (labels) {
-          const percent = Math.round(value * 100);
-          const label = value < 0.4 ? labels.left : value > 0.6 ? labels.right : '균형';
-          this.showSaveStatus(`${label} (${percent}%)`, 'info');
+          if (field === 'maxTokens') {
+            this.showSaveStatus(`${Math.round(value)} tokens`, 'info');
+          } else {
+            const percent = Math.round(value * 100);
+            const label = value < 0.4 ? labels.left : value > 0.6 ? labels.right : '균형';
+            this.showSaveStatus(`${label} (${percent}%)`, 'info');
+          }
         }
       }
     }, { signal });
@@ -3207,14 +3066,7 @@ export class AISettings {
       });
     }
 
-    // Soul temperature 슬라이더 (레거시 - 제거됨)
-    const soulTempSlider = container.querySelector('#soulTemperature');
-    if (soulTempSlider) {
-      soulTempSlider.addEventListener('input', (e) => {
-        const valueDisplay = container.querySelector('#soulTempValue');
-        if (valueDisplay) valueDisplay.textContent = e.target.value;
-      });
-    }
+    // 온보딩 카드 슬라이더 제거됨 (타임라인 뷰로 통합)
 
 
     // 통합 스토리지 설정 버튼
@@ -4081,7 +3933,7 @@ export class AISettings {
         enabled: true,
         mode,  // 'single' 또는 'auto'
         // 단일 모델 설정
-        singleModel: mode === 'single' ? { modelId: singleModel, serviceId: singleService?.serviceId || null, thinking: singleThinking } : null,
+        singleModel: mode === 'single' ? { modelId: singleModel, serviceId: singleService?.serviceId || null, thinking: singleThinking, name: this.getModelDisplayName(singleModel) } : null,
         // 자동 라우팅 설정
         manager: mode === 'auto' ? manager : null,  // 라우팅 담당: server, ai
         managerModel: mode === 'auto' && manager === 'ai' ? { modelId: managerModel, serviceId: managerService?.serviceId || null } : null,
@@ -4407,6 +4259,10 @@ export class AISettings {
           // temperature는 personality 섹션에 있지만 별도 필드로 저장
           updateData.temperature = value;
           this.agentProfile.temperature = value;
+        } else if (field === 'maxTokens') {
+          // maxTokens도 personality 섹션에 있지만 별도 필드로 저장
+          updateData.maxTokens = parseInt(value);
+          this.agentProfile.maxTokens = parseInt(value);
         } else {
           this.agentProfile.personality.communication[field] = value;
           updateData.personality = this.agentProfile.personality;
@@ -4426,11 +4282,13 @@ export class AISettings {
         if (field === 'temperature') {
           updateData.temperature = value;
           this.agentProfile.temperature = value;
-          // 기존 폼 슬라이더 동기화
           const oldSlider = document.getElementById('soulCreativity');
-          const oldValue = document.getElementById('soulCreativityValue');
           if (oldSlider) oldSlider.value = value;
-          if (oldValue) oldValue.value = value;
+        } else if (field === 'maxTokens') {
+          updateData.maxTokens = value;
+          this.agentProfile.maxTokens = value;
+          const oldSlider = document.getElementById('soulMaxTokens');
+          if (oldSlider) oldSlider.value = value;
         }
       }
 
@@ -5305,14 +5163,6 @@ export class AISettings {
   async toggleAlbaActive(roleId, active) {
     try {
       await this.apiClient.patch(`/roles/${roleId}`, { active });
-
-      // tool-worker면 도구 라우팅 enabled도 동기화
-      const role = this.availableRoles.find(r => r.roleId === roleId);
-      const roleConfig = typeof role?.config === 'string' ? JSON.parse(role.config) : (role?.config || {});
-      if (roleConfig.purpose === 'tool-routing') {
-        await this.apiClient.post('/notifications/tool-routing/toggle', { enabled: active });
-      }
-
       await this.loadAvailableRoles();
       this.showSaveStatus(`알바가 ${active ? '활성화' : '비활성화'}되었습니다.`, 'success');
     } catch (error) {
@@ -5493,19 +5343,7 @@ export class AISettings {
     const config = typeof rawConfig === 'string' ? JSON.parse(rawConfig) : rawConfig;
     const currentServiceId = config.serviceId || '';
     const isEmbedding = config.purpose === 'embedding';
-    const isToolWorker = config.purpose === 'tool-routing';
-    const hasChainSupport = isToolWorker || config.purpose === 'verification';
-
-    // tool-worker면 현재 도구 라우팅 상태 로드
-    let toolRoutingEnabled = false;
-    let toolRoutingMode = 'single';
-    if (isToolWorker) {
-      try {
-        const res = await this.apiClient.get('/notifications/tool-routing/status');
-        toolRoutingEnabled = res.enabled;
-        toolRoutingMode = res.mode || 'single';
-      } catch (e) { /* 기본값 사용 */ }
-    }
+    const hasChainSupport = false;
 
     // 임베딩 알바는 임베딩 모델 전용 드롭다운
     const modelFieldHtml = isEmbedding
@@ -5531,27 +5369,14 @@ export class AISettings {
             <button type="button" class="alba-modal-close">&times;</button>
           </div>
           <div class="alba-modal-body">
-            ${isToolWorker ? `
-            <div class="alba-modal-field">
-              <label>실행 방식</label>
-              <div style="display:flex;gap:14px;">
-                <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px;color:rgba(0,0,0,0.85);">
-                  <input type="radio" name="albaToolRoutingMode" value="single" ${toolRoutingMode === 'single' ? 'checked' : ''}> 단일
-                </label>
-                <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px;color:rgba(0,0,0,0.85);">
-                  <input type="radio" name="albaToolRoutingMode" value="chain" ${toolRoutingMode === 'chain' ? 'checked' : ''}> 체인
-                </label>
-              </div>
-              <div class="field-hint">단일: 선택한 모델만 / 체인: 실패 시 다음 모델로 자동 전환</div>
-            </div>
-            ` : `<div class="alba-system-badge">ON: AI 모델이 처리 &nbsp;|&nbsp; OFF: 간단 규칙으로 동작</div>`}
+            <div class="alba-system-badge">ON: AI 모델이 처리 &nbsp;|&nbsp; OFF: 간단 규칙으로 동작</div>
             <div class="alba-modal-field">
               <label>이름</label>
               <input type="text" id="albaName" value="${role.name || ''}" />
             </div>
             ${modelFieldHtml}
             ${hasChainSupport ? `
-            <div class="alba-modal-field" id="albaFallbackSection" style="${isToolWorker && toolRoutingMode !== 'chain' ? 'display:none' : ''}">
+            <div class="alba-modal-field" id="albaFallbackSection">
               <label>체인 단계 <span class="field-hint">(실패 시 순서대로 시도)</span></label>
               <div class="alba-chain-steps" id="albaFallbackSteps">
                 ${(config.fallbackModels || []).map((fb, idx) => `
@@ -5606,17 +5431,7 @@ export class AISettings {
       this.loadEmbeddingModels(role.preferredModel);
     }
 
-    // tool-worker: 단일/체인 라디오 변경 시 fallback 섹션 표시/숨김
-    if (isToolWorker) {
-      const fallbackSection = overlay.querySelector('#albaFallbackSection');
-      overlay.querySelectorAll('input[name="albaToolRoutingMode"]').forEach(radio => {
-        radio.addEventListener('change', () => {
-          if (fallbackSection) fallbackSection.style.display = radio.value === 'chain' ? '' : 'none';
-        });
-      });
-    }
-
-    // 체인 지원 알바 (tool-worker, verification-worker): fallback 모델 추가/삭제
+    // 체인 지원 알바: fallback 모델 추가/삭제
     if (hasChainSupport) {
       const addFallbackBtn = overlay.querySelector('#addFallbackStep');
       if (addFallbackBtn) {
@@ -5695,13 +5510,7 @@ export class AISettings {
       const updatedConfig = { ...config, serviceId };
 
       try {
-        // tool-worker면 실행 방식(단일/체인) 저장
-        if (isToolWorker) {
-          const trMode = document.querySelector('input[name="albaToolRoutingMode"]:checked')?.value || 'single';
-          await this.apiClient.post('/notifications/tool-routing/toggle', { mode: trMode });
-        }
-
-        // 체인 지원 알바 (tool-worker, verification-worker): fallback 모델 수집
+        // 체인 지원 알바: fallback 모델 수집
         if (hasChainSupport) {
           const fallbackModels = Array.from(overlay.querySelectorAll('.alba-fallback-model')).map(select => {
             const opt = select.options[select.selectedIndex];
@@ -6637,6 +6446,7 @@ export class AISettings {
       'fireworks': 'Fireworks AI',
       'deepseek': 'DeepSeek',
       'qwen': 'Alibaba Qwen',
+      'together': 'Together AI',
       'ollama': 'Ollama',
       'vertex': 'Vertex AI'
     };

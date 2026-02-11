@@ -10,8 +10,6 @@ class SoulSocketClient {
     this.connected = false;
     this.notificationPermission = null;
     this._toolExecutions = []; // 도구 실행 데이터 메모리 저장소
-    this._toolNeeds = []; // {need} 요청 내용
-    this._toolsSelected = []; // 알바가 선택한 도구 이름
     this._streamCallback = null; // 스트리밍 콜백
   }
 
@@ -81,18 +79,6 @@ class SoulSocketClient {
       console.error('Socket connection error:', error);
     });
 
-    // {need} 요청 감지
-    this.socket.on('tool_need', (data) => {
-      console.log('📋 Tool need:', data);
-      this._handleToolNeed(data);
-    });
-
-    // 알바 도구 선택 완료
-    this.socket.on('tool_selected', (data) => {
-      console.log('🎯 Tool selected:', data);
-      this._handleToolSelected(data);
-    });
-
     // 도구 실행 시작
     this.socket.on('tool_start', (data) => {
       console.log('🔧 Tool start:', data);
@@ -103,34 +89,6 @@ class SoulSocketClient {
     this.socket.on('tool_end', (data) => {
       console.log('🔧 Tool end:', data);
       this._handleToolEnd(data);
-    });
-
-    // 도구 검증 시작
-    this.socket.on('tool_verify_start', (data) => {
-      console.log('🔍 Tool verify start:', data);
-      this._handleToolVerifyStart(data);
-    });
-
-    // 도구 검증 결과
-    this.socket.on('tool_verify', (data) => {
-      console.log('🔍 Tool verify:', data);
-      this._handleToolVerify(data);
-    });
-
-    // 날조 감지 알림
-    this.socket.on('fabrication_detected', (data) => {
-      console.warn('🚨 Fabrication detected:', data);
-      this._handleFabricationDetected(data);
-    });
-
-    // 최종 메시지 검증 (응답 완료 후)
-    this.socket.on('message_verify_start', () => {
-      console.log('🔍 Message verify start');
-      this._handleMessageVerifyStart();
-    });
-    this.socket.on('message_verify', (data) => {
-      console.log('🔍 Message verify:', data);
-      this._handleMessageVerify(data);
     });
 
     // 캔버스 패널 실시간 업데이트
@@ -277,52 +235,6 @@ class SoulSocketClient {
   }
 
   /**
-   * {need} 요청 처리 - AI가 도구가 필요하다고 판단
-   */
-  _handleToolNeed(data) {
-    this._toolNeeds = data.needs || [];
-
-    let toolStatus = this._getOrCreateToolStatus();
-
-    const needItem = document.createElement('div');
-    needItem.className = 'tool-status-item need';
-    needItem.innerHTML = `
-      <div class="tool-step-indicator">✓</div>
-      <div class="tool-step-content">
-        <div class="tool-step-title">도구 요청</div>
-        <div class="tool-step-desc">${this._escapeHtml(this._toolNeeds.join(', '))}</div>
-      </div>
-    `;
-    toolStatus.appendChild(needItem);
-  }
-
-  /**
-   * 알바 도구 선택 완료 처리
-   */
-  _handleToolSelected(data) {
-    this._toolsSelected = data.tools || [];
-
-    let toolStatus = this._getOrCreateToolStatus();
-
-    // need 단계를 done으로 전환 (이전 단계 완료 표시)
-    const needItem = toolStatus.querySelector('.tool-status-item.need');
-    if (needItem) needItem.classList.add('done');
-
-    const selectedItem = document.createElement('div');
-    selectedItem.className = 'tool-status-item selected';
-
-    const toolLabels = this._toolsSelected.map(t => this._getKoreanAction(t)).join(', ');
-    selectedItem.innerHTML = `
-      <div class="tool-step-indicator">✓</div>
-      <div class="tool-step-content">
-        <div class="tool-step-title">도구 선택</div>
-        <div class="tool-step-desc">${this._escapeHtml(toolLabels)}</div>
-      </div>
-    `;
-    toolStatus.appendChild(selectedItem);
-  }
-
-  /**
    * 도구 상태 영역 가져오기/생성
    */
   _getOrCreateToolStatus() {
@@ -441,135 +353,8 @@ class SoulSocketClient {
   }
 
   /**
-   * 도구 검증 시작 처리
-   */
-  _handleToolVerifyStart(data) {
-    const toolStatus = document.querySelector('.tool-execution-status');
-    if (!toolStatus) return;
-
-    // 고유 ID로 같은 도구 여러 번 호출 시 구분
-    this._verifyCounter = (this._verifyCounter || 0) + 1;
-    const verifyId = `verify-${this._verifyCounter}`;
-
-    const isFinal = data.phase === 'final';
-    const item = document.createElement('div');
-    item.className = `tool-status-item running verify ${isFinal ? 'final' : ''}`;
-    item.dataset.verifyId = verifyId;
-    item.dataset.verifyTool = data.name;
-    item.dataset.verifyPhase = data.phase || 'check';
-    item.innerHTML = `
-      <div class="tool-step-indicator"></div>
-      <div class="tool-step-content">
-        <div class="tool-step-title">${isFinal ? '최종 검증 중' : '결과 검증 중'}</div>
-      </div>
-    `;
-    toolStatus.appendChild(item);
-  }
-
-  /**
-   * 도구 검증 결과 처리
-   */
-  _handleToolVerify(data) {
-    const phase = data.phase || 'check';
-    // running 상태인 것 중 같은 도구+phase인 마지막 것을 찾음
-    const items = document.querySelectorAll(`.tool-status-item.verify.running[data-verify-tool="${data.name}"][data-verify-phase="${phase}"]`);
-    const item = items.length > 0 ? items[items.length - 1] : null;
-    if (!item) return;
-
-    item.classList.remove('running');
-    const isFinal = phase === 'final';
-
-    const verdictMap = {
-      pass: { icon: '✅', cls: 'success', prefix: isFinal ? '최종: v통과' : 'v통과' },
-      fail: { icon: '❌', cls: 'error', prefix: isFinal ? '최종: x거짓' : '다시 실행 요청' },
-      note: { icon: '📝', cls: 'note', prefix: isFinal ? '최종: 참고' : '참고' }
-    };
-    const v = verdictMap[data.verdict] || verdictMap.pass;
-    item.classList.add(v.cls);
-
-    item.innerHTML = `
-      <div class="tool-step-indicator">${v.icon}</div>
-      <div class="tool-step-content">
-        <div class="tool-step-title">${v.prefix}</div>
-        ${data.memo ? `<div class="tool-step-desc">${this._escapeHtml(data.memo)}</div>` : ''}
-      </div>
-    `;
-  }
-
-  /**
-   * 날조 감지 처리 — 도구 안 쓰고 결과를 직접 작성한 경우
-   */
-  _handleFabricationDetected(data) {
-    let toolStatus = this._getOrCreateToolStatus();
-
-    const item = document.createElement('div');
-    item.className = 'tool-status-item fabrication error';
-    item.innerHTML = `
-      <div class="tool-step-indicator">🚨</div>
-      <div class="tool-step-content">
-        <div class="tool-step-title">날조 감지 — 도구 미사용 결과 작성 시도</div>
-        <div class="tool-step-desc">증거가 메모리에 저장되었습니다</div>
-      </div>
-    `;
-    toolStatus.appendChild(item);
-
-    // executedTools에도 기록 (펼침 영역에 표시)
-    this._toolExecutions.push({
-      name: 'fabrication_detected',
-      display: '날조 감지',
-      success: false,
-      result: null,
-      error: '도구 미사용 결과 날조 시도',
-      startTime: Date.now(),
-      verificationVerdict: 'confirmed_lie',
-      verificationMemo: '도구 없이 결과 직접 작성',
-      lieStamp: true
-    });
-  }
-
-  /**
-   * 최종 메시지 검증 시작 — 응답 완료 후
-   */
-  _handleMessageVerifyStart() {
-    // 마지막 AI 메시지의 도구 사용 영역에 검증 중 표시 추가
-    this._pendingMessageVerify = true;
-  }
-
-  /**
-   * 최종 메시지 검증 결과
-   */
-  _handleMessageVerify(data) {
-    this._pendingMessageVerify = false;
-    this._messageVerifyResult = data;
-
-    // 마지막 AI 메시지 찾기
-    const allMessages = document.querySelectorAll('.chat-message.assistant');
-    const lastMsg = allMessages[allMessages.length - 1];
-    if (!lastMsg) return;
-
-    const verdictConfig = {
-      pass: { icon: '✓', label: '검증 통과', cls: 'message-verify-pass' },
-      note: { icon: '!', label: '검증 참고', cls: 'message-verify-warn' },
-      fail: { icon: '✗', label: '검증 실패', cls: 'message-verify-error' }
-    };
-    const vc = verdictConfig[data.verdict] || verdictConfig.pass;
-
-    // 메시지 맨 아래 (message-actions 바로 앞)에 최종 검증 표시
-    const verifyBar = document.createElement('div');
-    verifyBar.className = `message-verify-bar ${vc.cls}`;
-    verifyBar.innerHTML = `<span class="message-verify-icon">${vc.icon}</span><span class="message-verify-label">${vc.label}</span><span class="message-verify-memo">${this._escapeHtml(data.memo || '')}${data.filtered > 0 ? ` (날조 필터 ${data.filtered}건)` : ''}</span>`;
-
-    const actions = lastMsg.querySelector('.message-actions');
-    if (actions) {
-      lastMsg.insertBefore(verifyBar, actions);
-    } else {
-      lastMsg.appendChild(verifyBar);
-    }
-  }
-
-  /**
    * 도구 실행 결과 요약 가져오기 (메모리 기반)
-   * @returns {Object} { tools, toolNeeds, toolsSelected }
+   * @returns {Object} { tools }
    */
   getToolStatusItems() {
     const tools = this._toolExecutions.map(t => ({
@@ -579,17 +364,10 @@ class SoulSocketClient {
       error: t.success === false,
       inputSummary: t.inputSummary || '',
       resultPreview: t.success ? (t.result || '').substring(0, 200) : (t.error || ''),
-      duration: t.duration || 0,
-      verificationMemo: t.verificationMemo || null,
-      verificationVerdict: t.verificationVerdict || null,
-      lieStamp: t.lieStamp || false
+      duration: t.duration || 0
     }));
 
-    return {
-      tools,
-      toolNeeds: this._toolNeeds.length > 0 ? [...this._toolNeeds] : [],
-      toolsSelected: this._toolsSelected.length > 0 ? [...this._toolsSelected] : []
-    };
+    return { tools };
   }
 
   /**
@@ -601,8 +379,6 @@ class SoulSocketClient {
       toolStatus.remove();
     }
     this._toolExecutions = [];
-    this._toolNeeds = [];
-    this._toolsSelected = [];
   }
 
   /**

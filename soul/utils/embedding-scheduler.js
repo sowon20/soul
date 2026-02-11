@@ -56,7 +56,8 @@ async function getYesterdayFilePath() {
 }
 
 /**
- * 임베딩 실행
+ * 임베딩 실행 — 원문 대화 턴 쌍을 직접 임베딩
+ * (Phase 3: 다이제스트 요약 대신 원문 보존)
  */
 async function runEmbedding() {
   console.log('[EmbedScheduler] 자동 임베딩 시작...');
@@ -71,12 +72,18 @@ async function runEmbedding() {
     }
 
     const vectorStore = require('./vector-store');
-    const result = await vectorStore.ingestDayJson(filePath, {
+    // Phase 3: ingestDayConversation — 원문 턴 쌍 직접 임베딩
+    const result = await vectorStore.ingestDayConversation(filePath, {
       batchDelay: 500,
       maxChunkChars: 1500
     });
 
     console.log(`[EmbedScheduler] 완료: ${result.embedded} embedded, ${result.skipped} skipped, ${result.errors} errors`);
+
+    // 임베딩 후 HNSW 인덱스 저장
+    if (result.embedded > 0) {
+      console.log('[EmbedScheduler] HNSW 인덱스 갱신 완료');
+    }
   } catch (err) {
     console.error('[EmbedScheduler] 실패:', err.message);
   }

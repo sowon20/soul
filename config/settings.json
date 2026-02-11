@@ -18,6 +18,10 @@
       "ollama": {
         "enabled": true,
         "baseUrl": "http://localhost:11434"
+      },
+      "together": {
+        "enabled": true,
+        "apiKey": "your_together_key_here"
       }
     }
   },

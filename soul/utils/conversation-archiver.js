@@ -573,10 +573,117 @@ class ConversationArchiver {
 
   /**
    * 기간 내 메시지 검색 (태그 기반)
+   * 아카이브 메시지의 tags 배열에서 매칭
+   * @param {string[]} tags - 검색할 태그 배열
+   * @param {string} startDate - 시작일 (YYYY-MM-DD)
+   * @param {string} endDate - 종료일 (YYYY-MM-DD)
+   * @param {Object} options - { matchType: 'any'|'all', limit, withContext }
+   * @returns {Array<{ content, role, timestamp, matchedTags, date, context? }>}
    */
-  async searchByTags(tags, startDate, endDate) {
-    // TODO: Phase 1.5.3에서 구현
-    return [];
+  async searchByTags(tags, startDate, endDate, options = {}) {
+    const { matchType = 'any', limit = 20, withContext = true } = options;
+
+    if (!this.initialized) await this.initialize();
+    if (!tags || tags.length === 0) return [];
+
+    const tagsLower = tags.map(t => t.toLowerCase());
+    const results = [];
+
+    // 대화 파일 수집 (searchByKeywords와 동일한 패턴)
+    const conversationFiles = [];
+
+    try {
+      if (this.useFTP) {
+        const today = new Date();
+        const searchEnd = endDate ? new Date(endDate) : today;
+        const searchStart = startDate ? new Date(startDate) : new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+        let current = new Date(searchEnd);
+        while (current >= searchStart) {
+          conversationFiles.push(new Date(current));
+          current.setDate(current.getDate() - 1);
+        }
+      } else {
+        const monthDirs = await fs.readdir(this.conversationsPath).catch(() => []);
+        for (const monthDir of monthDirs) {
+          const monthPath = path.join(this.conversationsPath, monthDir);
+          const stat = await fs.stat(monthPath).catch(() => null);
+          if (!stat || !stat.isDirectory()) continue;
+
+          const files = await fs.readdir(monthPath).catch(() => []);
+          for (const file of files) {
+            if (!file.endsWith('.json')) continue;
+            const dateStr = file.replace('.json', '');
+            const fileDate = new Date(dateStr + 'T00:00:00');
+            if (isNaN(fileDate.getTime())) continue;
+
+            if (startDate && fileDate < new Date(startDate)) continue;
+            if (endDate && fileDate > new Date(endDate)) continue;
+
+            conversationFiles.push(fileDate);
+          }
+        }
+        conversationFiles.sort((a, b) => b - a);
+      }
+    } catch (e) {
+      console.warn('[Archiver] searchByTags directory scan failed:', e.message);
+    }
+
+    // 파일 순회하며 태그 매칭
+    for (const fileDate of conversationFiles) {
+      try {
+        const dayMessages = await this.getMessagesForDate(fileDate);
+        const dateStr = fileDate.toISOString().substring(0, 10);
+
+        for (let i = 0; i < dayMessages.length; i++) {
+          const msg = dayMessages[i];
+          const msgTags = (msg.tags || []).map(t => t.toLowerCase());
+          if (msgTags.length === 0) continue;
+
+          const matched = tagsLower.filter(t => msgTags.includes(t));
+
+          // matchType 체크
+          if (matchType === 'all' && matched.length !== tagsLower.length) continue;
+          if (matchType === 'any' && matched.length === 0) continue;
+
+          // 주변 컨텍스트 (앞뒤 1턴)
+          const context = [];
+          if (withContext) {
+            for (let j = Math.max(0, i - 1); j <= Math.min(dayMessages.length - 1, i + 1); j++) {
+              const m = dayMessages[j];
+              context.push({
+                role: m.role,
+                content: (m.content || m.text || '').substring(0, 300),
+                timestamp: m.timestamp
+              });
+            }
+          }
+
+          results.push({
+            content: (msg.content || msg.text || '').substring(0, 500),
+            role: msg.role,
+            timestamp: msg.timestamp,
+            matchedTags: matched,
+            matchCount: matched.length,
+            date: dateStr,
+            source: 'tag_search',
+            context
+          });
+        }
+      } catch (e) {
+        // 파일 읽기 실패 스킵
+      }
+
+      // 충분한 결과가 나오면 중단
+      if (results.length >= limit * 3) break;
+    }
+
+    // 매칭 태그 수 높은 순, 같으면 최신순
+    results.sort((a, b) => {
+      if (b.matchCount !== a.matchCount) return b.matchCount - a.matchCount;
+      return (b.timestamp || '').localeCompare(a.timestamp || '');
+    });
+
+    return results.slice(0, limit);
   }
 
   /**

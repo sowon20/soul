@@ -326,62 +326,130 @@ class SearchUtils {
    */
   async smartSearch(naturalQuery, options = {}) {
     const { limit = 20 } = options;
-    
+
     // 오타 수정
     const corrected = smartSearchUtils.fuzzyCorrection(naturalQuery);
     const { keywords, filters } = smartSearchUtils.convertToFilters(corrected);
     const searchKeywords = keywords.length > 0 ? keywords : [corrected];
-    
+
     const results = [];
-    
-    // 1. MongoDB 메시지 검색
+    const seenKeys = new Set(); // 중복 방지
+
+    function addResult(r) {
+      const key = (r.preview || '').substring(0, 80);
+      if (seenKeys.has(key)) return;
+      seenKeys.add(key);
+      results.push(r);
+    }
+
+    // 0. Soul Memory 검색 (사실 관계 최우선, 키워드별 OR 검색)
+    try {
+      const db = require('../db');
+      if (db.db) {
+        let memorySql = 'SELECT * FROM soul_memories WHERE is_active = 1 AND (content LIKE ?';
+        const memParams = [`%${naturalQuery}%`];
+        // 키워드별 OR 검색 추가 (recall_memory와 동일)
+        for (const kw of searchKeywords) {
+          memorySql += ' OR content LIKE ? OR tags LIKE ?';
+          memParams.push(`%${kw}%`, `%${kw}%`);
+        }
+        memorySql += ') ORDER BY updated_at DESC LIMIT ?';
+        memParams.push(limit);
+        const memRows = db.db.prepare(memorySql).all(...memParams);
+
+        for (const m of memRows) {
+          addResult({
+            id: `mem_${m.id}`,
+            type: 'soul_memory',
+            typeLabel: '기억',
+            date: m.source_date || m.created_at,
+            preview: m.content,
+            tags: m.tags ? JSON.parse(m.tags) : [],
+            category: m.category,
+            relevance: 95,
+            source: { role: 'system' }
+          });
+        }
+      }
+    } catch (e) {
+      console.error('Soul Memory 검색 실패:', e.message);
+    }
+
+    // 1. 벡터 검색 (HNSW/brute-force — 소울이 recall_memory와 동일)
+    try {
+      const vectorStore = require('./vector-store');
+      const vectorHits = await Promise.race([
+        vectorStore.search(naturalQuery, limit, {}),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+      ]);
+
+      for (const r of vectorHits) {
+        const similarity = 1 - (r.distance || 0);
+        if (similarity < 0.3) continue;
+        const content = r.text || r.content || '';
+        const dateStr = r.metadata?.sourceDate || (r.metadata?.timestamp || '').substring(0, 10);
+
+        addResult({
+          id: `vec_${r.metadata?.id || Math.random().toString(36).slice(2)}`,
+          type: 'conversation',
+          typeLabel: '대화',
+          date: r.metadata?.timestamp || dateStr,
+          preview: content.substring(0, 500),
+          tags: r.metadata?.tags || [],
+          relevance: Math.round(similarity * 100),
+          source: { role: r.metadata?.role || 'user' }
+        });
+      }
+    } catch (e) {
+      console.error('벡터 검색 실패:', e.message);
+    }
+
+    // 2. 기존 메시지 검색
     try {
       const messageResults = await this.searchMessages(searchKeywords, limit);
-      results.push(...messageResults);
+      for (const r of messageResults) addResult(r);
     } catch (e) {
       console.error('메시지 검색 실패:', e.message);
     }
-    
-    // 2. MongoDB 메모리 검색 (단기)
+
+    // 3. 메모리 검색 (단기)
     try {
       const memoryResults = await this.searchMemories(searchKeywords, limit);
-      results.push(...memoryResults);
+      for (const r of memoryResults) addResult(r);
     } catch (e) {
       console.error('메모리 검색 실패:', e.message);
     }
-    
-    // 3. 중기 메모리 (주간 요약) 검색
+
+    // 4. 중기 메모리 (주간 요약) 검색
     try {
       const summaryResults = await this.searchSummaries(searchKeywords, limit);
-      results.push(...summaryResults);
+      for (const r of summaryResults) addResult(r);
     } catch (e) {
       console.error('요약 검색 실패:', e.message);
     }
-    
-    // 4. 장기 메모리 (아카이브) 검색
+
+    // 5. 장기 메모리 (아카이브) 검색
     try {
       const archiveResults = await this.searchArchives(searchKeywords, limit);
-      results.push(...archiveResults);
+      for (const r of archiveResults) addResult(r);
     } catch (e) {
       console.error('아카이브 검색 실패:', e.message);
     }
-    
-    // 5. 문서 검색
+
+    // 6. 문서 검색
     try {
       const docResults = await this.searchDocuments(searchKeywords, limit);
-      results.push(...docResults);
+      for (const r of docResults) addResult(r);
     } catch (e) {
       console.error('문서 검색 실패:', e.message);
     }
-    
+
     // 관련도 + 날짜 기준 정렬
     results.sort((a, b) => {
-      // 관련도 우선
       if (b.relevance !== a.relevance) return b.relevance - a.relevance;
-      // 날짜 최신순
       return new Date(b.date) - new Date(a.date);
     });
-    
+
     return {
       total: results.length,
       results: results.slice(0, limit),

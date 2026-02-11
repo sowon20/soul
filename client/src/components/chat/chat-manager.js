@@ -471,63 +471,9 @@ export class ChatManager {
         content.insertBefore(thinkingContainer, content.firstChild);
       }
 
-      // tool_use 태그 처리 (MCP 도구 사용 표시)
-      const toolUseMatches = message.content.matchAll(/<tool_use>([\s\S]*?)<\/tool_use>/g);
-      for (const toolMatch of toolUseMatches) {
-        const toolText = toolMatch[1].trim();
-        const toolLines = toolText.split('\n').filter(l => l.trim());
-        
-        // 도구 사용 컨테이너
-        const toolContainer = document.createElement('div');
-        toolContainer.className = 'ai-tool-container';
-        
-        // 토글 버튼
-        const toolToggleBtn = document.createElement('button');
-        toolToggleBtn.type = 'button';
-        toolToggleBtn.className = 'ai-tool-toggle';
-        toolToggleBtn.innerHTML = `🔧 <span>도구 사용 (${toolLines.length}개)</span>`;
-        toolToggleBtn.addEventListener('click', function(e) {
-          e.preventDefault();
-          e.stopPropagation();
-          this.parentElement.classList.toggle('expanded');
-        });
-        
-        // 도구 내용 (파싱해서 예쁘게)
-        const toolContent = document.createElement('div');
-        toolContent.className = 'ai-tool-content';
-        
-        toolLines.forEach(line => {
-          const parts = line.split('|');
-          const toolItem = document.createElement('div');
-          toolItem.className = 'ai-tool-item';
-          
-          if (parts.length >= 2) {
-            // 새 포맷: 이름|입력|결과
-            const [name, input, result] = parts;
-            toolItem.innerHTML = `
-              <div class="tool-name">${name}</div>
-              <div class="tool-input">${input || ''}</div>
-              ${result ? `<div class="tool-result">${result.substring(0, 100)}${result.length > 100 ? '...' : ''}</div>` : ''}
-            `;
-          } else {
-            // 구 포맷
-            toolItem.textContent = line;
-          }
-          
-          toolContent.appendChild(toolItem);
-        });
-        
-        toolContainer.appendChild(toolToggleBtn);
-        toolContainer.appendChild(toolContent);
-        content.insertBefore(toolContainer, content.firstChild);
-      }
-
-      // 도구 사용 과정 표시 (온보딩 스텝 스타일)
-      const hasToolsUsed = message.toolsUsed && message.toolsUsed.length > 0;
-      const hasToolNeeds = message.toolNeeds && message.toolNeeds.length > 0;
-      const hasToolsSelected = message.toolsSelected && message.toolsSelected.length > 0;
-      if (hasToolsUsed || hasToolNeeds || hasToolsSelected) {
-        const toolsUsedArr = message.toolsUsed || [];
+      // 도구 사용 과정 표시
+      if (message.toolsUsed && message.toolsUsed.length > 0) {
+        const toolsUsedArr = message.toolsUsed;
         const toolsContainer = document.createElement('div');
         toolsContainer.className = 'ai-tool-thinking-container';
 
@@ -535,14 +481,10 @@ export class ChatManager {
         const toolsToggle = document.createElement('button');
         toolsToggle.type = 'button';
         toolsToggle.className = 'ai-tool-thinking-toggle';
-        const allSuccess = toolsUsedArr.length > 0 ? toolsUsedArr.every(t => t.success) : true;
-        const hasLie = toolsUsedArr.some(t => t.verificationVerdict === 'confirmed_lie' || t.lieStamp);
-        const hasVerifyFail = toolsUsedArr.some(t => t.verificationVerdict === 'fail');
-        const verifyCount = toolsUsedArr.filter(t => t.verificationVerdict && t.verificationVerdict !== 'skip').length;
-        const statusClass = hasLie ? 'error' : (allSuccess && !hasVerifyFail) ? 'success' : 'warning';
-        const icon = hasLie ? '✗' : allSuccess ? '✓' : '⚠';
-        const totalSteps = (hasToolNeeds ? 1 : 0) + (hasToolsSelected ? 1 : 0) + toolsUsedArr.length + verifyCount;
-        toolsToggle.innerHTML = `<span class="tool-thinking-icon ${statusClass}">${icon}</span> <span>도구 사용 ${totalSteps}단계</span><span class="tool-thinking-chevron">›</span>`;
+        const allSuccess = toolsUsedArr.every(t => t.success);
+        const statusClass = allSuccess ? 'success' : 'warning';
+        const icon = allSuccess ? '✓' : '⚠';
+        toolsToggle.innerHTML = `<span class="tool-thinking-icon ${statusClass}">${icon}</span> <span>도구 사용 ${toolsUsedArr.length}건</span><span class="tool-thinking-chevron">›</span>`;
         toolsToggle.addEventListener('click', function(e) {
           e.preventDefault();
           e.stopPropagation();
@@ -572,155 +514,64 @@ export class ChatManager {
           return div.innerHTML;
         };
 
-        const formatResult = (toolName, resultText) => {
-          if (!resultText) return '';
-          try {
-            const data = typeof resultText === 'string' ? JSON.parse(resultText) : resultText;
-            return this._formatToolResult(toolName, data);
-          } catch {
-            return String(resultText).substring(0, 200);
-          }
-        };
-
-        // 1. {need} 요청 단계
-        if (message.toolNeeds && message.toolNeeds.length > 0) {
-          const needStep = document.createElement('div');
-          needStep.className = 'tool-thinking-step need';
-          needStep.innerHTML = `
-            <div class="tool-thinking-indicator">✓</div>
-            <div class="tool-thinking-content-wrap">
-              <div class="tool-thinking-action">도구 요청</div>
-              <div class="tool-thinking-result">${escapeHtml(message.toolNeeds.join(', '))}</div>
-            </div>
-          `;
-          toolsContent.appendChild(needStep);
-        }
-
-        // 2. 알바 도구 선택 단계
-        if (message.toolsSelected && message.toolsSelected.length > 0) {
-          const selectedStep = document.createElement('div');
-          selectedStep.className = 'tool-thinking-step selected';
-          const selectedLabels = message.toolsSelected.map(t => koreanActions[t] || t).join(', ');
-          selectedStep.innerHTML = `
-            <div class="tool-thinking-indicator">✓</div>
-            <div class="tool-thinking-content-wrap">
-              <div class="tool-thinking-action">도구 선택</div>
-              <div class="tool-thinking-result">${escapeHtml(selectedLabels)}</div>
-            </div>
-          `;
-          toolsContent.appendChild(selectedStep);
-        }
-
-        // 3. 도구 실행 단계
+        // 도구 실행 단계
         for (const tool of toolsUsedArr) {
           const step = document.createElement('div');
           step.className = `tool-thinking-step ${tool.success ? 'success' : 'error'}`;
 
           const actionName = koreanActions[tool.name] || tool.display || tool.name;
           const inputText = tool.inputSummary || '';
-          const resultText = formatResult(tool.name, tool.resultPreview || '');
+          let resultText = tool.resultPreview || tool.error || '';
+          // 기존 메시지 호환: raw JSON이면 한국어 요약으로 변환
+          if (resultText.startsWith('{')) {
+            try {
+              const d = JSON.parse(resultText);
+              if (tool.name === 'recall_memory') {
+                const cnt = d.count || (d.results ? d.results.length : 0);
+                resultText = cnt > 0 ? `${cnt}건 발견` : '관련 기억 없음';
+              } else if (tool.name === 'get_profile') {
+                resultText = d.found === false ? '정보 없음' : (d.field && d.value ? `${d.field}: ${d.value}` : '프로필 조회 완료');
+              } else if (tool.name === 'update_profile') {
+                resultText = d.success ? `${d.field || '정보'} 저장 완료` : '저장 실패';
+              } else if (d.success !== undefined) {
+                resultText = d.success ? '성공' : (d.message || d.error || '실패');
+              }
+            } catch { /* 잘린 JSON — 그대로 표시 */ }
+          }
+
+          // resultFull이 있으면 클릭해서 펼칠 수 있게
+          const fullResult = tool.resultFull || '';
+          const hasFullResult = fullResult && fullResult !== resultText;
 
           step.innerHTML = `
             <div class="tool-thinking-indicator">${tool.success ? '✓' : '✗'}</div>
             <div class="tool-thinking-content-wrap">
               <div class="tool-thinking-action">${escapeHtml(actionName)}${inputText ? `<span class="tool-thinking-input">${escapeHtml(inputText)}</span>` : ''}</div>
-              ${resultText ? `<div class="tool-thinking-result">${escapeHtml(resultText)}</div>` : ''}
+              ${resultText ? `<div class="tool-thinking-result${hasFullResult ? ' expandable' : ''}">${escapeHtml(resultText)}</div>` : ''}
+              ${hasFullResult ? `<pre class="tool-result-full" style="display:none">${escapeHtml(fullResult)}</pre>` : ''}
             </div>
           `;
-          toolsContent.appendChild(step);
-        }
 
-        // 4. 검증 결과 — 맨 아래 별도 행 (필터 감지도 반영)
-        const verifiedTools = toolsUsedArr.filter(t => t.verificationVerdict && t.verificationVerdict !== 'skip');
-        const hasFiltered = message.filtered && message.filtered.length > 0;
-        if (verifiedTools.length > 0 || hasFiltered) {
-          // 최종 verdict 결정 (필터 걸리면 무조건 fail 이상)
-          const hasLie = verifiedTools.some(t => t.verificationVerdict === 'confirmed_lie' || t.lieStamp);
-          const hasFail = verifiedTools.some(t => t.verificationVerdict === 'fail') || hasFiltered;
-          const hasNote = verifiedTools.some(t => t.verificationVerdict === 'note');
-          const finalVerdict = hasLie ? 'confirmed_lie' : hasFail ? 'fail' : hasNote ? 'note' : 'pass';
-
-          const verdictConfig = {
-            pass: { icon: '✓', label: '검증 통과', cls: 'verify' },
-            note: { icon: '!', label: '검증 참고', cls: 'verify-warn' },
-            fail: { icon: '✗', label: '검증 실패', cls: 'verify-error' },
-            confirmed_lie: { icon: '✗', label: '거짓 확정', cls: 'verify-error' }
-          };
-          const vc = verdictConfig[finalVerdict] || verdictConfig.pass;
-
-          // 메모 모아서 표시 (필터 정보 포함)
-          const memos = verifiedTools.map(t => t.verificationMemo).filter(Boolean);
-          if (hasFiltered) {
-            memos.push(`날조 필터 ${message.filtered.length}건`);
+          if (hasFullResult) {
+            const resultEl = step.querySelector('.tool-thinking-result');
+            resultEl.addEventListener('click', (e) => {
+              e.stopPropagation();
+              const fullEl = step.querySelector('.tool-result-full');
+              if (fullEl.style.display === 'none') {
+                fullEl.style.display = 'block';
+                resultEl.classList.add('expanded');
+              } else {
+                fullEl.style.display = 'none';
+                resultEl.classList.remove('expanded');
+              }
+            });
           }
-          const memoText = memos.join(', ');
-
-          const verifyStep = document.createElement('div');
-          verifyStep.className = `tool-thinking-step ${vc.cls}`;
-          verifyStep.innerHTML = `
-            <div class="tool-thinking-indicator">${vc.icon}</div>
-            <div class="tool-thinking-content-wrap">
-              <div class="tool-thinking-action">${vc.label}</div>
-              ${memoText ? `<div class="tool-thinking-result">${escapeHtml(memoText)}</div>` : ''}
-            </div>
-          `;
-          toolsContent.appendChild(verifyStep);
+          toolsContent.appendChild(step);
         }
 
         toolsContainer.appendChild(toolsToggle);
         toolsContainer.appendChild(toolsContent);
         content.insertBefore(toolsContainer, content.firstChild);
-      }
-
-      // 필터 표시 (서버에서 제거된 날조 내용) — 도구사용 버튼 옆에 배치
-      if (message.filtered && message.filtered.length > 0) {
-        const filterContainer = document.createElement('div');
-        filterContainer.className = 'ai-filter-container';
-
-        const filterToggle = document.createElement('button');
-        filterToggle.type = 'button';
-        filterToggle.className = 'ai-filter-toggle';
-        filterToggle.innerHTML = `<span class="filter-icon">!</span> <span>필터 ${message.filtered.length}건</span><span class="filter-chevron">›</span>`;
-        filterToggle.addEventListener('click', function(e) {
-          e.preventDefault();
-          e.stopPropagation();
-          filterContainer.classList.toggle('expanded');
-        });
-
-        const filterContent = document.createElement('div');
-        filterContent.className = 'ai-filter-content';
-
-        const escHtml = (text) => {
-          const d = document.createElement('div');
-          d.textContent = text;
-          return d.innerHTML;
-        };
-
-        for (const f of message.filtered) {
-          const filterItem = document.createElement('div');
-          filterItem.className = 'ai-filter-item';
-          filterItem.innerHTML = `
-            <div class="filter-type">${escHtml(f.type)}</div>
-            <div class="filter-detail">${escHtml(f.content || '')}</div>
-          `;
-          filterContent.appendChild(filterItem);
-        }
-
-        filterContainer.appendChild(filterToggle);
-        filterContainer.appendChild(filterContent);
-
-        // 도구사용 토글이 있으면 그 옆에, 없으면 content 맨 앞에
-        const toolThinkingContainer = content.querySelector('.ai-tool-thinking-container');
-        if (toolThinkingContainer) {
-          // 도구사용 컨테이너 바로 뒤에 인라인 배치
-          toolThinkingContainer.style.display = 'inline-block';
-          filterContainer.style.display = 'inline-block';
-          filterContainer.style.marginLeft = '6px';
-          filterContainer.style.verticalAlign = 'top';
-          toolThinkingContainer.after(filterContainer);
-        } else {
-          content.insertBefore(filterContainer, content.firstChild);
-        }
       }
 
       // Process code blocks - add copy button and syntax highlighting
@@ -759,36 +610,14 @@ export class ChatManager {
           const tierLabel = tierLabels[tier] || tierLabels.medium;
           tierSpan.textContent = tierLabel;
           tierSpan.classList.add(tier); // tier 클래스 추가 (색상용)
-          modelSpan.textContent = message.routing.modelId;
+          const modelName = message.routing.selectedModel || dashboardManager.getModelDisplayName(message.routing.modelId);
+          modelSpan.textContent = modelName;
 
           // title에 상세 정보
-          routingInfo.title = `${tierLabel} | ${message.routing.modelId}`;
+          routingInfo.title = `${tierLabel} | ${modelName}`;
           // data 속성으로 활성화 (CSS에서 호버 시 표시)
           routingInfo.dataset.active = 'true';
           routingInfo.dataset.tier = tier;
-        }
-      }
-
-      // 최종 메시지 검증 표시 (메시지 맨 아래, message-actions 바로 앞)
-      if (message.messageVerify) {
-        const mv = message.messageVerify;
-        const mvConfig = {
-          pass: { icon: '✓', label: '검증 통과', cls: 'message-verify-pass' },
-          note: { icon: '!', label: '검증 참고', cls: 'message-verify-warn' },
-          fail: { icon: '✗', label: '검증 실패', cls: 'message-verify-error' }
-        };
-        const mvc = mvConfig[mv.verdict] || mvConfig.pass;
-
-        const memoSafe = this.escapeHtml(mv.memo || '');
-        const verifyBar = document.createElement('div');
-        verifyBar.className = `message-verify-bar ${mvc.cls}`;
-        verifyBar.innerHTML = `<span class="message-verify-icon">${mvc.icon}</span><span class="message-verify-label">${mvc.label}</span><span class="message-verify-memo">${memoSafe}${mv.filtered > 0 ? ` (날조 필터 ${mv.filtered}건)` : ''}</span>`;
-
-        const actions = messageDiv.querySelector('.message-actions');
-        if (actions) {
-          messageDiv.insertBefore(verifyBar, actions);
-        } else {
-          messageDiv.appendChild(verifyBar);
         }
       }
 
@@ -796,64 +625,6 @@ export class ChatManager {
       this.attachAssistantMessageActions(messageDiv, message);
 
       return messageDiv;
-    }
-  }
-
-  /**
-   * 도구 결과 JSON을 사람이 읽기 좋게 포맷팅
-   */
-  _formatToolResult(toolName, data) {
-    if (!data || typeof data !== 'object') return String(data || '');
-
-    switch (toolName) {
-      case 'get_profile': {
-        if (data.found === false) return data.message || '정보 없음';
-        if (data.field && data.value) return `${data.field}: ${data.value}`;
-        // 전체 프로필
-        const parts = [];
-        if (data.basicInfo) {
-          for (const [k, v] of Object.entries(data.basicInfo)) {
-            const val = typeof v === 'object' ? v.value : v;
-            if (val) parts.push(`${k}: ${val}`);
-          }
-        }
-        return parts.length > 0 ? parts.join(', ') : '프로필 조회 완료';
-      }
-
-      case 'recall_memory': {
-        if (data.count !== undefined) return `${data.count}건의 기억 발견`;
-        if (data.results?.length > 0) return `${data.results.length}건 발견`;
-        if (data.found === false) return data.message || '관련 기억 없음';
-        return '검색 완료';
-      }
-
-      case 'update_profile':
-        if (data.success) return `${data.field || '정보'} 저장 완료`;
-        return data.message || '저장 실패';
-
-      case 'list_my_rules': {
-        if (Array.isArray(data.rules)) return `${data.rules.length}개 규칙`;
-        if (data.count !== undefined) return `${data.count}개 규칙`;
-        return '규칙 조회 완료';
-      }
-
-      case 'add_my_rule':
-        return data.success ? '규칙 저장 완료' : (data.message || '저장 실패');
-
-      case 'delete_my_rule':
-        return data.success ? '규칙 삭제 완료' : (data.message || '삭제 실패');
-
-      default: {
-        // 범용: 주요 필드만 간략히 표시
-        const summary = [];
-        for (const [k, v] of Object.entries(data)) {
-          if (k === 'success') continue;
-          const val = typeof v === 'object' ? JSON.stringify(v).substring(0, 50) : String(v);
-          summary.push(`${k}: ${val.substring(0, 60)}`);
-          if (summary.length >= 3) break;
-        }
-        return summary.join(', ') || '완료';
-      }
     }
   }
 
@@ -1335,7 +1106,6 @@ export class ChatManager {
 
     // 스트리밍 콜백 등록 — 타이핑 인디케이터를 실시간 텍스트로 교체
     // 2~3초 디스플레이 딜레이: 서버는 즉시 처리하지만 화면에는 늦게 표시
-    // → {need} 태그 등 내부 처리가 사용자 눈에 보이지 않음
     let streamingEl = null;
     let streamingContent = '';
     let streamingThinking = '';
@@ -1616,7 +1386,7 @@ export class ChatManager {
 
     // message-content에 커서만 추가
     const content = el.querySelector('.message-content');
-    content.innerHTML = '<span class="streaming-cursor"></span>';
+    content.innerHTML = '<div class="typing-dots"><div class="os1-loader"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>';
 
     // 스트리밍 중에는 액션 버튼 숨김
     const actions = el.querySelector('.message-actions');
@@ -1712,7 +1482,9 @@ export class ChatManager {
         contentArea = document.createElement('div');
         contentArea.className = 'streaming-text-area';
         contentEl.appendChild(contentArea);
-        // 초기 커서 제거 (streaming-text-area 안에 새 커서가 들어가므로)
+        // 초기 로더/커서 제거 (streaming-text-area 안에 새 커서가 들어가므로)
+        const oldLoader = contentEl.querySelector(':scope > .typing-dots');
+        if (oldLoader) oldLoader.remove();
         const oldCursor = contentEl.querySelector(':scope > .streaming-cursor');
         if (oldCursor) oldCursor.remove();
       }
@@ -1730,12 +1502,14 @@ export class ChatManager {
       }
       contentArea.innerHTML = rendered + '<span class="streaming-cursor"></span>';
     } else {
-      // content가 아직 없으면 커서만 유지
+      // content가 아직 없으면 로더 유지
       if (!contentArea) {
-        // thinking 뒤에 커서
-        const existingCursor = contentEl.querySelector('.streaming-cursor');
-        if (!existingCursor) {
-          contentEl.insertAdjacentHTML('beforeend', '<span class="streaming-cursor"></span>');
+        // thinking 뒤에 로더
+        const existingLoader = contentEl.querySelector('.typing-dots');
+        if (!existingLoader) {
+          const existingCursor = contentEl.querySelector('.streaming-cursor');
+          if (existingCursor) existingCursor.remove();
+          contentEl.insertAdjacentHTML('beforeend', '<div class="typing-dots"><div class="os1-loader"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>');
         }
       }
     }

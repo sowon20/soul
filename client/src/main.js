@@ -92,17 +92,20 @@ class SoulApp {
     // Setup event listeners
     this.setupEventListeners();
 
-    // Load recent messages (마지막 대화 위치)
-    await this.chatManager.loadRecentMessages();
+    // 모델명 캐시만 먼저 로드 (빠름 — API 1회)
+    await dashboardManager._loadModelNameCache();
+
+    // 메시지 로드 + 대시보드 통계를 병렬로
+    await Promise.all([
+      this.chatManager.loadRecentMessages(),
+      dashboardManager.init()
+    ]);
 
     // Bind events to existing hardcoded messages (for demo/fallback)
     this.chatManager.bindExistingMessages();
 
     // Scroll to bottom after messages are loaded
     this.scrollToBottom();
-
-    // 대시보드 통계 로드
-    await dashboardManager.init();
 
     // 검색 매니저 초기화
     this.searchManager = new SearchManager(this.apiClient);

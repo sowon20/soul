@@ -11,6 +11,7 @@ class DashboardManager {
     this.customEndDate = null;
     this.currentCurrency = 'USD';
     this.exchangeRate = null;
+    this._modelNameCache = {}; // modelId → displayName 캐시
   }
 
   async init() {
@@ -21,6 +22,7 @@ class DashboardManager {
       this.setupDateRange();
       this.setupStatsActions();
       this.setupBreakdownPanels();
+      await this._loadModelNameCache();
       await this.loadCurrencyPreference();
       this.setupCurrencyDropdown();
       await this.fetchExchangeRate();
@@ -523,11 +525,12 @@ class DashboardManager {
 
     const { actual, breakdown, meta } = tokenUsage;
 
-    // 모델 (전체 모델 ID)
+    // 모델명: 서버가 보내준 modelName 우선, 없으면 캐시 룩업
     const modelEl = document.getElementById('lastReqModel');
     if (modelEl) {
-      modelEl.textContent = meta?.model || '-';
-      modelEl.title = meta?.model || '';
+      const modelDisplayName = meta?.modelName || this.getModelDisplayName(meta?.model || '-');
+      modelEl.textContent = modelDisplayName;
+      modelEl.title = modelDisplayName;
     }
 
     // Tier 배지
@@ -780,7 +783,8 @@ class DashboardManager {
       'ollama': '🔧',
       'lightning': '⚡',
       'cartesia': '🎙️',
-      'fireworks': '🔥'
+      'fireworks': '🔥',
+      'together': '🤝'
     };
 
     // 잔액 있는 서비스 / 없는 서비스 분리
@@ -877,41 +881,38 @@ class DashboardManager {
     }
   }
 
+  /**
+   * 모델명 캐시 로드 — AI 서비스에서 모든 모델의 id → name 매핑
+   */
+  async _loadModelNameCache() {
+    // 이미 로드됐으면 스킵
+    if (Object.keys(this._modelNameCache).length > 0) return;
+
+    try {
+      const res = await fetch('/api/ai-services');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.services)) {
+        for (const service of data.services) {
+          if (Array.isArray(service.models)) {
+            for (const model of service.models) {
+              if (model.id && model.name) {
+                this._modelNameCache[model.id] = model.name;
+              }
+            }
+          }
+        }
+      }
+      console.log(`[Dashboard] Model name cache loaded: ${Object.keys(this._modelNameCache).length} models`);
+    } catch (e) {
+      console.warn('[Dashboard] Model name cache load failed:', e.message);
+    }
+  }
+
   getModelDisplayName(modelId) {
-    if (!modelId) return 'Unknown';
+    if (!modelId) return '';
 
-    const id = modelId.toLowerCase();
-
-    if (id.includes('claude')) {
-      if (id.includes('opus')) return 'Claude Opus';
-      if (id.includes('sonnet')) return 'Claude Sonnet';
-      if (id.includes('haiku')) return 'Claude Haiku';
-      return 'Claude';
-    }
-
-    if (id.includes('gpt')) {
-      // HF Inference OSS 모델 구분
-      const ossMatch = id.match(/gpt-oss-(\d+b)/);
-      if (ossMatch) return `GPT-OSS ${ossMatch[1].toUpperCase()}`;
-      if (id.includes('4o')) return 'GPT-4o';
-      if (id.includes('4')) return 'GPT-4';
-      if (id.includes('3.5')) return 'GPT-3.5';
-      return 'GPT';
-    }
-
-    if (id.includes('gemini')) {
-      if (id.includes('ultra')) return 'Gemini Ultra';
-      if (id.includes('pro')) return 'Gemini Pro';
-      if (id.includes('flash')) return 'Gemini Flash';
-      return 'Gemini';
-    }
-
-    if (id.includes('grok')) {
-      if (id.includes('mini')) return 'Grok Mini';
-      return 'Grok';
-    }
-
-    return modelId.length > 20 ? modelId.substring(0, 20) + '...' : modelId;
+    // DB 캐시에서 조회 — 없으면 modelId 그대로
+    return this._modelNameCache[modelId] || modelId;
   }
 
   setDefaultStats() {

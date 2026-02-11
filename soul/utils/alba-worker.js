@@ -98,9 +98,13 @@ class AlbaWorker {
         ? JSON.parse(role.config)
         : (role.config || {});
 
+      if (!role.preferredModel || !roleConfig.serviceId) {
+        console.warn(`[AlbaWorker] ${this.roleId} 모델/서비스 미설정`);
+        return null;
+      }
       this._serviceCache = {
-        modelId: role.preferredModel || 'openai/gpt-oss-20b:free',
-        serviceId: roleConfig.serviceId || 'openrouter',
+        modelId: role.preferredModel,
+        serviceId: roleConfig.serviceId,
         temperature: roleConfig.temperature || this.config.temperature,
         maxTokens: roleConfig.maxTokens || this.config.maxTokens
       };

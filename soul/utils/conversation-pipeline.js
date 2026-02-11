@@ -297,10 +297,13 @@ class ConversationPipeline {
       const rawResult = this.memoryManager.shortTerm.getWithinTokenLimit(rawTokenBudget, maxMessages);
       console.log(`[Pipeline] Context: ${rawResult.messages.length}/${maxMessages} raw messages, ${rawResult.totalTokens} tokens (budget: ${rawTokenBudget})`);
 
-      // 메시지 (assistant의 <thinking> 태그는 제거 + 타임스탬프 인라인)
+      // 메시지 (assistant의 <thinking>, <tool_history> 태그는 제거 + 타임스탬프 인라인)
       const rawMessages = rawResult.messages.map(m => {
         let content = m.role === 'assistant' && m.content
-          ? m.content.replace(/<thinking>[\s\S]*?<\/thinking>\s*/g, '').trim()
+          ? m.content
+              .replace(/<thinking>[\s\S]*?<\/thinking>\s*/g, '')
+              .replace(/<tool_history>[\s\S]*?<\/tool_history>\s*/g, '')
+              .trim()
           : m.content;
 
         // 타임스탬프를 메시지 앞에 인라인 (별도 timeline 섹션 대신)
@@ -577,23 +580,7 @@ class ConversationPipeline {
         routing: metadata?.routing || null
       }, userTimestamp, timezone);
 
-      // === 실시간 임베딩 (비동기 — 응답 차단 안 함) ===
-      try {
-        const vectorStore = require('./vector-store');
-        const provider = await vectorStore.getEmbeddingProvider();
-        if (provider) {
-          // user+assistant 한 턴을 하나의 청크로 임베딩
-          const turnText = `[user] ${userMessage}\n[assistant] ${assistantResponse.substring(0, 1500)}`;
-          vectorStore.addMessage({
-            content: turnText,
-            role: 'user',
-            sessionId: 'embeddings',
-            timestamp: userTimestamp.toISOString()
-          }).catch(err => {
-            console.warn('[Pipeline] Embedding error (non-blocking):', err.message);
-          });
-        }
-      } catch { /* embedding provider not configured, skip */ }
+      // 임베딩은 다이제스트 생성 시에만 수행 (session-digest.js에서 처리)
 
       // === 세션 다이제스트 트리거 (비동기 — 응답 차단 안 함) ===
       const digest = getSessionDigest();
@@ -640,7 +627,7 @@ class ConversationPipeline {
 
       // 프로필 섹션 제거: chat.js에서 이미 처리하고 있음 (중복 방지)
       // timezone만 가져오고 프로필 내용은 chat.js에 맡김
-      await profile.recordAccess('soul');
+      // recordAccess 제거 — Profile 모델에 미구현 메서드
     } catch (error) {
       console.error('Error loading profile for system prompt:', error);
     }
