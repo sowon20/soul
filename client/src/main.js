@@ -8,7 +8,7 @@ import { ChatManager } from './components/chat/chat-manager.js?v=19';
 import { PanelManager } from './components/shared/panel-manager.js';
 import { MenuManager } from './components/sidebar/menu-manager.js';
 import { APIClient } from './utils/api-client.js';
-import { initRoleManager } from './utils/role-manager.js';
+// role-manager.js 제거됨 — 알바 관리는 ai-settings.js에 통합
 import dashboardManager from './utils/dashboard-manager.js';
 import { SearchManager } from './utils/search-manager.js';
 import { SoulSocketClient } from './utils/socket-client.js';
@@ -84,7 +84,7 @@ class SoulApp {
     this.chatManager = new ChatManager(this.apiClient);
     this.panelManager = new PanelManager(this.apiClient);
     this.menuManager = new MenuManager();
-    this.roleManager = initRoleManager(this.apiClient);
+    // this.roleManager 제거됨 — 알바 관리는 ai-settings.js에서 처리
 
     // Load user profile and theme
     await this.loadUserProfile();
@@ -209,6 +209,17 @@ class SoulApp {
       this.themeManager.setUserId(userId);
 
       const profile = await this.apiClient.getUserProfile(userId);
+      
+      // 프로필 저장 (검색 등에서 사용)
+      this.profile = profile;
+
+      // AI 이름 로드
+      try {
+        const aiSettings = await this.apiClient.get('/ai/settings');
+        this.aiName = aiSettings?.settings?.personality?.name || 'Soul';
+      } catch (e) {
+        this.aiName = 'Soul';
+      }
 
       if (profile && profile.preferences) {
         // Apply theme settings
@@ -410,7 +421,7 @@ class SoulApp {
           settingsContainer.appendChild(contentDiv);
 
           // SettingsManager로 렌더링
-          const { SettingsManager } = await import('./settings/settings-manager.js');
+          const { SettingsManager } = await import('./settings/settings-manager.js?v=2');
           const settingsManager = new SettingsManager(this.apiClient);
           await settingsManager.render(contentDiv, 'profile');
 
@@ -1193,7 +1204,7 @@ class SoulApp {
       settingsContainer.style.display = 'flex';
 
       // 설정 매니저로 AI 설정 페이지 렌더링
-      const { SettingsManager } = await import('./settings/settings-manager.js');
+      const { SettingsManager } = await import('./settings/settings-manager.js?v=2');
       const settingsManager = new SettingsManager(this.apiClient);
       await settingsManager.render(settingsContainer, 'ai');
     }
@@ -1224,7 +1235,7 @@ class SoulApp {
       settingsContainer.style.display = 'flex';
 
       // 설정 매니저로 저장소 설정 페이지 렌더링
-      const { SettingsManager } = await import('./settings/settings-manager.js');
+      const { SettingsManager } = await import('./settings/settings-manager.js?v=2');
       const settingsManager = new SettingsManager(this.apiClient);
       await settingsManager.render(settingsContainer, 'storage');
     }
@@ -1319,7 +1330,7 @@ class SoulApp {
       settingsContainer.style.display = 'flex';
 
       // 설정 매니저로 앱설정 페이지 렌더링
-      const { SettingsManager } = await import('./settings/settings-manager.js');
+      const { SettingsManager } = await import('./settings/settings-manager.js?v=2');
       const settingsManager = new SettingsManager(this.apiClient);
       await settingsManager.render(settingsContainer, 'app');
     }
@@ -1488,6 +1499,28 @@ class SoulApp {
       if (!dockRes.ok) throw new Error(`HTTP ${dockRes.status}`);
       this.dockItems = await dockRes.json();
 
+      // 내장 섹션 정의 (app-settings.js와 동일)
+      const builtinSections = {
+        'section_memory': { name: 'A. 메모리 & 프로필', tools: ['recall_memory', 'save_memory', 'update_memory', 'list_memories', 'get_profile', 'update_profile', 'update_tags'] },
+        'section_messaging': { name: 'B. 메시징', tools: ['send_message', 'schedule_message', 'cancel_scheduled_message', 'list_scheduled_messages'] },
+        'section_calendar': { name: 'C. 캘린더', tools: ['get_events', 'create_event', 'update_event', 'delete_event'] },
+        'section_todo': { name: 'D. 할일', tools: ['manage_todo'] },
+        'section_note': { name: 'E. 메모', tools: ['manage_note'] },
+        'section_browser': { name: 'F. 웹 브라우저', tools: ['search_web', 'read_url', 'browse'] },
+        'section_filesystem': { name: 'G. 파일시스템', tools: ['file_read', 'file_write', 'file_list', 'file_info'] },
+        'section_cloud': { name: 'H. 클라우드 스토리지', tools: ['cloud_search', 'cloud_read', 'cloud_write', 'cloud_delete', 'cloud_list'] },
+        'section_system': { name: 'I. 시스템', tools: ['open_terminal', 'execute_command', 'get_weather'] }
+      };
+
+      // 내장 섹션 플래그 및 도구 목록 복원
+      for (const item of this.dockItems) {
+        const sectionData = builtinSections[item.id];
+        if (sectionData) {
+          item.isBuiltinSection = true;
+          item.tools = sectionData.tools;
+        }
+      }
+
       // MCP 서버 정보 병합 (isMcp 마킹)
       if (mcpRes.ok) {
         const mcpData = await mcpRes.json();
@@ -1602,7 +1635,7 @@ class SoulApp {
     this.dockEditMode = true;
     document.querySelector('.dock')?.classList.add('edit-mode');
     this.renderDock();
-    
+
     // 아이콘 외 영역 클릭하면 편집 모드 종료
     const exitHandler = (e) => {
       if (!e.target.closest('.dock-item')) {
@@ -1685,7 +1718,7 @@ class SoulApp {
       await fetch('/api/config/dock', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: newOrder })
+        body: JSON.stringify(newOrder)
       });
     } catch (e) {
       console.error('독 순서 저장 실패:', e);
@@ -1715,6 +1748,12 @@ class SoulApp {
    * 독 아이템 클릭 핸들러
    */
   handleDockClick(item) {
+    // 내장 섹션 처리
+    if (item.isBuiltinSection) {
+      this.openBuiltinSectionPanel(item);
+      return;
+    }
+
     // 터미널은 항상 내장 터미널로 열기 (MCP URL 무시)
     if (item.icon === 'terminal-icon.webp' || item.id === 'terminal' || item.name === 'Terminal') {
       this.openTerminalPanel();
@@ -1743,6 +1782,106 @@ class SoulApp {
           }
       }
     }
+  }
+
+  /**
+   * 내장 섹션 패널 열기
+   */
+  async openBuiltinSectionPanel(item) {
+    const panel = document.getElementById('canvasPanel');
+    const tabsContainer = document.getElementById('canvasTabs');
+    const content = document.getElementById('canvasContent');
+
+    if (!panel || !tabsContainer || !content) {
+      console.log('❌ 캔버스 패널 요소 없음');
+      return;
+    }
+
+    // 이미 열린 탭인지 확인
+    const existingTab = this.canvasTabs.find(t => t.type === item.id);
+    if (existingTab) {
+      this.activateCanvasTab(item.id);
+      panel.classList.remove('hide');
+      this.movCanvasPanelForMobile();
+      return;
+    }
+
+    // 새 탭 추가 (canvasTabs 배열에)
+    this.canvasTabs.push({
+      type: item.id,
+      title: item.name,
+      url: null,
+      isMcp: false,
+      isBuiltinSection: true,
+      tools: item.tools || []
+    });
+
+    // 컨테이너 생성
+    const container = document.createElement('div');
+    container.className = 'canvas-content-container builtin-section-container';
+    container.id = `canvas-iframe-${item.id}`;
+    container.style.padding = '0';
+    container.style.overflowY = 'auto';
+    container.style.height = '100%';
+
+    // 섹션별 UI 렌더링
+    switch (item.id) {
+      case 'section_todo':
+        await this.renderTodoUI(container);
+        break;
+      case 'section_note':
+        await this.renderNoteUI(container);
+        break;
+      case 'section_calendar':
+        await this.renderCalendarUI(container);
+        break;
+      case 'section_system':
+        await this.renderSystemUI(container);
+        break;
+      default:
+        // 기본 도구 목록 UI
+        container.innerHTML = `
+          <div class="builtin-section-panel">
+            <div class="section-header">
+              <h2>${item.name}</h2>
+              <p class="section-desc">이 섹션의 도구를 사용할 수 있습니다</p>
+            </div>
+            <div class="section-tools">
+              ${(item.tools || []).map(toolName => `
+                <div class="section-tool-card">
+                  <div class="tool-name">${toolName}</div>
+                  <button class="tool-action-btn" data-tool="${toolName}">사용하기</button>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+
+        // 도구 버튼 이벤트
+        container.querySelectorAll('.tool-action-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const toolName = btn.dataset.tool;
+            if (toolName === 'open_terminal') {
+              this.openTerminalPanel();
+            } else {
+              console.log('도구 실행:', toolName);
+              this.showToast(`${toolName} 도구를 실행합니다`, 2000);
+            }
+          });
+        });
+    }
+
+    content.appendChild(container);
+
+    // 탭 활성화
+    this.activateCanvasTab(item.id);
+    this.renderCanvasTabs();
+
+    // 패널 열기
+    panel.classList.remove('hide');
+    this.movCanvasPanelForMobile();
+
+    console.log('✅ 내장 섹션 탭 열림:', item.name);
   }
 
   /**
@@ -1787,9 +1926,18 @@ class SoulApp {
     container.innerHTML = '<div style="color: white; padding: 20px;">로딩 중...</div>';
 
     try {
+      // AppSettings 컴포넌트 사용
+      const { AppSettings } = await import('./settings/components/app-settings.js');
+      const appSettings = new AppSettings();
+      await appSettings.render(container, this.apiClient);
+      await appSettings.loadSubPage('mcp'); // MCP 설정 페이지로 이동
+      return;
+
+      /* 기존 코드 주석 처리
       const mcpResponse = await fetch('/api/mcp/servers');
       const data = await mcpResponse.json();
       const servers = data.servers || [];
+      */
 
       container.innerHTML = `
         <div style="color: white; padding-right: 8px;">
@@ -2177,28 +2325,35 @@ class SoulApp {
     // 새 탭 추가
     this.canvasTabs.push({ type, title, url, isMcp: !!url });
 
-    // 컨테이너 생성 (iframe만, 도구 목록은 접힌 상태)
+    // 컨테이너 생성
     const container = document.createElement('div');
-    container.className = 'canvas-iframe canvas-mcp-container';
+    container.className = url ? 'canvas-iframe canvas-mcp-container' : 'canvas-content-container';
     container.id = `canvas-iframe-${type}`;
 
-    // iframe (MCP UI) — 전체 영역 사용
-    const iframe = document.createElement('iframe');
-    iframe.className = 'canvas-mcp-iframe';
-    iframe.src = url;
-    // iframe 로드 후 줄바꿈 스타일 주입 (same-origin만 가능)
-    iframe.addEventListener('load', () => {
-      try {
-        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-        const style = iframeDoc.createElement('style');
-        style.textContent = `
-          * { word-wrap: break-word; overflow-wrap: break-word; }
-          body { overflow-x: hidden; }
-        `;
-        iframeDoc.head.appendChild(style);
-      } catch (e) { /* cross-origin — 무시 */ }
-    });
-    container.appendChild(iframe);
+    if (url) {
+      // iframe (MCP UI) — 전체 영역 사용
+      const iframe = document.createElement('iframe');
+      iframe.className = 'canvas-mcp-iframe';
+      iframe.src = url;
+      // iframe 로드 후 줄바꿈 스타일 주입 (same-origin만 가능)
+      iframe.addEventListener('load', () => {
+        try {
+          const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+          const style = iframeDoc.createElement('style');
+          style.textContent = `
+            * { word-wrap: break-word; overflow-wrap: break-word; }
+            body { overflow-x: hidden; }
+          `;
+          iframeDoc.head.appendChild(style);
+        } catch (e) { /* cross-origin — 무시 */ }
+      });
+      container.appendChild(iframe);
+    } else {
+      // 일반 HTML 컨텐츠 컨테이너 (검색 결과 등)
+      container.style.padding = '20px';
+      container.style.overflowY = 'auto';
+      container.style.height = '100%';
+    }
 
     // MCP 상태 오버레이 (연결 끊김 시 표시)
     const overlay = document.createElement('div');
@@ -2239,25 +2394,25 @@ class SoulApp {
   activateCanvasTab(type) {
     this.activeCanvasTab = type;
 
-    // 모든 iframe 숨기고 선택된 것만 표시
-    document.querySelectorAll('.canvas-iframe').forEach(iframe => {
-      iframe.classList.remove('active');
+    // 모든 컨테이너 숨기기 (iframe + content 모두)
+    document.querySelectorAll('.canvas-iframe, .canvas-content-container').forEach(container => {
+      container.classList.remove('active');
     });
     // 특수 타입은 별도 ID
-    let activeIframe;
+    let activeContainer;
     if (type === 'settings') {
-      activeIframe = document.getElementById('canvas-settings');
+      activeContainer = document.getElementById('canvas-settings');
     } else if (type === 'voice-input') {
-      activeIframe = document.getElementById('canvas-voice-input');
+      activeContainer = document.getElementById('canvas-voice-input');
     } else if (type === 'terminal') {
-      activeIframe = document.getElementById('canvas-terminal');
+      activeContainer = document.getElementById('canvas-terminal');
       // 터미널 활성화 시 입력창 포커스
-      const termInput = activeIframe?.querySelector('#termInput');
+      const termInput = activeContainer?.querySelector('#termInput');
       if (termInput) termInput.focus();
     } else {
-      activeIframe = document.getElementById(`canvas-iframe-${type}`);
+      activeContainer = document.getElementById(`canvas-iframe-${type}`);
     }
-    if (activeIframe) activeIframe.classList.add('active');
+    if (activeContainer) activeContainer.classList.add('active');
 
     // MCP 탭이면 헬스체크
     const tab = this.canvasTabs.find(t => t.type === type);
@@ -3211,6 +3366,930 @@ class SoulApp {
    */
   getAttachments() {
     return this.pendingAttachments;
+  }
+
+  // ========== 내장 섹션 UI 렌더링 ==========
+
+  /**
+   * Todo 관리 UI (오라클 MCP 스타일)
+   */
+  async renderTodoUI(container) {
+    try {
+      const response = await this.apiClient.post('/tools/builtin/manage_todo', { action: 'list' });
+      const todos = response.todos || [];
+
+      // Phase별로 그룹화 (tags에서 Phase 추출)
+      const phases = this._groupTodosByPhase(todos);
+
+      // 전체 진행률 계산
+      let totalTasks = 0, completedTasks = 0;
+      Object.values(phases).forEach(phase => {
+        totalTasks += phase.tasks.length;
+        completedTasks += phase.tasks.filter(t => t.status === 'completed').length;
+      });
+      const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+      container.innerHTML = `
+        <div class="oracle-todo-container">
+          <div class="oracle-todo-header">
+            <div class="oracle-todo-header-top">
+              <div style="display: flex; align-items: center; gap: 14px; margin-left: auto;">
+                <button class="oracle-save-btn">저장</button>
+                <span class="oracle-prog-text">${progress}%</span>
+              </div>
+            </div>
+          </div>
+          <div class="oracle-content-area"></div>
+        </div>
+      `;
+
+      this._renderPhases(container, phases);
+      this._attachOracleTodoEvents(container);
+    } catch (error) {
+      console.error('Todo UI 렌더링 실패:', error);
+      container.innerHTML = `<div class="error-state"><p>할일 목록을 불러오는데 실패했습니다: ${error.message}</p></div>`;
+    }
+  }
+
+  _groupTodosByPhase(todos) {
+    const phases = {};
+
+    todos.forEach(todo => {
+      // tags에서 Phase 추출 (예: ["Phase 1"] → "Phase 1")
+      let phaseName = 'Tasks';
+      if (todo.tags) {
+        const tags = typeof todo.tags === 'string' ? JSON.parse(todo.tags) : todo.tags;
+        const phaseTag = tags.find(t => t.startsWith('Phase '));
+        if (phaseTag) phaseName = phaseTag;
+      }
+
+      if (!phases[phaseName]) {
+        phases[phaseName] = {
+          name: phaseName,
+          tasks: [],
+          memos: [],
+          open: this.todoOpenSections?.[phaseName] !== false
+        };
+      }
+
+      phases[phaseName].tasks.push(todo);
+    });
+
+    return phases;
+  }
+
+  _renderPhases(container, phases) {
+    const contentArea = container.querySelector('.oracle-content-area');
+    const phaseEntries = Object.entries(phases);
+
+    contentArea.innerHTML = phaseEntries.map(([phaseName, phase], phaseIdx) => {
+      const doneTasks = phase.tasks.filter(t => t.status === 'completed').length;
+      const totalTasks = phase.tasks.length;
+      const statusBadge = totalTasks === 0 ? '' :
+        doneTasks === totalTasks ? '<span class="oracle-status-badge oracle-status-done">Complete</span>' :
+        doneTasks > 0 ? `<span class="oracle-status-badge oracle-status-doing">${doneTasks}/${totalTasks}</span>` :
+        '<span class="oracle-status-badge oracle-status-todo">Waiting</span>';
+
+      return `
+        <div class="oracle-phase-card" data-phase="${this._escapeHtml(phaseName)}">
+          <div class="oracle-phase-header" data-phase-idx="${phaseIdx}">
+            <div class="oracle-phase-info">
+              <span class="oracle-phase-title oracle-editable" contenteditable="true" data-field="phase-title">${this._escapeHtml(phaseName)}</span>
+              ${statusBadge}
+            </div>
+            <span class="oracle-btn-del" data-action="delete-phase">×</span>
+          </div>
+          <div class="oracle-phase-body ${phase.open ? 'open' : ''}">
+            ${phase.tasks.map((task, taskIdx) => {
+              // 메모인지 확인 (tags에 'memo'가 있거나, priority가 'memo'인 경우)
+              const isMemo = (task.tags && (typeof task.tags === 'string' ? JSON.parse(task.tags) : task.tags).includes('memo')) || task.priority === 'memo';
+
+              if (isMemo) {
+                return `
+                  <div class="oracle-item-row oracle-memo-row" data-task-id="${task.todoId}" style="padding-left: 30px;">
+                    <span class="oracle-editable oracle-memo-text" contenteditable="true" data-field="memo">${this._escapeHtml(task.title)}</span>
+                    <span class="oracle-btn-del" data-action="delete-task">×</span>
+                  </div>
+                `;
+              } else {
+                return `
+                  <div class="oracle-item-row" data-task-id="${task.todoId}">
+                    <div class="oracle-checkbox ${task.status === 'completed' ? 'done' : ''}" data-task-idx="${taskIdx}">
+                      ${task.status === 'completed' ? '✓' : ''}
+                    </div>
+                    <span class="oracle-editable" contenteditable="true" data-field="title">${this._escapeHtml(task.title)}</span>
+                    <span class="oracle-btn-del" data-action="delete-task">×</span>
+                  </div>
+                `;
+              }
+            }).join('')}
+            <div style="display:flex; gap:10px; margin-top:10px;">
+              <button class="oracle-add-btn" data-action="add-task">+ Task</button>
+              <button class="oracle-add-btn" data-action="add-memo">+ Memo</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('') + '<button class="oracle-add-btn" style="margin-top:10px;" data-action="add-phase">+ 섹션 추가</button>';
+  }
+
+  _attachOracleTodoEvents(container) {
+    if (!this.todoOpenSections) this.todoOpenSections = {};
+
+    // Phase 토글
+    container.querySelectorAll('.oracle-phase-header').forEach(header => {
+      header.addEventListener('click', (e) => {
+        // editable 요소나 삭제 버튼 클릭 시 토글 안 함
+        if (e.target.classList.contains('oracle-btn-del') ||
+            e.target.classList.contains('oracle-editable') ||
+            e.target.getAttribute('contenteditable') === 'true') return;
+        const body = header.nextElementSibling;
+        body.classList.toggle('open');
+        const phaseName = header.closest('.oracle-phase-card').dataset.phase;
+        this.todoOpenSections[phaseName] = body.classList.contains('open');
+      });
+    });
+
+    // 체크박스 토글
+    container.querySelectorAll('.oracle-checkbox').forEach(checkbox => {
+      checkbox.addEventListener('click', async (e) => {
+        const row = e.target.closest('.oracle-item-row');
+        const todoId = row.dataset.taskId;
+        const isDone = e.target.classList.contains('done');
+        const newStatus = isDone ? 'pending' : 'completed';
+
+        try {
+          await this.apiClient.post('/tools/builtin/manage_todo', {
+            action: 'update',
+            todo_id: todoId,
+            status: newStatus
+          });
+          await this.renderTodoUI(container);
+        } catch (error) {
+          console.error('Todo 상태 업데이트 실패:', error);
+          alert('상태 변경에 실패했습니다');
+        }
+      });
+    });
+
+    // 인라인 편집 (할일 제목 + Phase 제목)
+    container.querySelectorAll('.oracle-editable').forEach(editable => {
+      editable.addEventListener('blur', async (e) => {
+        const field = e.target.dataset.field;
+        const newValue = e.target.textContent.trim();
+
+        if (!newValue) {
+          e.target.textContent = field === 'phase-title' ? 'Untitled' : '제목 없음';
+          return;
+        }
+
+        // Phase 제목 수정
+        if (field === 'phase-title') {
+          const card = e.target.closest('.oracle-phase-card');
+          const oldPhaseName = card.dataset.phase;
+
+          // 해당 Phase의 모든 할일의 태그를 업데이트해야 함
+          const phaseBody = card.querySelector('.oracle-phase-body');
+          const taskRows = phaseBody.querySelectorAll('.oracle-item-row');
+
+          try {
+            // 각 할일의 태그를 새 Phase 이름으로 업데이트
+            for (const row of taskRows) {
+              const todoId = row.dataset.taskId;
+              const response = await this.apiClient.post('/tools/builtin/manage_todo', { action: 'list' });
+              const todo = response.todos.find(t => t.todoId === todoId);
+
+              if (todo) {
+                let tags = todo.tags ? (typeof todo.tags === 'string' ? JSON.parse(todo.tags) : todo.tags) : [];
+                // 기존 Phase 태그 제거하고 새 Phase 태그 추가
+                tags = tags.filter(t => !t.startsWith('Phase '));
+                tags.push(newValue);
+
+                await this.apiClient.post('/tools/builtin/manage_todo', {
+                  action: 'update',
+                  todo_id: todoId,
+                  tags: tags
+                });
+              }
+            }
+            await this.renderTodoUI(container);
+          } catch (error) {
+            console.error('Phase 제목 수정 실패:', error);
+            e.target.textContent = oldPhaseName;
+          }
+          return;
+        }
+
+        // 할일/메모 제목 수정
+        const row = e.target.closest('.oracle-item-row');
+        if (!row) return;
+
+        const todoId = row.dataset.taskId;
+        try {
+          await this.apiClient.post('/tools/builtin/manage_todo', {
+            action: 'update',
+            todo_id: todoId,
+            title: newValue
+          });
+        } catch (error) {
+          console.error('Todo/Memo 수정 실패:', error);
+        }
+      });
+    });
+
+    // 삭제 버튼
+    container.querySelectorAll('[data-action="delete-task"]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const row = e.target.closest('.oracle-item-row');
+        const todoId = row.dataset.taskId;
+
+        if (!confirm('정말 삭제하시겠습니까?')) return;
+
+        try {
+          await this.apiClient.post('/tools/builtin/manage_todo', {
+            action: 'delete',
+            todo_id: todoId
+          });
+          await this.renderTodoUI(container);
+        } catch (error) {
+          console.error('Todo 삭제 실패:', error);
+          alert('삭제에 실패했습니다');
+        }
+      });
+    });
+
+    // Task 추가
+    container.querySelectorAll('[data-action="add-task"]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const card = e.target.closest('.oracle-phase-card');
+        const phaseName = card.dataset.phase;
+
+        try {
+          await this.apiClient.post('/tools/builtin/manage_todo', {
+            action: 'create',
+            title: '새 할일',
+            tags: [phaseName]
+          });
+          await this.renderTodoUI(container);
+        } catch (error) {
+          console.error('Todo 추가 실패:', error);
+          alert('추가에 실패했습니다');
+        }
+      });
+    });
+
+    // Memo 추가
+    container.querySelectorAll('[data-action="add-memo"]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const card = e.target.closest('.oracle-phase-card');
+        const phaseName = card.dataset.phase;
+
+        try {
+          await this.apiClient.post('/tools/builtin/manage_todo', {
+            action: 'create',
+            title: '새 메모',
+            priority: 'memo',  // 메모로 표시
+            tags: [phaseName, 'memo']
+          });
+          await this.renderTodoUI(container);
+        } catch (error) {
+          console.error('Memo 추가 실패:', error);
+          alert('추가에 실패했습니다');
+        }
+      });
+    });
+
+    // Phase 추가
+    const addPhaseBtn = container.querySelector('[data-action="add-phase"]');
+    if (addPhaseBtn) {
+      addPhaseBtn.addEventListener('click', async (e) => {
+        const phaseName = prompt('Phase 이름을 입력하세요:', `Phase ${Object.keys(this.todoOpenSections || {}).length + 1}`);
+        if (!phaseName) return;
+
+        try {
+          await this.apiClient.post('/tools/builtin/manage_todo', {
+            action: 'create',
+            title: '새 할일',
+            tags: [phaseName]
+          });
+          await this.renderTodoUI(container);
+        } catch (error) {
+          console.error('Phase 추가 실패:', error);
+          alert('추가에 실패했습니다');
+        }
+      });
+    }
+  }
+
+  /**
+   * System 도구 UI (Canvas 터미널 스타일 - 깜빡이는 커서)
+   */
+  async renderSystemUI(container) {
+    container.style.padding = '0';
+
+    // Fira Code 폰트 로드
+    if (!document.getElementById('firacode-font')) {
+      const link = document.createElement('link');
+      link.id = 'firacode-font';
+      link.rel = 'stylesheet';
+      link.href = 'https://cdn.jsdelivr.net/npm/firacode@6.2.0/distr/fira_code.css';
+      document.head.appendChild(link);
+    }
+
+    container.innerHTML = `
+      <div style="height: 100%; display: flex; flex-direction: column; padding: 8px;">
+        <div class="term-status">
+          <span>
+            <span class="term-status-dot online" id="statusDot"></span>
+            <span id="statusText">연결됨</span>
+          </span>
+          <span id="hostInfo">localhost</span>
+        </div>
+        <div class="term-output" id="termOutput">
+          <div class="term-output-line welcome">Hello!</div>
+          <div class="term-cursor-line" id="termCursorLine"><span class="term-prompt">$</span> <span class="term-cursor"></span></div>
+        </div>
+      </div>
+    `;
+
+    this._attachTerminalEvents(container);
+  }
+
+  _attachTerminalEvents(container) {
+    const output = container.querySelector('#termOutput');
+    const cursorLine = container.querySelector('#termCursorLine');
+    const statusDot = container.querySelector('#statusDot');
+    const statusText = container.querySelector('#statusText');
+
+    let currentInput = '';
+    let history = [];
+    let historyIndex = -1;
+
+    // 컨테이너에서 직접 키보드 입력 받기
+    container.setAttribute('tabindex', '0');
+    container.style.outline = 'none';
+
+    const updateCursorLine = () => {
+      cursorLine.innerHTML = `<span class="term-prompt">$</span> ${this._escapeHtml(currentInput)}<span class="term-cursor"></span>`;
+    };
+
+    const addLine = (text, type = 'success') => {
+      if (!text.trim()) return;
+      const div = document.createElement('div');
+      div.className = `term-output-line ${type}`;
+      div.textContent = text;
+      output.insertBefore(div, cursorLine);
+      output.scrollTop = output.scrollHeight;
+    };
+
+    const addCommand = (cmd) => {
+      const div = document.createElement('div');
+      div.className = 'term-output-line command';
+      div.innerHTML = `<span class="term-prompt">$</span> ${this._escapeHtml(cmd)}`;
+      output.insertBefore(div, cursorLine);
+      output.scrollTop = output.scrollHeight;
+    };
+
+    // Socket 이벤트 리스너
+    this.socketClient.socket.on('terminal:output', ({ data }) => {
+      const lines = data.split('\n');
+      lines.forEach(line => {
+        if (line.trim()) addLine(line);
+      });
+    });
+
+    // 키보드 입력
+    container.addEventListener('click', () => container.focus());
+    container.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const cmd = currentInput.trim();
+        currentInput = '';
+        updateCursorLine();
+
+        if (!cmd) return;
+
+        history.push(cmd);
+        historyIndex = history.length;
+        addCommand(cmd);
+
+        // 로컬 명령 처리
+        if (cmd === 'clear') {
+          while (output.firstChild !== cursorLine) {
+            output.removeChild(output.firstChild);
+          }
+          return;
+        }
+        if (cmd === 'help') {
+          addLine('Available commands:', 'info');
+          addLine('  clear - 화면 지우기', 'info');
+          addLine('  help - 도움말', 'info');
+          return;
+        }
+
+        // 서버로 명령 전송
+        this.socketClient.socket.emit('terminal:command', { command: cmd });
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        currentInput = currentInput.slice(0, -1);
+        updateCursorLine();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (historyIndex > 0) {
+          historyIndex--;
+          currentInput = history[historyIndex];
+          updateCursorLine();
+        }
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (historyIndex < history.length - 1) {
+          historyIndex++;
+          currentInput = history[historyIndex];
+          updateCursorLine();
+        } else {
+          historyIndex = history.length;
+          currentInput = '';
+          updateCursorLine();
+        }
+      } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        currentInput += e.key;
+        updateCursorLine();
+      }
+    });
+
+    container.focus();
+  }
+
+  /**
+   * Note 관리 UI
+   */
+  async renderNoteUI(container) {
+    try {
+      const response = await this.apiClient.post('/api/tools/builtin/manage_note', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'list', limit: 100 })
+      });
+
+      const notes = response.notes || [];
+
+      container.innerHTML = `
+        <div class="note-panel">
+          <div class="note-header">
+            <button class="note-add-btn" id="addNoteBtn">
+              <span>📝</span> 새 메모
+            </button>
+            <div class="note-search">
+              <input type="text" id="noteSearchInput" class="note-search-input" placeholder="메모 검색...">
+            </div>
+          </div>
+
+          <div class="note-container">
+            <div class="note-list" id="noteList">
+              ${notes.length === 0 ? `
+                <div class="note-empty">
+                  <p>메모가 없습니다</p>
+                  <p style="font-size: 0.85rem; opacity: 0.7; margin-top: 0.5rem;">
+                    새 메모 버튼을 눌러 추가하세요
+                  </p>
+                </div>
+              ` : notes.map(note => this._renderNoteListItem(note)).join('')}
+            </div>
+
+            <div class="note-viewer" id="noteViewer">
+              <div class="note-viewer-empty">
+                <p>왼쪽에서 메모를 선택하세요</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      container.querySelector('#addNoteBtn')?.addEventListener('click', () => this._createNewNote(container));
+      container.querySelector('#noteSearchInput')?.addEventListener('input', (e) => {
+        this._searchNotes(container, e.target.value);
+      });
+
+      this._attachNoteListEvents(container);
+
+    } catch (error) {
+      console.error('Note UI 렌더링 실패:', error);
+      container.innerHTML = `<div class="note-panel"><p style="color: var(--destructive); text-align: center; padding: 2rem;">메모 목록을 불러오는데 실패했습니다</p></div>`;
+    }
+  }
+
+  _renderNoteListItem(note) {
+    const preview = (note.content || '').substring(0, 80);
+    const date = new Date(note.updatedAt || note.createdAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+    return `
+      <div class="note-list-item" data-note-id="${note.noteId}">
+        <div class="note-item-header">
+          <h4 class="note-item-title">${this._escapeHtml(note.title)}</h4>
+          <button class="note-item-delete" data-action="delete" title="삭제">🗑️</button>
+        </div>
+        <p class="note-item-preview">${this._escapeHtml(preview)}${preview.length >= 80 ? '...' : ''}</p>
+        <div class="note-item-footer">
+          <span class="note-item-date">${date}</span>
+          ${note.tags ? `<div class="note-item-tags">${JSON.parse(note.tags).slice(0, 2).map(tag => `#${tag}`).join(' ')}</div>` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  _attachNoteListEvents(container) {
+    container.querySelectorAll('.note-list-item').forEach(item => {
+      item.addEventListener('click', async (e) => {
+        if (e.target.closest('.note-item-delete')) {
+          const noteId = item.dataset.noteId;
+          if (confirm('정말 삭제하시겠습니까?')) await this._deleteNote(noteId, container);
+          return;
+        }
+        container.querySelectorAll('.note-list-item').forEach(i => i.classList.remove('active'));
+        item.classList.add('active');
+        await this._viewNote(item.dataset.noteId, container);
+      });
+    });
+  }
+
+  async _viewNote(noteId, container) {
+    try {
+      const response = await this.apiClient.post('/api/tools/builtin/manage_note', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'read', note_id: noteId })
+      });
+      const note = response.note;
+      if (!note) return;
+
+      const viewer = container.querySelector('#noteViewer');
+      viewer.innerHTML = `
+        <div class="note-viewer-content">
+          <div class="note-viewer-header">
+            <input type="text" class="note-title-input" value="${this._escapeHtml(note.title)}" data-note-id="${note.noteId}">
+            <button class="note-save-btn" data-note-id="${note.noteId}">💾 저장</button>
+          </div>
+          <textarea class="note-content-input" data-note-id="${note.noteId}">${this._escapeHtml(note.content || '')}</textarea>
+          <div class="note-meta">
+            <input type="text" class="note-tags-input" placeholder="태그 (쉼표로 구분)" value="${note.tags ? JSON.parse(note.tags).join(', ') : ''}" data-note-id="${note.noteId}">
+            <div class="note-dates">
+              <span>생성: ${new Date(note.createdAt).toLocaleString('ko-KR')}</span>
+              <span>수정: ${new Date(note.updatedAt).toLocaleString('ko-KR')}</span>
+            </div>
+          </div>
+        </div>
+      `;
+
+      viewer.querySelector('.note-save-btn')?.addEventListener('click', () => this._saveNote(noteId, container));
+
+      let saveTimeout;
+      [viewer.querySelector('.note-title-input'), viewer.querySelector('.note-content-input'), viewer.querySelector('.note-tags-input')].forEach(input => {
+        input?.addEventListener('input', () => {
+          clearTimeout(saveTimeout);
+          saveTimeout = setTimeout(() => this._saveNote(noteId, container, true), 3000);
+        });
+      });
+    } catch (error) {
+      console.error('Note 조회 실패:', error);
+    }
+  }
+
+  async _saveNote(noteId, container, isAutoSave = false) {
+    try {
+      const title = container.querySelector('.note-title-input')?.value || '제목 없음';
+      const content = container.querySelector('.note-content-input')?.value || '';
+      const tagsInput = container.querySelector('.note-tags-input')?.value || '';
+      const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(Boolean) : [];
+
+      await this.apiClient.post('/api/tools/builtin/manage_note', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'update', note_id: noteId, title, content, tags })
+      });
+
+      if (!isAutoSave) this.showToast('메모가 저장되었습니다', 1500);
+
+      await this.renderNoteUI(container);
+      setTimeout(() => {
+        const item = container.querySelector(`[data-note-id="${noteId}"]`);
+        if (item) {
+          item.classList.add('active');
+          this._viewNote(noteId, container);
+        }
+      }, 100);
+    } catch (error) {
+      console.error('Note 저장 실패:', error);
+      alert('저장에 실패했습니다');
+    }
+  }
+
+  async _createNewNote(container) {
+    try {
+      const response = await this.apiClient.post('/api/tools/builtin/manage_note', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'create', title: '새 메모', content: '' })
+      });
+      if (response.success) {
+        await this.renderNoteUI(container);
+        setTimeout(() => container.querySelector(`[data-note-id="${response.note_id}"]`)?.click(), 100);
+      }
+    } catch (error) {
+      console.error('Note 생성 실패:', error);
+      alert('메모 생성에 실패했습니다');
+    }
+  }
+
+  async _deleteNote(noteId, container) {
+    try {
+      await this.apiClient.post('/api/tools/builtin/manage_note', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'delete', note_id: noteId })
+      });
+      await this.renderNoteUI(container);
+    } catch (error) {
+      console.error('Note 삭제 실패:', error);
+      alert('삭제에 실패했습니다');
+    }
+  }
+
+  _searchNotes(container, query) {
+    const lowerQuery = query.toLowerCase();
+    container.querySelectorAll('.note-list-item').forEach(item => {
+      const title = item.querySelector('.note-item-title').textContent.toLowerCase();
+      const preview = item.querySelector('.note-item-preview').textContent.toLowerCase();
+      item.style.display = (title.includes(lowerQuery) || preview.includes(lowerQuery)) ? 'block' : 'none';
+    });
+  }
+
+  /**
+   * 캘린더 UI
+   */
+  async renderCalendarUI(container) {
+    try {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = today.getMonth();
+
+      // 이번 달 일정 가져오기
+      const startDate = new Date(year, month, 1).toISOString().split('T')[0];
+      const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+
+      const response = await this.apiClient.post('/api/tools/builtin/get_events', {
+        method: 'POST',
+        body: JSON.stringify({ start_date: startDate, end_date: endDate })
+      });
+
+      const events = response.events || [];
+
+      container.innerHTML = `
+        <div class="calendar-panel">
+          <div class="calendar-header">
+            <button class="calendar-nav-btn" id="calendarPrevMonth">◀</button>
+            <div class="calendar-current-month" id="calendarCurrentMonth">
+              ${year}년 ${month + 1}월
+            </div>
+            <button class="calendar-nav-btn" id="calendarNextMonth">▶</button>
+            <button class="calendar-add-btn" id="addEventBtn">➕ 일정 추가</button>
+          </div>
+
+          <div class="calendar-grid" id="calendarGrid">
+            ${this._renderCalendarGrid(year, month, events)}
+          </div>
+
+          <div class="calendar-event-list" id="calendarEventList">
+            <h3>이번 달 일정</h3>
+            ${events.length === 0 ? `
+              <div class="calendar-empty">
+                <p>일정이 없습니다</p>
+              </div>
+            ` : events.map(event => this._renderEventItem(event)).join('')}
+          </div>
+        </div>
+      `;
+
+      // 저장된 연도/월을 컨테이너에 저장
+      container.dataset.currentYear = year;
+      container.dataset.currentMonth = month;
+
+      // 이벤트 리스너
+      container.querySelector('#calendarPrevMonth')?.addEventListener('click', () => this._changeMonth(container, -1));
+      container.querySelector('#calendarNextMonth')?.addEventListener('click', () => this._changeMonth(container, 1));
+      container.querySelector('#addEventBtn')?.addEventListener('click', () => this._createNewEvent(container));
+
+      this._attachEventListeners(container);
+
+    } catch (error) {
+      console.error('Calendar UI 렌더링 실패:', error);
+      container.innerHTML = `<div class="calendar-panel"><p style="color: var(--destructive); text-align: center; padding: 2rem;">캘린더를 불러오는데 실패했습니다</p></div>`;
+    }
+  }
+
+  _renderCalendarGrid(year, month, events) {
+    const firstDay = new Date(year, month, 1).getDay();
+    const lastDate = new Date(year, month + 1, 0).getDate();
+    const prevLastDate = new Date(year, month, 0).getDate();
+
+    const daysOfWeek = ['일', '월', '화', '수', '목', '금', '토'];
+    let html = '<div class="calendar-weekdays">';
+    daysOfWeek.forEach(day => {
+      html += `<div class="calendar-weekday">${day}</div>`;
+    });
+    html += '</div><div class="calendar-days">';
+
+    // 이전 달 날짜 (회색)
+    for (let i = firstDay - 1; i >= 0; i--) {
+      html += `<div class="calendar-day other-month">${prevLastDate - i}</div>`;
+    }
+
+    // 이번 달 날짜
+    const today = new Date();
+    const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
+
+    for (let date = 1; date <= lastDate; date++) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
+      const dayEvents = events.filter(e => e.startTime.startsWith(dateStr));
+      const isToday = isCurrentMonth && today.getDate() === date;
+
+      html += `
+        <div class="calendar-day ${isToday ? 'today' : ''}" data-date="${dateStr}">
+          <span class="calendar-date-num">${date}</span>
+          ${dayEvents.length > 0 ? `<div class="calendar-day-events">${dayEvents.slice(0, 2).map(e => `<div class="calendar-day-event" title="${this._escapeHtml(e.title)}">${this._escapeHtml(e.title.length > 8 ? e.title.substring(0, 8) + '...' : e.title)}</div>`).join('')}${dayEvents.length > 2 ? `<div class="calendar-day-more">+${dayEvents.length - 2}</div>` : ''}</div>` : ''}
+        </div>
+      `;
+    }
+
+    // 다음 달 날짜 (회색)
+    const totalCells = firstDay + lastDate;
+    const remainingCells = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
+    for (let i = 1; i <= remainingCells; i++) {
+      html += `<div class="calendar-day other-month">${i}</div>`;
+    }
+
+    html += '</div>';
+    return html;
+  }
+
+  _renderEventItem(event) {
+    const start = new Date(event.startTime);
+    const end = event.endTime ? new Date(event.endTime) : null;
+    const dateStr = start.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+    const timeStr = start.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+
+    return `
+      <div class="calendar-event-item" data-event-id="${event.eventId}">
+        <div class="event-item-header">
+          <h4 class="event-item-title">${this._escapeHtml(event.title)}</h4>
+          <div class="event-item-actions">
+            <button class="event-item-btn" data-action="edit" title="수정">✏️</button>
+            <button class="event-item-btn" data-action="delete" title="삭제">🗑️</button>
+          </div>
+        </div>
+        <div class="event-item-time">
+          📅 ${dateStr} ${timeStr}${end ? ' ~ ' + end.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : ''}
+        </div>
+        ${event.description ? `<div class="event-item-desc">${this._escapeHtml(event.description)}</div>` : ''}
+        ${event.location ? `<div class="event-item-location">📍 ${this._escapeHtml(event.location)}</div>` : ''}
+      </div>
+    `;
+  }
+
+  _attachEventListeners(container) {
+    // 날짜 클릭 - 해당 날짜에 일정 추가
+    container.querySelectorAll('.calendar-day:not(.other-month)').forEach(day => {
+      day.addEventListener('click', (e) => {
+        const date = day.dataset.date;
+        if (date) this._createNewEvent(container, date);
+      });
+    });
+
+    // 일정 항목 클릭
+    container.querySelectorAll('.calendar-event-item').forEach(item => {
+      const editBtn = item.querySelector('[data-action="edit"]');
+      const deleteBtn = item.querySelector('[data-action="delete"]');
+
+      editBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this._editEvent(item.dataset.eventId, container);
+      });
+
+      deleteBtn?.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (confirm('이 일정을 삭제하시겠습니까?')) {
+          await this._deleteEvent(item.dataset.eventId, container);
+        }
+      });
+    });
+  }
+
+  async _changeMonth(container, delta) {
+    const currentYear = parseInt(container.dataset.currentYear);
+    const currentMonth = parseInt(container.dataset.currentMonth);
+
+    const newDate = new Date(currentYear, currentMonth + delta, 1);
+    const newYear = newDate.getFullYear();
+    const newMonth = newDate.getMonth();
+
+    container.dataset.currentYear = newYear;
+    container.dataset.currentMonth = newMonth;
+
+    await this._refreshCalendar(container, newYear, newMonth);
+  }
+
+  async _refreshCalendar(container, year, month) {
+    const startDate = new Date(year, month, 1).toISOString().split('T')[0];
+    const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+
+    const response = await this.apiClient.post('/api/tools/builtin/get_events', {
+      method: 'POST',
+      body: JSON.stringify({ start_date: startDate, end_date: endDate })
+    });
+
+    const events = response.events || [];
+
+    container.querySelector('#calendarCurrentMonth').textContent = `${year}년 ${month + 1}월`;
+    container.querySelector('#calendarGrid').innerHTML = this._renderCalendarGrid(year, month, events);
+
+    const eventList = container.querySelector('#calendarEventList');
+    eventList.innerHTML = `
+      <h3>이번 달 일정</h3>
+      ${events.length === 0 ? `<div class="calendar-empty"><p>일정이 없습니다</p></div>` : events.map(event => this._renderEventItem(event)).join('')}
+    `;
+
+    this._attachEventListeners(container);
+  }
+
+  async _createNewEvent(container, defaultDate = null) {
+    const date = defaultDate || new Date().toISOString().split('T')[0];
+    const time = '09:00';
+
+    const title = prompt('일정 제목을 입력하세요', '새 일정');
+    if (!title) return;
+
+    const startDateTime = prompt('시작 시간 (YYYY-MM-DD HH:MM)', `${date} ${time}`);
+    if (!startDateTime) return;
+
+    try {
+      const response = await this.apiClient.post('/api/tools/builtin/create_event', {
+        method: 'POST',
+        body: JSON.stringify({
+          title,
+          start: startDateTime,
+          description: '',
+          location: ''
+        })
+      });
+
+      if (response.success) {
+        this.showToast('일정이 추가되었습니다', 1500);
+        const year = parseInt(container.dataset.currentYear);
+        const month = parseInt(container.dataset.currentMonth);
+        await this._refreshCalendar(container, year, month);
+      }
+    } catch (error) {
+      console.error('일정 추가 실패:', error);
+      alert('일정 추가에 실패했습니다');
+    }
+  }
+
+  async _editEvent(eventId, container) {
+    const title = prompt('일정 제목을 수정하세요');
+    if (!title) return;
+
+    try {
+      await this.apiClient.post('/api/tools/builtin/update_event', {
+        method: 'POST',
+        body: JSON.stringify({ event_id: eventId, title })
+      });
+
+      this.showToast('일정이 수정되었습니다', 1500);
+      const year = parseInt(container.dataset.currentYear);
+      const month = parseInt(container.dataset.currentMonth);
+      await this._refreshCalendar(container, year, month);
+    } catch (error) {
+      console.error('일정 수정 실패:', error);
+      alert('일정 수정에 실패했습니다');
+    }
+  }
+
+  async _deleteEvent(eventId, container) {
+    try {
+      await this.apiClient.post('/api/tools/builtin/delete_event', {
+        method: 'POST',
+        body: JSON.stringify({ event_id: eventId })
+      });
+
+      this.showToast('일정이 삭제되었습니다', 1500);
+      const year = parseInt(container.dataset.currentYear);
+      const month = parseInt(container.dataset.currentMonth);
+      await this._refreshCalendar(container, year, month);
+    } catch (error) {
+      console.error('일정 삭제 실패:', error);
+      alert('일정 삭제에 실패했습니다');
+    }
+  }
+
+  _escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 
 }

@@ -97,6 +97,12 @@ class SoulSocketClient {
       this._handleCanvasUpdate(data);
     });
 
+    // 터미널 열기 요청
+    this.socket.on('open_terminal', (data) => {
+      console.log('🖥️ Open terminal:', data);
+      this._handleOpenTerminal(data);
+    });
+
     // 스트리밍 이벤트
     this.socket.on('stream_start', () => {
       this._streaming = true;
@@ -235,45 +241,6 @@ class SoulSocketClient {
   }
 
   /**
-   * 도구 상태 영역 가져오기/생성
-   */
-  _getOrCreateToolStatus() {
-    let toolStatus = document.querySelector('.tool-execution-status');
-    if (!toolStatus) {
-      toolStatus = document.createElement('div');
-      toolStatus.className = 'tool-execution-status';
-
-      // 스트리밍 요소 안에 넣기 (thinking 아래, content 위에 고정)
-      const streamingEl = document.querySelector('.chat-message.assistant.streaming');
-      if (streamingEl) {
-        const messageContent = streamingEl.querySelector('.message-content');
-        if (messageContent) {
-          const thinkingContainer = messageContent.querySelector('.ai-thinking-container');
-          if (thinkingContainer && thinkingContainer.nextSibling) {
-            messageContent.insertBefore(toolStatus, thinkingContainer.nextSibling);
-          } else if (thinkingContainer) {
-            messageContent.appendChild(toolStatus);
-          } else {
-            messageContent.insertBefore(toolStatus, messageContent.firstChild);
-          }
-          return toolStatus;
-        }
-      }
-
-      const typingIndicator = document.querySelector('.typing-indicator');
-      if (typingIndicator) {
-        typingIndicator.parentNode.insertBefore(toolStatus, typingIndicator);
-      } else {
-        const messagesArea = document.getElementById('messagesArea');
-        if (messagesArea) {
-          messagesArea.appendChild(toolStatus);
-        }
-      }
-    }
-    return toolStatus;
-  }
-
-  /**
    * 도구 실행 시작 처리
    */
   _handleToolStart(data) {
@@ -289,25 +256,15 @@ class SoulSocketClient {
       startTime: Date.now()
     });
 
-    // 실행 중인 도구 표시 영역 찾기/생성
-    let toolStatus = this._getOrCreateToolStatus();
-
-    // 도구 실행 표시 추가
-    const toolItem = document.createElement('div');
-    toolItem.className = 'tool-status-item running';
-    toolItem.dataset.toolName = data.name;
-
-    const koreanAction = this._getKoreanAction(data.name);
-    const inputSummary = this._summarizeInput(data.name, data.input);
-
-    toolItem.innerHTML = `
-      <div class="tool-step-indicator"></div>
-      <div class="tool-step-content">
-        <div class="tool-step-title">${koreanAction}</div>
-        ${inputSummary ? `<div class="tool-step-desc">${this._escapeHtml(inputSummary)}</div>` : ''}
-      </div>
-    `;
-    toolStatus.appendChild(toolItem);
+    // 타임라인 모드: streamCallback으로 전달 (chat-manager에서 인라인 렌더링)
+    if (this._streamCallback) {
+      this._streamCallback('tool_start', {
+        name: data.name,
+        display: data.display,
+        koreanAction: this._getKoreanAction(data.name),
+        inputSummary: this._summarizeInput(data.name, data.input)
+      });
+    }
   }
 
   /**
@@ -325,30 +282,15 @@ class SoulSocketClient {
       exec.duration = Date.now() - exec.startTime;
     }
 
-    // 이전 단계(selected)를 done으로
-    const toolStatus = document.querySelector('.tool-execution-status');
-    if (toolStatus) {
-      const prevSelected = toolStatus.querySelector('.tool-status-item.selected:not(.done)');
-      if (prevSelected) prevSelected.classList.add('done');
-    }
-
-    // DOM 업데이트
-    const toolItem = document.querySelector(`.tool-status-item[data-tool-name="${data.name}"]`);
-    if (toolItem) {
-      toolItem.classList.remove('running');
-      toolItem.classList.add(data.success ? 'success' : 'error');
-
-      const koreanAction = this._getKoreanAction(data.name);
+    // 타임라인 모드: streamCallback으로 전달
+    if (this._streamCallback) {
       const rawResult = data.success ? (data.result || '') : (data.error || '실패');
-      const resultPreview = this._escapeHtml(this._formatResultPreview(data.name, rawResult));
-
-      toolItem.innerHTML = `
-        <div class="tool-step-indicator">${data.success ? '✓' : '✗'}</div>
-        <div class="tool-step-content">
-          <div class="tool-step-title">${koreanAction}</div>
-          ${resultPreview ? `<div class="tool-step-desc">${resultPreview}</div>` : ''}
-        </div>
-      `;
+      this._streamCallback('tool_end', {
+        name: data.name,
+        success: data.success,
+        koreanAction: this._getKoreanAction(data.name),
+        resultPreview: this._formatResultPreview(data.name, rawResult)
+      });
     }
   }
 
@@ -371,13 +313,9 @@ class SoulSocketClient {
   }
 
   /**
-   * 도구 상태 영역 제거 (AI 응답 후 호출)
+   * 도구 실행 기록 초기화 (AI 응답 후 호출)
    */
   clearToolStatus() {
-    const toolStatus = document.querySelector('.tool-execution-status');
-    if (toolStatus) {
-      toolStatus.remove();
-    }
     this._toolExecutions = [];
   }
 
@@ -608,6 +546,76 @@ class SoulSocketClient {
     }
     badge.classList.add('pulse');
     setTimeout(() => badge.classList.remove('pulse'), 3000);
+  }
+
+  /**
+   * 터미널 열기 처리
+   */
+  _handleOpenTerminal(data) {
+    console.log('🖥️ Opening terminal, command:', data.command);
+
+    // Dock의 시스템 섹션 클릭
+    const systemSection = document.querySelector('[data-section="section_system"]');
+    if (systemSection) {
+      systemSection.click();
+
+      // 명령어가 있으면 터미널에 입력
+      if (data.command) {
+        setTimeout(() => {
+          const termInput = document.querySelector('#termInput');
+          const termCursorLine = document.querySelector('#termCursorLine');
+
+          if (termInput) {
+            // input 태그 방식
+            termInput.value = data.command;
+            termInput.focus();
+            // Enter 이벤트 시뮬레이션
+            const enterEvent = new KeyboardEvent('keydown', {
+              key: 'Enter',
+              code: 'Enter',
+              keyCode: 13,
+              bubbles: true
+            });
+            termInput.dispatchEvent(enterEvent);
+          } else if (window.soulApp && window.soulApp._attachTerminalEvents) {
+            // 커서 라인 방식 - currentInput에 직접 설정
+            // 터미널이 렌더링될 때까지 대기
+            const waitForTerminal = setInterval(() => {
+              if (document.querySelector('#termCursorLine')) {
+                clearInterval(waitForTerminal);
+                // 커서에 명령 입력 후 Enter 시뮬레이션
+                const container = document.querySelector('#termOutput').closest('div');
+                if (container) {
+                  container.focus();
+                  // 문자 하나씩 입력 이벤트 발생
+                  for (const char of data.command) {
+                    const charEvent = new KeyboardEvent('keydown', {
+                      key: char,
+                      code: `Key${char.toUpperCase()}`,
+                      bubbles: true
+                    });
+                    container.dispatchEvent(charEvent);
+                  }
+                  // Enter 입력
+                  const enterEvent = new KeyboardEvent('keydown', {
+                    key: 'Enter',
+                    code: 'Enter',
+                    keyCode: 13,
+                    bubbles: true
+                  });
+                  container.dispatchEvent(enterEvent);
+                }
+              }
+            }, 100);
+
+            // 5초 후 타임아웃
+            setTimeout(() => clearInterval(waitForTerminal), 5000);
+          }
+        }, 500);
+      }
+    } else {
+      console.warn('🖥️ System section not found in Dock');
+    }
   }
 
   /**
