@@ -975,11 +975,18 @@ router.post('/', async (req, res) => {
     }
 
     // 6. 응답 후처리: 불필요한 패턴 제거
-    // [날짜/시간] 접두사 패턴 제거 (예: [2/14 7:43], [7:34])
+    // [날짜/시간] 접두사 패턴 제거 (모든 형태: [2/14 7:43], [7:34], [14일 7:43] 등)
     if (typeof aiResponse === 'string') {
-      aiResponse = aiResponse.replace(/^\s*\[\d{1,2}\/\d{1,2}\s+\d{1,2}:\d{2}\]\s*/gm, '');
-      aiResponse = aiResponse.replace(/^\s*\[\d{1,2}:\d{2}\]\s*/gm, '');
+      // 대괄호로 시작하는 모든 날짜/시간 패턴 제거
+      // 패턴: [숫자/숫자 시간], [숫자:숫자], [날짜 관련 문자 포함] 등
+      aiResponse = aiResponse.replace(/^\s*\[[\d/:\s일월화수목금토요년\-\.]+\]\s*/gm, '');
       aiResponse = aiResponse.trim();
+    }
+
+    // 객체 응답인 경우에도 적용
+    if (typeof aiResponse === 'object' && aiResponse?.text) {
+      aiResponse.text = aiResponse.text.replace(/^\s*\[[\d/:\s일월화수목금토요년\-\.]+\]\s*/gm, '');
+      aiResponse.text = aiResponse.text.trim();
     }
 
     // 7. 알바 위임 체크 - Soul이 [DELEGATE:roleId] 태그를 사용했는지 확인
