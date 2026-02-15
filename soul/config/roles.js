@@ -4,31 +4,30 @@
  *
  * Soul은 사장 (대화 담당)
  * Roles는 알바 (전문 작업 수행)
+ *
+ * 모델은 DB에서 설정 (UI에서 지정). 여기에 하드코딩 금지.
  */
 
 const ROLES = {
-  // 문서 요약 알바 (경량 모델 사용 - 비용 절감)
+  // 문서 요약 알바
   summarizer: {
     id: 'summarizer',
     name: '문서 요약',
     description: '긴 문서를 간결하게 요약',
 
-    // 모델 설정
-    preferredModel: 'claude-3-5-haiku-20241022',  // Haiku 사용 (경량)
-    fallbackModel: 'gpt-4o-mini',  // 폴백
+    // 모델은 DB에서 설정 (preferredModel은 UI에서 지정)
+    preferredModel: '',
+    fallbackModel: '',
 
-    // 프롬프트
     systemPrompt: `당신은 문서 요약 전문가입니다.
 주어진 텍스트를 간결하고 핵심만 담아 요약하세요.
 - 핵심 포인트 3-5개로 정리
 - 불필요한 세부사항 제거
 - 명확하고 이해하기 쉽게`,
 
-    // 설정
     maxTokens: 1000,
-    temperature: 0.3,  // 낮은 창의성, 높은 일관성
+    temperature: 0.3,
 
-    // 트리거 (이런 요청 시 자동 호출)
     triggers: [
       '요약',
       'summarize',
@@ -38,14 +37,14 @@ const ROLES = {
     ]
   },
 
-  // 코드 생성 알바 (고성능 모델)
+  // 코드 생성 알바
   coder: {
     id: 'coder',
     name: '코드 생성',
     description: '고품질 코드 작성 및 리팩토링',
 
-    preferredModel: 'claude-3-5-sonnet-20241022',
-    fallbackModel: 'gpt-4o',
+    preferredModel: '',
+    fallbackModel: '',
 
     systemPrompt: `당신은 시니어 개발자입니다.
 고품질의 프로덕션 레벨 코드를 작성하세요.
@@ -73,8 +72,8 @@ const ROLES = {
     name: '데이터 분석',
     description: '데이터 분석 및 인사이트 도출',
 
-    preferredModel: 'gpt-4o',
-    fallbackModel: 'claude-3-5-sonnet-20241022',
+    preferredModel: '',
+    fallbackModel: '',
 
     systemPrompt: `당신은 데이터 분석 전문가입니다.
 데이터를 깊이 분석하고 의미있는 인사이트를 제공하세요.
@@ -94,14 +93,14 @@ const ROLES = {
     ]
   },
 
-  // 리서치 알바 (최고성능 모델)
+  // 리서치 알바
   researcher: {
     id: 'researcher',
     name: '심층 리서치',
     description: '깊이 있는 조사 및 분석',
 
-    preferredModel: 'claude-3-opus-20240229',
-    fallbackModel: 'gpt-4o',
+    preferredModel: '',
+    fallbackModel: '',
 
     systemPrompt: `당신은 리서치 전문가입니다.
 주제를 깊이 있게 조사하고 다각도로 분석하세요.
@@ -121,14 +120,14 @@ const ROLES = {
     ]
   },
 
-  // 번역 알바 (경량 모델)
+  // 번역 알바
   translator: {
     id: 'translator',
     name: '번역',
     description: '다국어 번역',
 
-    preferredModel: 'claude-3-5-haiku-20241022',
-    fallbackModel: 'gpt-4o-mini',
+    preferredModel: '',
+    fallbackModel: '',
 
     systemPrompt: `당신은 전문 번역가입니다.
 정확하고 자연스러운 번역을 제공하세요.
@@ -154,8 +153,8 @@ const ROLES = {
     name: '코드 리뷰',
     description: '코드 품질 검토',
 
-    preferredModel: 'claude-3-5-sonnet-20241022',
-    fallbackModel: 'gpt-4o',
+    preferredModel: '',
+    fallbackModel: '',
 
     systemPrompt: `당신은 코드 리뷰어입니다.
 코드를 꼼꼼히 검토하고 개선점을 제안하세요.
@@ -200,24 +199,24 @@ function detectRole(message) {
  * 역할별 모델 선택
  * @param {string} roleId - 역할 ID
  * @param {Object} availableModels - 사용 가능한 모델 목록
- * @returns {string} - 선택된 모델
+ * @returns {string} - 선택된 모델 (빈 문자열이면 모델 미설정)
  */
 function selectModelForRole(roleId, availableModels = {}) {
   const role = ROLES[roleId];
-  if (!role) return 'claude-3-5-sonnet-20241022'; // 기본값
+  if (!role) return '';
 
   // 우선 모델 체크
-  if (availableModels[role.preferredModel]) {
+  if (role.preferredModel && availableModels[role.preferredModel]) {
     return role.preferredModel;
   }
 
   // 폴백 모델
-  if (availableModels[role.fallbackModel]) {
+  if (role.fallbackModel && availableModels[role.fallbackModel]) {
     return role.fallbackModel;
   }
 
-  // 둘 다 없으면 기본값
-  return 'claude-3-5-sonnet-20241022';
+  // 설정 안 됐으면 빈값
+  return '';
 }
 
 module.exports = {

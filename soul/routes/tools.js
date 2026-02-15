@@ -141,4 +141,25 @@ router.post('/builtin/manage_todo', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/tools/builtin/:toolName
+ * 범용 builtin 도구 실행 API (패널 UI에서 직접 호출)
+ */
+router.post('/builtin/:toolName', async (req, res) => {
+  try {
+    const { toolName } = req.params;
+    const { executeBuiltinTool, isBuiltinTool } = require('../utils/builtin-tools');
+
+    if (!isBuiltinTool(toolName)) {
+      return res.status(404).json({ success: false, error: `Unknown tool: ${toolName}` });
+    }
+
+    const result = await executeBuiltinTool(toolName, req.body);
+    res.json(result);
+  } catch (error) {
+    console.error(`[tools/${req.params.toolName}] Error:`, error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 module.exports = router;

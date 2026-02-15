@@ -15,9 +15,9 @@ export class AISettings {
       singleThinking: false,
       manager: 'server',
       managerModel: null,
-      light: 'claude-3-5-haiku-20241022',
-      medium: 'claude-3-5-sonnet-20241022',
-      heavy: 'claude-3-opus-20240229',
+      light: '',
+      medium: '',
+      heavy: '',
       lightThinking: false,
       mediumThinking: false,
       heavyThinking: true
@@ -477,6 +477,8 @@ export class AISettings {
                 </div>
               </div>
             </div>
+
+            <!-- 웹검색 설정: 독 설정 → 연결 탭에서 관리 -->
 
           </div>
 
@@ -4317,6 +4319,11 @@ export class AISettings {
 
       if (Object.keys(updateData).length > 0) {
         await this.apiClient.put(`/profile/agent/${profileId}`, updateData);
+
+        // 설정 변경 이벤트 발생 (즉시 반영)
+        window.dispatchEvent(new CustomEvent('profile-updated', {
+          detail: { section, field, value, profileId }
+        }));
       }
     } catch (error) {
       console.error('Failed to save timeline slider value:', error);
@@ -5231,7 +5238,27 @@ export class AISettings {
   async updateAlbaModel(roleId, model) {
     try {
       await this.apiClient.patch(`/roles/${roleId}`, { preferredModel: model });
-      await this.loadAvailableRoles();
+
+      // 로컬 데이터 즉시 업데이트
+      const role = this.availableRoles.find(r => r.roleId === roleId);
+      if (role) {
+        role.preferredModel = model;
+        // 해당 알바 아이템의 모델 라벨만 업데이트
+        const albaItem = document.querySelector(`.alba-item[data-role-id="${roleId}"]`);
+        if (albaItem) {
+          const modelLabel = albaItem.querySelector('.alba-model-label');
+          if (modelLabel) {
+            const shortName = this._shortModelName(model) || '자동 선택';
+            modelLabel.textContent = shortName;
+          }
+        }
+      }
+
+      // 역할 변경 이벤트 발생 (즉시 반영)
+      window.dispatchEvent(new CustomEvent('role-updated', {
+        detail: { roleId, field: 'preferredModel', value: model }
+      }));
+
       this.showSaveStatus('모델이 변경되었습니다.', 'success');
     } catch (error) {
       console.error('Failed to update alba model:', error);
@@ -6671,6 +6698,9 @@ export class AISettings {
     }
   }
 
+  /**
+   * 웹검색 API 키 저장
+   */
   /**
    * 사용자 프로필 로드
    */

@@ -13,6 +13,7 @@ import dashboardManager from './utils/dashboard-manager.js';
 import { SearchManager } from './utils/search-manager.js';
 import { SoulSocketClient } from './utils/socket-client.js';
 import { getVoiceInput } from './utils/voice-input.js';
+import { SectionPanelRenderer } from './components/panels/section-panels.js';
 
 class SoulApp {
   constructor() {
@@ -23,6 +24,7 @@ class SoulApp {
     this.apiClient = null;
     this.searchManager = null;
     this.socketClient = null;
+    this.panelRenderer = null;
 
     // UI Elements
     this.elements = {
@@ -84,6 +86,7 @@ class SoulApp {
     this.chatManager = new ChatManager(this.apiClient);
     this.panelManager = new PanelManager(this.apiClient);
     this.menuManager = new MenuManager();
+    this.panelRenderer = new SectionPanelRenderer(this);
     // this.roleManager 제거됨 — 알바 관리는 ai-settings.js에서 처리
 
     // Load user profile and theme
@@ -905,6 +908,12 @@ class SoulApp {
       }
 
       previousWidth = currentWidth;
+    });
+
+    // 프로필 설정 변경 실시간 반영
+    window.addEventListener('profile-updated', (e) => {
+      console.log('Profile updated:', e.detail);
+      // 현재는 로그만 출력 (필요시 UI 업데이트 추가 가능)
     });
   }
 
@@ -1838,8 +1847,26 @@ class SoulApp {
       case 'section_system':
         await this.renderSystemUI(container);
         break;
+      case 'section_memory':
+        await this.panelRenderer.renderMemoryUI(container);
+        break;
+      case 'section_messaging':
+        await this.panelRenderer.renderMessagingUI(container);
+        break;
+      case 'section_browser':
+        await this.panelRenderer.renderBrowserUI(container);
+        break;
+      case 'section_filesystem':
+        await this.panelRenderer.renderFilesystemUI(container);
+        break;
+      case 'section_cloud':
+        await this.panelRenderer.renderCloudUI(container);
+        break;
       default:
         // 기본 도구 목록 UI
+        const hasSearchWeb = (item.tools || []).includes('search_web');
+        const hasWeather = (item.tools || []).includes('get_weather');
+
         container.innerHTML = `
           <div class="builtin-section-panel">
             <div class="section-header">
@@ -1854,6 +1881,30 @@ class SoulApp {
                 </div>
               `).join('')}
             </div>
+            ${hasSearchWeb ? `
+              <div style="margin-top: 20px; padding: 16px; border-radius: 8px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);">
+                <div style="font-size: 0.9rem; font-weight: 500; color: rgba(255,255,255,0.85); margin-bottom: 8px;">Tavily API 키</div>
+                <div style="font-size: 0.75rem; color: rgba(255,255,255,0.5); margin-bottom: 12px;">웹 검색 기능을 사용하려면 API 키가 필요합니다</div>
+                <input type="password" id="webSearchApiKeyInput" placeholder="tvly-..." style="width: 100%; padding: 8px 12px; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; background: rgba(0,0,0,0.3); color: white; font-size: 0.85rem; box-sizing: border-box; margin-bottom: 8px;">
+                <div style="display: flex; gap: 8px;">
+                  <button id="saveWebSearchApiKeyBtn" style="flex: 1; padding: 8px 12px; border: none; border-radius: 6px; background: rgba(66,133,244,0.8); color: white; font-size: 0.8rem; cursor: pointer; font-weight: 500;">저장</button>
+                  <button id="deleteWebSearchApiKeyBtn" style="display: none; padding: 8px 12px; border: none; border-radius: 6px; background: rgba(244,67,54,0.8); color: white; font-size: 0.8rem; cursor: pointer; font-weight: 500;">삭제</button>
+                </div>
+                <div id="webSearchApiKeyStatus" style="font-size: 0.75rem; color: rgba(255,255,255,0.4); margin-top: 8px;"></div>
+              </div>
+            ` : ''}
+            ${hasWeather ? `
+              <div style="margin-top: 16px; padding: 16px; border-radius: 8px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);">
+                <div style="font-size: 0.9rem; font-weight: 500; color: rgba(255,255,255,0.85); margin-bottom: 8px;">기상청 API 키</div>
+                <div style="font-size: 0.75rem; color: rgba(255,255,255,0.5); margin-bottom: 12px;">공공데이터포털 기상청 서비스키 (단기+중기 예보). 없으면 Open-Meteo 사용</div>
+                <input type="password" id="weatherApiKeyInput" placeholder="서비스키 입력..." style="width: 100%; padding: 8px 12px; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; background: rgba(0,0,0,0.3); color: white; font-size: 0.85rem; box-sizing: border-box; margin-bottom: 8px;">
+                <div style="display: flex; gap: 8px;">
+                  <button id="saveWeatherApiKeyBtn" style="flex: 1; padding: 8px 12px; border: none; border-radius: 6px; background: rgba(66,133,244,0.8); color: white; font-size: 0.8rem; cursor: pointer; font-weight: 500;">저장</button>
+                  <button id="deleteWeatherApiKeyBtn" style="display: none; padding: 8px 12px; border: none; border-radius: 6px; background: rgba(244,67,54,0.8); color: white; font-size: 0.8rem; cursor: pointer; font-weight: 500;">삭제</button>
+                </div>
+                <div id="weatherApiKeyStatus" style="font-size: 0.75rem; color: rgba(255,255,255,0.4); margin-top: 8px;"></div>
+              </div>
+            ` : ''}
           </div>
         `;
 
@@ -1869,6 +1920,136 @@ class SoulApp {
             }
           });
         });
+
+        // 웹 검색 API 키 설정 (search_web이 있을 때만)
+        if (hasSearchWeb) {
+          setTimeout(async () => {
+            const input = document.getElementById('webSearchApiKeyInput');
+            const saveBtn = document.getElementById('saveWebSearchApiKeyBtn');
+            const deleteBtn = document.getElementById('deleteWebSearchApiKeyBtn');
+            const status = document.getElementById('webSearchApiKeyStatus');
+
+            if (!input || !saveBtn || !deleteBtn || !status) return;
+
+            // 현재 상태 로드
+            try {
+              const res = await fetch('/api/config/web-search');
+              const data = await res.json();
+              if (data.configured) {
+                status.textContent = '✓ API 키 설정됨';
+                status.style.color = 'rgba(76,175,80,0.8)';
+                deleteBtn.style.display = 'inline-block';
+              } else {
+                status.textContent = 'API 키 미설정';
+              }
+            } catch (e) {
+              status.textContent = '상태 확인 실패';
+            }
+
+            // 저장 버튼
+            saveBtn.onclick = async () => {
+              if (!input.value.trim()) {
+                status.textContent = '⚠ API 키를 입력하세요';
+                status.style.color = 'rgba(244,67,54,0.8)';
+                return;
+              }
+
+              try {
+                const res = await fetch('/api/config/web-search', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ apiKey: input.value.trim() })
+                });
+                const result = await res.json();
+
+                if (result.success) {
+                  input.value = '';
+                  status.textContent = '✓ 저장 완료';
+                  status.style.color = 'rgba(76,175,80,0.8)';
+                  deleteBtn.style.display = 'inline-block';
+                  this.showToast('웹 검색 API 키가 저장되었습니다', 2000);
+                } else {
+                  throw new Error(result.error);
+                }
+              } catch (e) {
+                status.textContent = '⚠ 저장 실패: ' + e.message;
+                status.style.color = 'rgba(244,67,54,0.8)';
+              }
+            };
+
+            // 삭제 버튼
+            deleteBtn.onclick = async () => {
+              if (!confirm('웹 검색 API 키를 삭제하시겠습니까?')) return;
+
+              try {
+                const res = await fetch('/api/config/web-search', { method: 'DELETE' });
+                const result = await res.json();
+
+                if (result.success) {
+                  status.textContent = 'API 키 미설정';
+                  status.style.color = 'rgba(255,255,255,0.4)';
+                  deleteBtn.style.display = 'none';
+                  this.showToast('웹 검색 API 키가 삭제되었습니다', 2000);
+                }
+              } catch (e) {
+                status.textContent = '⚠ 삭제 실패';
+                status.style.color = 'rgba(244,67,54,0.8)';
+              }
+            };
+          }, 100);
+        }
+
+        // 날씨 API 키 설정 (get_weather가 있을 때만)
+        if (hasWeather) {
+          setTimeout(async () => {
+            const input = document.getElementById('weatherApiKeyInput');
+            const saveBtn = document.getElementById('saveWeatherApiKeyBtn');
+            const deleteBtn = document.getElementById('deleteWeatherApiKeyBtn');
+            const status = document.getElementById('weatherApiKeyStatus');
+            if (!input || !saveBtn || !deleteBtn || !status) return;
+
+            // 현재 상태
+            try {
+              const res = await fetch('/api/config/weather');
+              const data = await res.json();
+              if (data.configured) {
+                status.textContent = '기상청 예보 사용 중';
+                status.style.color = 'rgba(76,175,80,0.8)';
+                deleteBtn.style.display = 'inline-block';
+              } else {
+                status.textContent = 'Open-Meteo 사용 중 (기상청 키 미설정)';
+              }
+            } catch (e) { status.textContent = '상태 확인 실패'; }
+
+            saveBtn.onclick = async () => {
+              if (!input.value.trim()) { status.textContent = 'API 키를 입력하세요'; status.style.color = 'rgba(244,67,54,0.8)'; return; }
+              try {
+                const res = await fetch('/api/config/weather', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apiKey: input.value.trim() }) });
+                const result = await res.json();
+                if (result.success) {
+                  input.value = '';
+                  status.textContent = '기상청 예보 사용 중';
+                  status.style.color = 'rgba(76,175,80,0.8)';
+                  deleteBtn.style.display = 'inline-block';
+                  this.showToast('기상청 API 키가 저장되었습니다', 2000);
+                } else throw new Error(result.error);
+              } catch (e) { status.textContent = '저장 실패: ' + e.message; status.style.color = 'rgba(244,67,54,0.8)'; }
+            };
+
+            deleteBtn.onclick = async () => {
+              if (!confirm('기상청 API 키를 삭제하시겠습니까?')) return;
+              try {
+                const res = await fetch('/api/config/weather', { method: 'DELETE' });
+                if ((await res.json()).success) {
+                  status.textContent = 'Open-Meteo 사용 중';
+                  status.style.color = 'rgba(255,255,255,0.4)';
+                  deleteBtn.style.display = 'none';
+                  this.showToast('Open-Meteo로 전환되었습니다', 2000);
+                }
+              } catch (e) { status.textContent = '삭제 실패'; status.style.color = 'rgba(244,67,54,0.8)'; }
+            };
+          }, 150);
+        }
     }
 
     content.appendChild(container);
@@ -1885,13 +2066,13 @@ class SoulApp {
   }
 
   /**
-   * 설정 페이지를 캔버스에 열기
+   * 설정(MCP) 페이지를 캔버스에 열기
    */
-  openSettingsInCanvas() {
+  async openSettingsInCanvas() {
     const panel = document.getElementById('canvasPanel');
     const tabsContainer = document.getElementById('canvasTabs');
     const content = document.getElementById('canvasContent');
-    
+
     if (!panel || !tabsContainer || !content) return;
 
     // 이미 열려있으면 활성화만
@@ -1907,11 +2088,11 @@ class SoulApp {
     settingsContainer.id = 'canvas-settings';
     settingsContainer.className = 'canvas-iframe active';
     settingsContainer.style.cssText = 'position: absolute; top: 0; left: 0; right: 0; bottom: 0; overflow-y: auto; padding: 0; box-sizing: border-box; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.3) transparent;';
-    
+
     content.appendChild(settingsContainer);
-    
+
     // MCP 설정 렌더링
-    this.renderMcpSettingsInCanvas(settingsContainer);
+    await this.renderDockSettingsInCanvas(settingsContainer);
 
     this.canvasTabs.push({ type: 'settings', title: 'MCP 설정' });
     this.activateCanvasTab('settings');
@@ -1920,201 +2101,18 @@ class SoulApp {
   }
 
   /**
-   * 캔버스에 MCP 설정 렌더링
+   * 캔버스에 독 설정 렌더링 (MCP + 연결)
    */
-  async renderMcpSettingsInCanvas(container) {
+  async renderDockSettingsInCanvas(container) {
     container.innerHTML = '<div style="color: white; padding: 20px;">로딩 중...</div>';
 
     try {
-      // AppSettings 컴포넌트 사용
       const { AppSettings } = await import('./settings/components/app-settings.js');
       const appSettings = new AppSettings();
       await appSettings.render(container, this.apiClient);
-      await appSettings.loadSubPage('mcp'); // MCP 설정 페이지로 이동
-      return;
-
-      /* 기존 코드 주석 처리
-      const mcpResponse = await fetch('/api/mcp/servers');
-      const data = await mcpResponse.json();
-      const servers = data.servers || [];
-      */
-
-      container.innerHTML = `
-        <div style="color: white; padding-right: 8px;">
-          <h2 style="margin: 0 0 16px 0; font-size: 1.2rem;">MCP 서버 설정</h2>
-
-          <!-- MCP 서버 목록 -->
-          <div style="display: flex; flex-direction: column; gap: 12px;">
-            ${servers.map(s => `
-              <div style="background: rgba(255,255,255,0.1); border-radius: 12px; padding: 12px;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                  <div style="display: flex; align-items: center; gap: 12px;">
-                    ${s.type !== 'built-in' ? `
-                    <!-- 활성화 토글 (외부 MCP만) -->
-                    <label style="position: relative; width: 40px; height: 22px; cursor: pointer; flex-shrink: 0;">
-                      <input type="checkbox" class="mcp-enable-toggle" data-id="${s.id}" ${s.enabled !== false ? 'checked' : ''} style="opacity: 0; width: 0; height: 0;">
-                      <span style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: ${s.enabled !== false ? '#8b5cf6' : '#4b5563'}; border-radius: 22px; transition: 0.3s;"></span>
-                      <span style="position: absolute; top: 2px; left: ${s.enabled !== false ? '20px' : '2px'}; width: 18px; height: 18px; background: white; border-radius: 50%; transition: 0.3s;"></span>
-                    </label>
-                    ` : ''}
-                    <div>
-                      <div style="font-weight: 600; opacity: ${s.type === 'built-in' || s.enabled !== false ? '1' : '0.5'};">${s.type === 'built-in' ? 'Soul MCP' : s.name}</div>
-                      <div style="font-size: 0.8rem; opacity: 0.7;">${s.description || ''}</div>
-                      <span style="display: inline-block; margin-top: 6px; font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; background: ${s.type === 'built-in' ? 'rgba(74, 222, 128, 0.2)' : 'rgba(251, 191, 36, 0.2)'}; color: ${s.type === 'built-in' ? '#4ade80' : '#fbbf24'};">
-                        ${s.type === 'built-in' ? '기본 내장' : '외부'}
-                      </span>
-                    </div>
-                  </div>
-                  ${s.type !== 'built-in' ? `
-                  <div style="display: flex; gap: 8px; align-items: center;">
-                    <span style="font-size: 0.75rem; background: ${s.showInDock ? '#4ade80' : '#666'}; padding: 2px 8px; border-radius: 4px;">
-                      ${s.showInDock ? '독 표시' : '숨김'}
-                    </span>
-                    <button class="canvas-mcp-edit" data-id="${s.id}" style="background: #4285f4; color: white; border: none; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 0.8rem;">
-                      편집
-                    </button>
-                  </div>
-                  ` : ''}
-                </div>
-                <!-- 도구 목록 토글 -->
-                <div class="canvas-mcp-tools-toggle" data-id="${s.id}" style="margin-top: 8px; cursor: pointer; display: flex; align-items: center; gap: 4px; font-size: 0.75rem; color: rgba(255,255,255,0.5);">
-                  <span class="tools-arrow" style="transition: transform 0.2s;">▶</span>
-                  <span>도구 목록</span>
-                </div>
-                <div class="canvas-mcp-tools-list" data-id="${s.id}" style="display: none; margin-top: 8px;"></div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      `;
-
-      // 활성화 토글 이벤트
-      container.querySelectorAll('.mcp-enable-toggle').forEach(toggle => {
-        toggle.addEventListener('change', async (e) => {
-          const serverId = toggle.dataset.id;
-          const enabled = toggle.checked;
-          const card = toggle.closest('div[style*="background: rgba"]');
-          const slider = toggle.nextElementSibling;
-          const circle = slider?.nextElementSibling;
-          const nameDiv = card?.querySelector('div[style*="font-weight: 600"]');
-
-          // UI 즉시 업데이트
-          if (slider) slider.style.background = enabled ? '#8b5cf6' : '#4b5563';
-          if (circle) circle.style.left = enabled ? '20px' : '2px';
-          if (nameDiv) nameDiv.style.opacity = enabled ? '1' : '0.5';
-
-          // API 호출
-          try {
-            await fetch(`/api/mcp/servers/${serverId}/enable`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ enabled })
-            });
-          } catch (err) {
-            console.error('MCP enable toggle failed:', err);
-            // 실패시 롤백
-            toggle.checked = !enabled;
-          }
-        });
-      });
-
-      // 편집 버튼 이벤트
-      container.querySelectorAll('.canvas-mcp-edit').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const serverId = btn.dataset.id;
-          const server = servers.find(s => s.id === serverId);
-          if (server) {
-            this.showMcpEditModal(server, container);
-          }
-        });
-      });
-
-      // 도구 목록 토글 이벤트
-      container.querySelectorAll('.canvas-mcp-tools-toggle').forEach(toggle => {
-        toggle.addEventListener('click', async () => {
-          const serverId = toggle.dataset.id;
-          const listEl = container.querySelector(`.canvas-mcp-tools-list[data-id="${serverId}"]`);
-          const arrow = toggle.querySelector('.tools-arrow');
-          if (!listEl) return;
-
-          const isOpen = listEl.style.display !== 'none';
-          if (isOpen) {
-            listEl.style.display = 'none';
-            if (arrow) arrow.style.transform = 'rotate(0deg)';
-            return;
-          }
-
-          // 열기
-          listEl.style.display = 'block';
-          if (arrow) arrow.style.transform = 'rotate(90deg)';
-
-          // 이미 로드됨?
-          if (listEl.dataset.loaded) return;
-
-          listEl.innerHTML = '<div style="font-size: 0.75rem; color: rgba(255,255,255,0.4); padding: 4px 0;">불러오는 중...</div>';
-          try {
-            const res = await fetch(`/api/mcp/servers/${serverId}/tools`);
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const data = await res.json();
-            const tools = data.tools || [];
-
-            if (tools.length === 0) {
-              listEl.innerHTML = '<div style="font-size: 0.75rem; color: rgba(255,255,255,0.35); padding: 4px 0;">도구 없음</div>';
-            } else {
-              // 도구 설명 한글 매핑
-              const koDesc = {
-                show_api_key: 'API 키 확인 (디버그용)',
-                primer: '현재 세션 정보 (시간, 위치, 네트워크)',
-                guess_datetime_url: '웹페이지 게시/수정 날짜 추정',
-                capture_screenshot_url: '웹페이지 스크린샷 캡처',
-                read_url: '웹페이지를 마크다운으로 추출',
-                search_web: '웹 검색',
-                expand_query: '검색어 확장 및 재작성',
-                search_arxiv: 'arXiv 논문 검색',
-                search_ssrn: 'SSRN 사회과학 논문 검색',
-                search_jina_blog: 'Jina AI 블로그/뉴스 검색',
-                search_images: '이미지 검색',
-                parallel_search_web: '병렬 웹 검색',
-                parallel_search_arxiv: '병렬 arXiv 논문 검색',
-                parallel_search_ssrn: '병렬 SSRN 논문 검색',
-                parallel_read_url: '여러 웹페이지 동시 읽기',
-                sort_by_relevance: '문서 관련성 재정렬 (리랭커)',
-                deduplicate_strings: '텍스트 중복 제거',
-                deduplicate_images: '이미지 중복 제거',
-                search_bibtex: '학술 논문 BibTeX 인용 검색',
-                extract_pdf: 'PDF에서 그림/표/수식 추출',
-                // 내장 도구
-                recall_memory: '과거 대화/기억 검색',
-                get_profile: '사용자 프로필 조회',
-                update_profile: '사용자 정보 저장',
-                list_my_rules: '규칙/메모 조회',
-                add_my_rule: '규칙 저장',
-                delete_my_rule: '규칙 삭제',
-                send_message: '즉시 메시지 전송',
-                schedule_message: '예약 메시지',
-                cancel_scheduled_message: '예약 취소',
-                list_scheduled_messages: '예약 목록',
-              };
-              // 토글 텍스트에 개수 표시
-              toggle.querySelector('span:last-child').textContent = `도구 ${tools.length}개`;
-              listEl.innerHTML = tools.map(t => {
-                const desc = koDesc[t.name] || t.description || '';
-                return `
-                <div style="padding: 5px 8px; margin-bottom: 3px; border-radius: 6px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06);">
-                  <div style="font-size: 0.78rem; font-weight: 500; color: rgba(255,255,255,0.85); font-family: 'SF Mono', 'Fira Code', monospace;">${t.name}</div>
-                  ${desc ? `<div style="font-size: 0.7rem; color: rgba(255,255,255,0.45); margin-top: 2px; line-height: 1.4;">${desc}</div>` : ''}
-                </div>`;
-              }).join('');
-            }
-            listEl.dataset.loaded = 'true';
-          } catch (e) {
-            listEl.innerHTML = `<div style="font-size: 0.75rem; color: rgba(255,100,100,0.6); padding: 4px 0;">로드 실패: ${e.message}</div>`;
-          }
-        });
-      });
-
+      await appSettings.loadSubPage('mcp');
     } catch (e) {
-      container.innerHTML = `<div style="color: #ff6b6b; padding: 20px;">설정을 불러오는데 실패했습니다.</div>`;
+      container.innerHTML = '<div style="color: #ff6b6b; padding: 20px;">설정을 불러오는데 실패했습니다.</div>';
     }
   }
 
@@ -3826,9 +3824,8 @@ class SoulApp {
    */
   async renderNoteUI(container) {
     try {
-      const response = await this.apiClient.post('/api/tools/builtin/manage_note', {
-        method: 'POST',
-        body: JSON.stringify({ action: 'list', limit: 100 })
+      const response = await this.apiClient.post('/tools/builtin/manage_note', {
+        action: 'list', limit: 100
       });
 
       const notes = response.notes || [];
@@ -3913,9 +3910,8 @@ class SoulApp {
 
   async _viewNote(noteId, container) {
     try {
-      const response = await this.apiClient.post('/api/tools/builtin/manage_note', {
-        method: 'POST',
-        body: JSON.stringify({ action: 'read', note_id: noteId })
+      const response = await this.apiClient.post('/tools/builtin/manage_note', {
+        action: 'read', note_id: noteId
       });
       const note = response.note;
       if (!note) return;
@@ -3959,9 +3955,8 @@ class SoulApp {
       const tagsInput = container.querySelector('.note-tags-input')?.value || '';
       const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(Boolean) : [];
 
-      await this.apiClient.post('/api/tools/builtin/manage_note', {
-        method: 'POST',
-        body: JSON.stringify({ action: 'update', note_id: noteId, title, content, tags })
+      await this.apiClient.post('/tools/builtin/manage_note', {
+        action: 'update', note_id: noteId, title, content, tags
       });
 
       if (!isAutoSave) this.showToast('메모가 저장되었습니다', 1500);
@@ -3982,9 +3977,8 @@ class SoulApp {
 
   async _createNewNote(container) {
     try {
-      const response = await this.apiClient.post('/api/tools/builtin/manage_note', {
-        method: 'POST',
-        body: JSON.stringify({ action: 'create', title: '새 메모', content: '' })
+      const response = await this.apiClient.post('/tools/builtin/manage_note', {
+        action: 'create', title: '새 메모', content: ''
       });
       if (response.success) {
         await this.renderNoteUI(container);
@@ -3998,9 +3992,8 @@ class SoulApp {
 
   async _deleteNote(noteId, container) {
     try {
-      await this.apiClient.post('/api/tools/builtin/manage_note', {
-        method: 'POST',
-        body: JSON.stringify({ action: 'delete', note_id: noteId })
+      await this.apiClient.post('/tools/builtin/manage_note', {
+        action: 'delete', note_id: noteId
       });
       await this.renderNoteUI(container);
     } catch (error) {
@@ -4031,9 +4024,8 @@ class SoulApp {
       const startDate = new Date(year, month, 1).toISOString().split('T')[0];
       const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
 
-      const response = await this.apiClient.post('/api/tools/builtin/get_events', {
-        method: 'POST',
-        body: JSON.stringify({ start_date: startDate, end_date: endDate })
+      const response = await this.apiClient.post('/tools/builtin/get_events', {
+        start_date: startDate, end_date: endDate
       });
 
       const events = response.events || [];
@@ -4196,9 +4188,8 @@ class SoulApp {
     const startDate = new Date(year, month, 1).toISOString().split('T')[0];
     const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
 
-    const response = await this.apiClient.post('/api/tools/builtin/get_events', {
-      method: 'POST',
-      body: JSON.stringify({ start_date: startDate, end_date: endDate })
+    const response = await this.apiClient.post('/tools/builtin/get_events', {
+      start_date: startDate, end_date: endDate
     });
 
     const events = response.events || [];
@@ -4217,62 +4208,111 @@ class SoulApp {
 
   async _createNewEvent(container, defaultDate = null) {
     const date = defaultDate || new Date().toISOString().split('T')[0];
-    const time = '09:00';
 
-    const title = prompt('일정 제목을 입력하세요', '새 일정');
-    if (!title) return;
+    // 인라인 폼 표시
+    const eventList = container.querySelector('#calendarEventList');
+    if (!eventList) return;
 
-    const startDateTime = prompt('시작 시간 (YYYY-MM-DD HH:MM)', `${date} ${time}`);
-    if (!startDateTime) return;
+    // 기존 폼이 있으면 제거
+    const existingForm = container.querySelector('.calendar-inline-form');
+    if (existingForm) existingForm.remove();
 
-    try {
-      const response = await this.apiClient.post('/api/tools/builtin/create_event', {
-        method: 'POST',
-        body: JSON.stringify({
-          title,
-          start: startDateTime,
-          description: '',
-          location: ''
-        })
-      });
+    const form = document.createElement('div');
+    form.className = 'calendar-inline-form';
+    form.innerHTML = `
+      <input type="text" class="calendar-form-input" id="calEventTitle" placeholder="일정 제목" autofocus>
+      <input type="datetime-local" class="calendar-form-datetime" id="calEventStart" value="${date}T09:00">
+      <div class="calendar-form-actions">
+        <button class="calendar-form-save" id="calEventSave">추가</button>
+        <button class="calendar-form-cancel" id="calEventCancel">취소</button>
+      </div>
+    `;
+    eventList.prepend(form);
 
-      if (response.success) {
-        this.showToast('일정이 추가되었습니다', 1500);
-        const year = parseInt(container.dataset.currentYear);
-        const month = parseInt(container.dataset.currentMonth);
-        await this._refreshCalendar(container, year, month);
+    const titleInput = form.querySelector('#calEventTitle');
+    const startInput = form.querySelector('#calEventStart');
+    titleInput?.focus();
+
+    form.querySelector('#calEventSave')?.addEventListener('click', async () => {
+      const title = titleInput?.value?.trim();
+      if (!title) { titleInput?.focus(); return; }
+      const start = startInput?.value?.replace('T', ' ') || `${date} 09:00`;
+      try {
+        const response = await this.apiClient.post('/tools/builtin/create_event', {
+          title, start, description: '', location: ''
+        });
+        if (response.success) {
+          this.showToast('일정이 추가되었습니다', 1500);
+          const year = parseInt(container.dataset.currentYear);
+          const month = parseInt(container.dataset.currentMonth);
+          await this._refreshCalendar(container, year, month);
+        }
+      } catch (error) {
+        console.error('일정 추가 실패:', error);
+        this.showToast('일정 추가에 실패했습니다');
       }
-    } catch (error) {
-      console.error('일정 추가 실패:', error);
-      alert('일정 추가에 실패했습니다');
-    }
+    });
+
+    form.querySelector('#calEventCancel')?.addEventListener('click', () => form.remove());
+    titleInput?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') form.querySelector('#calEventSave')?.click();
+      if (e.key === 'Escape') form.remove();
+    });
   }
 
   async _editEvent(eventId, container) {
-    const title = prompt('일정 제목을 수정하세요');
-    if (!title) return;
+    // 인라인 편집: 이벤트 카드를 편집 모드로 전환
+    const eventEl = container.querySelector(`[data-event-id="${eventId}"]`);
+    if (!eventEl) return;
 
-    try {
-      await this.apiClient.post('/api/tools/builtin/update_event', {
-        method: 'POST',
-        body: JSON.stringify({ event_id: eventId, title })
-      });
+    const currentTitle = eventEl.querySelector('.event-title')?.textContent || '';
+    const originalContent = eventEl.innerHTML;
 
-      this.showToast('일정이 수정되었습니다', 1500);
-      const year = parseInt(container.dataset.currentYear);
-      const month = parseInt(container.dataset.currentMonth);
-      await this._refreshCalendar(container, year, month);
-    } catch (error) {
-      console.error('일정 수정 실패:', error);
-      alert('일정 수정에 실패했습니다');
-    }
+    eventEl.innerHTML = `
+      <input type="text" class="calendar-form-input calendar-edit-input" value="${this._escapeHtml(currentTitle)}" autofocus>
+      <div class="calendar-form-actions" style="margin-top:0.5rem;">
+        <button class="calendar-form-save cal-edit-save">저장</button>
+        <button class="calendar-form-cancel cal-edit-cancel">취소</button>
+      </div>
+    `;
+
+    const input = eventEl.querySelector('.calendar-edit-input');
+    input?.focus();
+    input?.select();
+
+    eventEl.querySelector('.cal-edit-save')?.addEventListener('click', async () => {
+      const title = input?.value?.trim();
+      if (!title) { input?.focus(); return; }
+      try {
+        await this.apiClient.post('/tools/builtin/update_event', {
+          event_id: eventId, title
+        });
+        this.showToast('일정이 수정되었습니다', 1500);
+        const year = parseInt(container.dataset.currentYear);
+        const month = parseInt(container.dataset.currentMonth);
+        await this._refreshCalendar(container, year, month);
+      } catch (error) {
+        console.error('일정 수정 실패:', error);
+        this.showToast('수정에 실패했습니다');
+        eventEl.innerHTML = originalContent;
+      }
+    });
+
+    eventEl.querySelector('.cal-edit-cancel')?.addEventListener('click', () => {
+      eventEl.innerHTML = originalContent;
+      this._attachEventListeners(container);
+    });
+
+    input?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') eventEl.querySelector('.cal-edit-save')?.click();
+      if (e.key === 'Escape') eventEl.querySelector('.cal-edit-cancel')?.click();
+    });
   }
 
   async _deleteEvent(eventId, container) {
     try {
-      await this.apiClient.post('/api/tools/builtin/delete_event', {
-        method: 'POST',
-        body: JSON.stringify({ event_id: eventId })
+      await this.apiClient.post('/tools/builtin/delete_event', {
+        event_id: eventId
       });
 
       this.showToast('일정이 삭제되었습니다', 1500);

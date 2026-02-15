@@ -118,11 +118,15 @@ class RoleSelector {
    * @private
    */
   async _llmAnalysis(message, candidates) {
-    // 빠르고 저렴한 모델 사용 (Haiku)
-    const aiService = await AIServiceFactory.createService(
-      'anthropic',
-      'claude-3-5-haiku-20241022'
-    );
+    // 라우터 모델 사용 (설정에서 가져옴)
+    const SystemConfig = require('../models/SystemConfig');
+    const routingConfig = await SystemConfig.findOne({ configKey: 'routing' });
+    const routerModel = routingConfig?.value?.routerModel;
+    const routerService = routingConfig?.value?.routerService;
+    if (!routerModel || !routerService) {
+      throw new Error('라우터 모델 미설정 → 키워드 기반 선택으로 폴백');
+    }
+    const aiService = await AIServiceFactory.createService(routerService, routerModel);
 
     const rolesDescription = candidates.map((role, idx) =>
       `${idx + 1}. ${role.name} (${role.roleId}): ${role.description}`
@@ -168,8 +172,8 @@ ${rolesDescription}
       const estimatedOutputTokens = response ? Math.ceil(response.length / 4) : 0;
       try {
         await AIServiceFactory.trackUsage({
-          serviceId: 'anthropic',
-          modelId: 'claude-3-5-haiku-20241022',
+          serviceId: routerService,
+          modelId: routerModel,
           tier: 'light',
           usage: {
             input_tokens: estimatedInputTokens,
@@ -226,13 +230,11 @@ ${rolesDescription}
       const allActive = await AIServiceModel.find({ isActive: true });
       const activeService = allActive.find(s => s.apiKey);
 
-      let serviceName = 'anthropic';
-      let modelId = 'claude-3-5-haiku-20241022';
-
-      if (activeService && activeService.models && activeService.models.length > 0) {
-        serviceName = activeService.serviceId;
-        modelId = activeService.models[0].id;
+      if (!activeService || !activeService.models || activeService.models.length === 0) {
+        return { success: false, error: '활성화된 AI 서비스 없음' };
       }
+      const serviceName = activeService.serviceId;
+      const modelId = activeService.models[0].id;
 
       const aiService = await AIServiceFactory.createService(serviceName, modelId);
 
@@ -247,7 +249,7 @@ ${rolesDescription}
   "category": "content|code|data|creative|technical|other 중 하나",
   "triggers": ["키워드1", "키워드2", ...],
   "systemPrompt": "이 역할의 시스템 프롬프트 (영어)",
-  "preferredModel": "claude-3-5-sonnet-20241022"
+  "preferredModel": ""
 }`;
 
       const userPrompt = `이 작업을 처리할 새로운 전문가를 제안하세요:\n"${message}"`;

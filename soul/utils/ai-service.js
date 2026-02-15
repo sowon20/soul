@@ -136,7 +136,7 @@ class AnthropicService extends AIService {
     };
   }
 
-  constructor(apiKey, modelName = 'claude-haiku-4-5-20251001') {
+  constructor(apiKey, modelName = '') {
     super(apiKey);
     this.client = new Anthropic({ apiKey });
     this.modelName = modelName;
@@ -1013,7 +1013,7 @@ JSON만 응답하고 다른 설명은 하지 마.`;
  * OpenAI GPT 서비스
  */
 class OpenAIService extends AIService {
-  constructor(apiKey, modelName = 'gpt-4o-mini') {
+  constructor(apiKey, modelName = '') {
     super(apiKey);
     this.modelName = modelName;
     this.baseUrl = 'https://api.openai.com/v1';
@@ -1674,7 +1674,7 @@ JSON만 응답하고 다른 설명은 하지 마.`
  * xAI 서비스 (Grok)
  */
 class XAIService extends AIService {
-  constructor(apiKey, modelName = 'grok-4-1-fast-non-reasoning') {
+  constructor(apiKey, modelName = '') {
     super(apiKey);
     this.modelName = modelName;
     this.baseUrl = 'https://api.x.ai/v1';
@@ -2177,7 +2177,7 @@ class LightningAIService extends AIService {
  * DeepSeek 서비스 (OpenAI 호환 API + Thinking 지원)
  */
 class DeepSeekService extends OpenAIService {
-  constructor(apiKey, modelName = 'deepseek-chat') {
+  constructor(apiKey, modelName = '') {
     super(apiKey, modelName);
     this.baseUrl = 'https://api.deepseek.com';
   }
@@ -2603,7 +2603,7 @@ class DeepSeekService extends OpenAIService {
  * 비전 모델 + thinking 모델 지원
  */
 class QwenService extends OpenAIService {
-  constructor(apiKey, modelName = 'qwen-max') {
+  constructor(apiKey, modelName = '') {
     super(apiKey, modelName);
     this.baseUrl = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1';
   }
@@ -2918,7 +2918,7 @@ class QwenService extends OpenAIService {
 }
 
 class FireworksAIService extends AIService {
-  constructor(apiKey, modelName = 'accounts/fireworks/models/llama-v3p3-70b-instruct') {
+  constructor(apiKey, modelName = '') {
     super(apiKey);
     this.modelName = modelName;
     this.baseUrl = 'https://api.fireworks.ai/inference/v1';
@@ -3041,7 +3041,7 @@ class FireworksAIService extends AIService {
  * Together AI 서비스 (OpenAI-compatible)
  */
 class TogetherAIService extends AIService {
-  constructor(apiKey, modelName = 'Qwen/Qwen3-235B-A22B-Instruct-2507') {
+  constructor(apiKey, modelName = '') {
     super(apiKey);
     this.modelName = modelName;
     this.baseUrl = 'https://api.together.xyz/v1';
@@ -3216,6 +3216,7 @@ class TogetherAIService extends AIService {
       maxTokens = 4096,
       temperature = 0.7,
       tools = null,
+      textToolNames = null,  // 파인튜닝 모델: 텍스트 파싱용 도구 이름 목록
       toolExecutor = null,
       documents = null,
       thinking = false,
@@ -3411,11 +3412,13 @@ class TogetherAIService extends AIService {
     console.log(`[TogetherAI Stream] fullContent (first 500 chars):`, fullContent.substring(0, 500));
     console.log(`[TogetherAI Stream] fullReasoning (first 500 chars):`, fullReasoning.substring(0, 500));
 
-    // Together AI 파인튜닝 모델 임시 파싱: content에 [도구명] + JSON 형식 감지
-    if (toolCallsList.length === 0 && fullContent && tools && tools.length > 0) {
+    // Together AI 파인튜닝 모델 텍스트 파싱: content에 [도구명] + JSON 형식 감지
+    // tools(API 전송용) 또는 textToolNames(파인튜닝 모델 텍스트 파싱용) 중 하나라도 있으면 동작
+    const toolNameSource = (tools && tools.length > 0) ? tools.map(t => t.name) : textToolNames;
+    if (toolCallsList.length === 0 && fullContent && toolNameSource && toolNameSource.length > 0) {
       const lines = fullContent.split('\n');
       const parsedTools = [];
-      const availableToolNames = new Set(tools.map(t => t.name));
+      const availableToolNames = new Set(toolNameSource);
 
       // 마크다운 코드 블록 감지 (```로 시작하는 줄들)
       let inCodeBlock = false;
@@ -3649,7 +3652,7 @@ class TogetherAIService extends AIService {
  * Ollama 로컬 모델 서비스
  */
 class OllamaService extends AIService {
-  constructor(baseUrl = 'http://localhost:11434', modelName = 'llama3.2') {
+  constructor(baseUrl = 'http://localhost:11434', modelName = '') {
     super(null, { baseUrl });
     this.baseUrl = baseUrl;
     this.modelName = modelName;
@@ -3847,7 +3850,7 @@ class VertexAIService extends AIService {
    * @param {Object} config - { projectId, region, credentials? }
    * @param {string} modelName - 예: 'claude-sonnet-4-5@20250929'
    */
-  constructor(config, modelName = 'claude-sonnet-4-5@20250929') {
+  constructor(config, modelName = '') {
     super(null, config);
     this.projectId = config.projectId;
     this.region = config.region || 'us-east5'; // 기본 리전

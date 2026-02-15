@@ -71,20 +71,6 @@ export class AppSettings {
         <p class="theme-note">* 테마 기능은 준비 중입니다</p>
       </div>
 
-      <!-- 선제 메시지 -->
-      <div class="proactive-settings-section" style="margin-top: 24px;">
-        <h3>선제 메시지</h3>
-        <p style="font-size: 12px; color: var(--text-secondary, #888); margin: 4px 0 12px;">AI가 먼저 연락하는 기능 (안부, 예약 메시지). OFF 시 관련 도구가 제외되어 토큰 절약</p>
-        <div class="setting-row" style="display: flex; align-items: center; justify-content: space-between;">
-          <span style="font-size: 14px;">활성화</span>
-          <label class="mcp-toggle">
-            <input type="checkbox" id="proactiveToggle">
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-        <div id="proactiveStatus" style="margin-top: 8px; font-size: 12px; color: var(--text-secondary, #888);"></div>
-      </div>
-
       <!-- 네트워크 -->
       <div class="network-settings-section" style="margin-top: 24px;">
         <h3>네트워크</h3>
@@ -162,8 +148,7 @@ export class AppSettings {
       </div>
     `;
 
-    // 프로액티브 토글 초기화
-    this.initProactiveToggle();
+    // 선제메시지/웹검색은 독 설정에서 관리
 
     // 도구 라우팅 토글 초기화
 
@@ -204,6 +189,61 @@ export class AppSettings {
     });
   }
 
+  /**
+   * 웹검색 토글 초기화
+   */
+  async initWebSearchToggle() {
+    const toggle = document.getElementById('webSearchToggle');
+    const status = document.getElementById('webSearchStatus');
+    if (!toggle) return;
+
+    // 현재 상태 로드
+    try {
+      const res = await fetch('/api/config/web-search');
+      const data = await res.json();
+
+      // API 키가 설정되지 않았으면 토글 비활성화
+      if (!data.configured) {
+        toggle.disabled = true;
+        toggle.checked = false;
+        status.textContent = 'API 키 미설정 - AI 설정에서 먼저 키를 입력하세요';
+        status.style.color = 'var(--error-color, #f44336)';
+      } else {
+        toggle.disabled = false;
+        toggle.checked = data.enabled;
+        status.textContent = data.enabled ? '활성 - 웹검색 도구 포함 중' : '비활성 - 토큰 절약 중';
+        status.style.color = 'var(--text-secondary, #888)';
+      }
+    } catch (e) {
+      status.textContent = '상태 확인 실패';
+    }
+
+    // 토글 이벤트
+    toggle.addEventListener('change', async (e) => {
+      const enabled = e.target.checked;
+      status.textContent = '변경 중...';
+      try {
+        const res = await fetch('/api/config/web-search/toggle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled })
+        });
+        const result = await res.json();
+
+        if (!result.success) {
+          throw new Error(result.error || '변경 실패');
+        }
+
+        status.textContent = result.enabled ? '활성 - 웹검색 도구 포함 중' : '비활성 - 토큰 절약 중';
+        status.style.color = 'var(--text-secondary, #888)';
+      } catch (err) {
+        console.error('웹검색 토글 실패:', err);
+        e.target.checked = !enabled; // 롤백
+        status.textContent = err.message || '변경 실패';
+        status.style.color = 'var(--error-color, #f44336)';
+      }
+    });
+  }
 
   /**
    * DDNS 설정 초기화
@@ -491,6 +531,30 @@ export class AppSettings {
                   </div>
                 `;
               }).join('')}
+              ${sectionData.tools.includes('search_web') ? `
+                <div style="margin-top: 12px; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);">
+                  <div style="font-size: 0.85rem; font-weight: 500; color: rgba(255,255,255,0.85); margin-bottom: 4px;">Tavily API 키</div>
+                  <div style="font-size: 0.7rem; color: rgba(255,255,255,0.5); margin-bottom: 8px;">웹 검색 기능 사용에 필요</div>
+                  <input type="password" id="webSearchApiKeyInput_${sectionData.id}" placeholder="tvly-..." style="width: 100%; padding: 8px; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; background: rgba(0,0,0,0.3); color: white; font-size: 0.8rem; box-sizing: border-box; margin-bottom: 8px;">
+                  <div style="display: flex; gap: 6px;">
+                    <button class="web-search-save-btn" data-section-id="${sectionData.id}" style="flex: 1; padding: 8px; border: none; border-radius: 6px; background: rgba(66,133,244,0.8); color: white; font-size: 0.75rem; cursor: pointer; font-weight: 500;">저장</button>
+                    <button class="web-search-delete-btn" data-section-id="${sectionData.id}" style="display: none; padding: 8px; border: none; border-radius: 6px; background: rgba(244,67,54,0.8); color: white; font-size: 0.75rem; cursor: pointer; font-weight: 500;">삭제</button>
+                  </div>
+                  <div class="web-search-status" data-section-id="${sectionData.id}" style="font-size: 0.7rem; color: rgba(255,255,255,0.4); margin-top: 6px;"></div>
+                </div>
+              ` : ''}
+              ${sectionData.tools.includes('get_weather') ? `
+                <div style="margin-top: 12px; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);">
+                  <div style="font-size: 0.85rem; font-weight: 500; color: rgba(255,255,255,0.85); margin-bottom: 4px;">기상청 API 키</div>
+                  <div style="font-size: 0.7rem; color: rgba(255,255,255,0.5); margin-bottom: 8px;">공공데이터포털 기상청 서비스키 (단기+중기 예보). 없으면 Open-Meteo 사용</div>
+                  <input type="password" id="weatherApiKeyInput_${sectionData.id}" placeholder="서비스키 입력..." style="width: 100%; padding: 8px; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; background: rgba(0,0,0,0.3); color: white; font-size: 0.8rem; box-sizing: border-box; margin-bottom: 8px;">
+                  <div style="display: flex; gap: 6px;">
+                    <button class="weather-save-btn" data-section-id="${sectionData.id}" style="flex: 1; padding: 8px; border: none; border-radius: 6px; background: rgba(66,133,244,0.8); color: white; font-size: 0.75rem; cursor: pointer; font-weight: 500;">저장</button>
+                    <button class="weather-delete-btn" data-section-id="${sectionData.id}" style="display: none; padding: 8px; border: none; border-radius: 6px; background: rgba(244,67,54,0.8); color: white; font-size: 0.75rem; cursor: pointer; font-weight: 500;">삭제</button>
+                  </div>
+                  <div class="weather-status" data-section-id="${sectionData.id}" style="font-size: 0.7rem; color: rgba(255,255,255,0.4); margin-top: 6px;"></div>
+                </div>
+              ` : ''}
             </div>
           </div>
         `;
@@ -537,6 +601,12 @@ export class AppSettings {
           await this.toggleSectionDock(sectionId, sectionName, sectionData, isChecked, dockItems);
         });
       });
+
+      // 웹 검색 API 키 설정
+      this.setupWebSearchApiKeyUI(listContainer);
+
+      // 날씨 API 키 설정
+      this.setupWeatherApiKeyUI(listContainer);
     } catch (error) {
       console.error('내장 도구 목록 로드 실패:', error);
       listContainer.innerHTML = `
@@ -625,6 +695,180 @@ export class AppSettings {
         toggle.checked = !enabled;
       }
     }
+  }
+
+  /**
+   * 웹 검색 API 키 UI 설정
+   */
+  async setupWebSearchApiKeyUI(container) {
+    // 저장 버튼
+    container.querySelectorAll('.web-search-save-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const sectionId = e.currentTarget.dataset.sectionId;
+        const input = container.querySelector(`#webSearchApiKeyInput_${sectionId}`);
+        const status = container.querySelector(`.web-search-status[data-section-id="${sectionId}"]`);
+        const deleteBtn = container.querySelector(`.web-search-delete-btn[data-section-id="${sectionId}"]`);
+
+        if (!input || !status) return;
+
+        if (!input.value.trim()) {
+          status.textContent = '⚠ API 키를 입력하세요';
+          status.style.color = 'rgba(244,67,54,0.8)';
+          return;
+        }
+
+        try {
+          const res = await fetch('/api/config/web-search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ apiKey: input.value.trim() })
+          });
+          const result = await res.json();
+
+          if (result.success) {
+            input.value = '';
+            status.textContent = '✓ 저장 완료';
+            status.style.color = 'rgba(76,175,80,0.8)';
+            if (deleteBtn) deleteBtn.style.display = 'inline-block';
+          } else {
+            throw new Error(result.error);
+          }
+        } catch (e) {
+          status.textContent = '⚠ 저장 실패: ' + e.message;
+          status.style.color = 'rgba(244,67,54,0.8)';
+        }
+      });
+    });
+
+    // 삭제 버튼
+    container.querySelectorAll('.web-search-delete-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        if (!confirm('웹 검색 API 키를 삭제하시겠습니까?')) return;
+
+        const sectionId = e.currentTarget.dataset.sectionId;
+        const status = container.querySelector(`.web-search-status[data-section-id="${sectionId}"]`);
+        const deleteBtn = e.currentTarget;
+
+        try {
+          const res = await fetch('/api/config/web-search', { method: 'DELETE' });
+          const result = await res.json();
+
+          if (result.success) {
+            status.textContent = 'API 키 미설정';
+            status.style.color = 'rgba(255,255,255,0.4)';
+            deleteBtn.style.display = 'none';
+          }
+        } catch (e) {
+          status.textContent = '⚠ 삭제 실패';
+          status.style.color = 'rgba(244,67,54,0.8)';
+        }
+      });
+    });
+
+    // 현재 상태 로드
+    setTimeout(async () => {
+      try {
+        const res = await fetch('/api/config/web-search');
+        const data = await res.json();
+
+        container.querySelectorAll('.web-search-status').forEach(status => {
+          const sectionId = status.dataset.sectionId;
+          const deleteBtn = container.querySelector(`.web-search-delete-btn[data-section-id="${sectionId}"]`);
+
+          if (data.configured) {
+            status.textContent = '✓ API 키 설정됨';
+            status.style.color = 'rgba(76,175,80,0.8)';
+            if (deleteBtn) deleteBtn.style.display = 'inline-block';
+          } else {
+            status.textContent = 'API 키 미설정';
+          }
+        });
+      } catch (e) {
+        console.error('웹 검색 API 키 상태 확인 실패:', e);
+      }
+    }, 100);
+  }
+
+  /**
+   * 날씨 API 키 UI 설정
+   */
+  async setupWeatherApiKeyUI(container) {
+    // 저장 버튼
+    container.querySelectorAll('.weather-save-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const sectionId = e.currentTarget.dataset.sectionId;
+        const input = container.querySelector(`#weatherApiKeyInput_${sectionId}`);
+        const status = container.querySelector(`.weather-status[data-section-id="${sectionId}"]`);
+        const deleteBtn = container.querySelector(`.weather-delete-btn[data-section-id="${sectionId}"]`);
+        if (!input || !status) return;
+
+        if (!input.value.trim()) {
+          status.textContent = 'API 키를 입력하세요';
+          status.style.color = 'rgba(244,67,54,0.8)';
+          return;
+        }
+
+        try {
+          const res = await fetch('/api/config/weather', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ apiKey: input.value.trim() })
+          });
+          const result = await res.json();
+          if (result.success) {
+            input.value = '';
+            status.textContent = '저장 완료 (기상청 예보 사용)';
+            status.style.color = 'rgba(76,175,80,0.8)';
+            if (deleteBtn) deleteBtn.style.display = 'inline-block';
+          } else throw new Error(result.error);
+        } catch (e) {
+          status.textContent = '저장 실패: ' + e.message;
+          status.style.color = 'rgba(244,67,54,0.8)';
+        }
+      });
+    });
+
+    // 삭제 버튼
+    container.querySelectorAll('.weather-delete-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        if (!confirm('기상청 API 키를 삭제하시겠습니까? Open-Meteo로 전환됩니다.')) return;
+        const sectionId = e.currentTarget.dataset.sectionId;
+        const status = container.querySelector(`.weather-status[data-section-id="${sectionId}"]`);
+        try {
+          const res = await fetch('/api/config/weather', { method: 'DELETE' });
+          const result = await res.json();
+          if (result.success) {
+            status.textContent = 'Open-Meteo 사용 중';
+            status.style.color = 'rgba(255,255,255,0.4)';
+            e.currentTarget.style.display = 'none';
+          }
+        } catch (e) {
+          status.textContent = '삭제 실패';
+          status.style.color = 'rgba(244,67,54,0.8)';
+        }
+      });
+    });
+
+    // 현재 상태 로드
+    setTimeout(async () => {
+      try {
+        const res = await fetch('/api/config/weather');
+        const data = await res.json();
+        container.querySelectorAll('.weather-status').forEach(status => {
+          const sectionId = status.dataset.sectionId;
+          const deleteBtn = container.querySelector(`.weather-delete-btn[data-section-id="${sectionId}"]`);
+          if (data.configured) {
+            status.textContent = '기상청 예보 사용 중';
+            status.style.color = 'rgba(76,175,80,0.8)';
+            if (deleteBtn) deleteBtn.style.display = 'inline-block';
+          } else {
+            status.textContent = 'Open-Meteo 사용 중 (기상청 키 미설정)';
+          }
+        });
+      } catch (e) {
+        console.error('날씨 API 키 상태 확인 실패:', e);
+      }
+    }, 100);
   }
 
   /**

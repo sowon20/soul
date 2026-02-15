@@ -37,7 +37,7 @@ async function generateTagsStandalone(content) {
 
   try {
     const response = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: process.env.DEFAULT_AI_MODEL || (() => { throw new Error('DEFAULT_AI_MODEL 환경변수 필요!'); })(),
       max_tokens: 100,
       messages: [{
         role: 'user',

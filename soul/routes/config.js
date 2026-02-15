@@ -825,6 +825,280 @@ router.put('/preferences', async (req, res) => {
 });
 
 // ============================================================
+// Web Search 설정
+// ============================================================
+
+/**
+ * GET /api/config/web-search
+ * 웹검색 설정 조회
+ */
+router.get('/web-search', async (req, res) => {
+  try {
+    const config = await configManager.getConfigValue('web_search', {
+      enabled: false,
+      apiKey: null
+    });
+    res.json({
+      success: true,
+      enabled: config.enabled || false,
+      configured: !!config.apiKey
+    });
+  } catch (error) {
+    console.error('Error reading web search config:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/config/web-search
+ * 웹검색 API 키 저장
+ */
+router.post('/web-search', async (req, res) => {
+  try {
+    const { apiKey } = req.body;
+
+    if (!apiKey) {
+      return res.status(400).json({
+        success: false,
+        error: 'apiKey is required'
+      });
+    }
+
+    const currentConfig = await configManager.getConfigValue('web_search', {});
+    const updatedConfig = {
+      ...currentConfig,
+      apiKey,
+      enabled: true,
+      updatedAt: new Date()
+    };
+
+    await configManager.setConfigValue('web_search', updatedConfig, 'Web search configuration');
+
+    res.json({
+      success: true,
+      message: 'Web search API key saved',
+      configured: true
+    });
+  } catch (error) {
+    console.error('Error saving web search API key:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/config/web-search
+ * 웹검색 API 키 삭제
+ */
+router.delete('/web-search', async (req, res) => {
+  try {
+    await configManager.setConfigValue('web_search', {
+      enabled: false,
+      apiKey: null
+    }, 'Web search configuration');
+
+    res.json({
+      success: true,
+      message: 'Web search API key deleted'
+    });
+  } catch (error) {
+    console.error('Error deleting web search API key:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/config/web-search/toggle
+ * 웹검색 활성화/비활성화
+ */
+router.post('/web-search/toggle', async (req, res) => {
+  try {
+    const { enabled } = req.body;
+    const currentConfig = await configManager.getConfigValue('web_search', {});
+
+    if (!currentConfig.apiKey && enabled) {
+      return res.status(400).json({
+        success: false,
+        error: 'API key not configured'
+      });
+    }
+
+    const updatedConfig = {
+      ...currentConfig,
+      enabled: !!enabled
+    };
+
+    await configManager.setConfigValue('web_search', updatedConfig, 'Web search configuration');
+
+    res.json({
+      success: true,
+      enabled: updatedConfig.enabled
+    });
+  } catch (error) {
+    console.error('Error toggling web search:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================================
+// 날씨 API 설정
+// ============================================================
+
+/**
+ * GET /api/config/weather
+ * 날씨 API 설정 조회
+ */
+router.get('/weather', async (req, res) => {
+  try {
+    const config = await configManager.getConfigValue('weather_api', {});
+    res.json({
+      success: true,
+      configured: !!config.apiKey
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/config/weather
+ * 날씨 API 키 저장 (공공데이터포털 기상청 서비스키)
+ */
+router.post('/weather', async (req, res) => {
+  try {
+    const { apiKey } = req.body;
+    if (!apiKey) return res.status(400).json({ success: false, error: 'apiKey is required' });
+
+    await configManager.setConfigValue('weather_api', {
+      apiKey,
+      updatedAt: new Date()
+    }, 'Weather API configuration');
+
+    res.json({ success: true, configured: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/config/weather
+ * 날씨 API 키 삭제
+ */
+router.delete('/weather', async (req, res) => {
+  try {
+    await configManager.setConfigValue('weather_api', {}, 'Weather API configuration');
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================================
+// Google Drive 설정
+// ============================================================
+
+/**
+ * GET /api/config/gdrive
+ * Google Drive 연결 상태 조회
+ */
+router.get('/gdrive', async (req, res) => {
+  try {
+    const config = await configManager.getConfigValue('gdrive', {});
+    const configured = !!(config.keyFile && config.folderId);
+    res.json({
+      success: true,
+      configured,
+      folderId: config.folderId || '',
+      keyFileSet: !!config.keyFile,
+      connectedAt: config.connectedAt || null
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/config/gdrive
+ * Google Drive 연결 설정 저장 + 연결 테스트
+ */
+router.post('/gdrive', async (req, res) => {
+  try {
+    const { folderId, serviceAccountKey } = req.body;
+
+    if (!folderId) {
+      return res.status(400).json({ success: false, error: 'folderId is required' });
+    }
+    if (!serviceAccountKey) {
+      return res.status(400).json({ success: false, error: 'serviceAccountKey is required' });
+    }
+
+    // JSON 파싱 검증
+    let keyData;
+    try {
+      keyData = typeof serviceAccountKey === 'string' ? JSON.parse(serviceAccountKey) : serviceAccountKey;
+    } catch (e) {
+      return res.status(400).json({ success: false, error: '서비스 계정 키가 유효한 JSON이 아닙니다' });
+    }
+
+    if (!keyData.client_email || !keyData.private_key) {
+      return res.status(400).json({ success: false, error: '서비스 계정 키에 client_email 또는 private_key가 없습니다' });
+    }
+
+    // DB에 저장 (키 파일 내용을 직접 저장)
+    const gdriveConfig = {
+      folderId,
+      keyFile: keyData,
+      connectedAt: new Date().toISOString()
+    };
+
+    // 연결 테스트
+    const { resetGDriveStorage, getGDriveStorage } = require('../utils/gdrive-storage');
+    resetGDriveStorage();
+
+    try {
+      const gdrive = getGDriveStorage({
+        keyData: keyData,
+        folderId: folderId
+      });
+      if (gdrive) {
+        await gdrive.testConnection();
+      }
+    } catch (testErr) {
+      return res.status(400).json({
+        success: false,
+        error: `연결 테스트 실패: ${testErr.message}`
+      });
+    }
+
+    await configManager.setConfigValue('gdrive', gdriveConfig, 'Google Drive configuration');
+
+    res.json({
+      success: true,
+      message: 'Google Drive 연결 완료',
+      configured: true,
+      clientEmail: keyData.client_email
+    });
+  } catch (error) {
+    console.error('Error saving GDrive config:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/config/gdrive
+ * Google Drive 연결 해제
+ */
+router.delete('/gdrive', async (req, res) => {
+  try {
+    const { resetGDriveStorage } = require('../utils/gdrive-storage');
+    resetGDriveStorage();
+    await configManager.setConfigValue('gdrive', {}, 'Google Drive configuration');
+    res.json({ success: true, message: 'Google Drive 연결 해제됨' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================================
 // DDNS 설정
 // ============================================================
 

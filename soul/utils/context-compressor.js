@@ -21,7 +21,7 @@ class ContextCompressor {
 
       // 요약 설정
       useAISummary: false,  // AI 요약 사용 (false면 간단한 요약)
-      summaryModel: 'claude-3-haiku-20240307',  // 요약에 사용할 모델
+      summaryModel: '',  // 요약에 사용할 모델 (설정에서 지정)
 
       // 원본 저장
       saveOriginalToMemory: true  // 압축 전 원본을 메모리에 저장

@@ -27,7 +27,7 @@ class ConversationPipeline {
   constructor(config = {}) {
     this.config = {
       maxTokens: config.maxTokens || 30000, // 30K 토큰 (비용 절감)
-      model: config.model || 'claude-3-5-sonnet-20241022',
+      model: config.model || '',
       compressionThreshold: config.compressionThreshold || 0.8, // 80%
       autoMemoryInjection: config.autoMemoryInjection !== false, // 기본 활성화
       systemPrompt: config.systemPrompt || this._getDefaultSystemPrompt()

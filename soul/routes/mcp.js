@@ -82,17 +82,11 @@ async function fetchToolsFromServer(serverInfo, timeoutMs = 3000) {
   }
 }
 
-// MCP 서버 URL 설정 (환경변수로 외부 서버 지정 가능)
-const MCP_SERVERS = {
-  'google-home': process.env.MCP_GOOGLE_HOME_URL || 'http://localhost:8125',
-  'todo': process.env.MCP_TODO_URL || 'http://localhost:8124'
-};
-
 /**
- * MCP 서버 URL 가져오기 (외부 서버 지원)
+ * MCP 서버 URL 가져오기 (DB 설정에서만 가져옴)
  * @param {string} serverId - 서버 ID
  * @param {object} config - 서버 설정 (선택)
- * @returns {string} 서버 URL
+ * @returns {string|null} 서버 URL (미설정이면 null)
  */
 async function getMcpServerUrl(serverId, config = null) {
   // 설정 로드
@@ -107,8 +101,13 @@ async function getMcpServerUrl(serverId, config = null) {
     return config.externalServers[serverId].url;
   }
 
-  // 기본 서버
-  return MCP_SERVERS[serverId] || `http://localhost:${8124 + Object.keys(MCP_SERVERS).indexOf(serverId)}`;
+  // 환경변수 폴백
+  const envKey = `MCP_${serverId.replace(/-/g, '_').toUpperCase()}_URL`;
+  if (process.env[envKey]) {
+    return process.env[envKey];
+  }
+
+  return null;
 }
 
 /**
@@ -615,7 +614,8 @@ router.get('/google-home/summary', async (req, res) => {
  */
 router.get('/google-home/appletv/devices', async (req, res) => {
   try {
-    const serverUrl = getMcpServerUrl('google-home');
+    const serverUrl = await getMcpServerUrl('google-home');
+    if (!serverUrl) return res.status(400).json({ success: false, error: 'MCP google-home 서버 URL 미설정' });
     const response = await fetch(`${serverUrl}/api/appletv/devices`);
     const data = await response.json();
     res.json(data);
@@ -630,7 +630,8 @@ router.get('/google-home/appletv/devices', async (req, res) => {
  */
 router.post('/google-home/appletv/control', async (req, res) => {
   try {
-    const serverUrl = getMcpServerUrl('google-home');
+    const serverUrl = await getMcpServerUrl('google-home');
+    if (!serverUrl) return res.status(400).json({ success: false, error: 'MCP google-home 서버 URL 미설정' });
     const response = await fetch(`${serverUrl}/api/appletv/control`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -651,7 +652,8 @@ router.post('/google-home/appletv/control', async (req, res) => {
  */
 router.get('/google-home/airplay/devices', async (req, res) => {
   try {
-    const serverUrl = getMcpServerUrl('google-home');
+    const serverUrl = await getMcpServerUrl('google-home');
+    if (!serverUrl) return res.status(400).json({ success: false, error: 'MCP google-home 서버 URL 미설정' });
     const response = await fetch(`${serverUrl}/api/airplay/devices`);
     const data = await response.json();
     res.json(data);
@@ -668,7 +670,8 @@ router.get('/google-home/airplay/devices', async (req, res) => {
  */
 router.get('/google-home/network/scan', async (req, res) => {
   try {
-    const serverUrl = getMcpServerUrl('google-home');
+    const serverUrl = await getMcpServerUrl('google-home');
+    if (!serverUrl) return res.status(400).json({ success: false, error: 'MCP google-home 서버 URL 미설정' });
     const response = await fetch(`${serverUrl}/api/network/scan`);
     const data = await response.json();
     res.json(data);
@@ -683,7 +686,8 @@ router.get('/google-home/network/scan', async (req, res) => {
  */
 router.get('/google-home/network/info', async (req, res) => {
   try {
-    const serverUrl = getMcpServerUrl('google-home');
+    const serverUrl = await getMcpServerUrl('google-home');
+    if (!serverUrl) return res.status(400).json({ success: false, error: 'MCP google-home 서버 URL 미설정' });
     const response = await fetch(`${serverUrl}/api/network/info`);
     const data = await response.json();
     res.json(data);
@@ -698,7 +702,8 @@ router.get('/google-home/network/info', async (req, res) => {
  */
 router.post('/google-home/network/wol', async (req, res) => {
   try {
-    const serverUrl = getMcpServerUrl('google-home');
+    const serverUrl = await getMcpServerUrl('google-home');
+    if (!serverUrl) return res.status(400).json({ success: false, error: 'MCP google-home 서버 URL 미설정' });
     const response = await fetch(`${serverUrl}/api/network/wol`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

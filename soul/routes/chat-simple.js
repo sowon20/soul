@@ -22,8 +22,8 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // AI 서비스 생성 (기본값: Anthropic)
-    const aiService = await AIServiceFactory.createService('anthropic', 'claude-haiku-4-5-20251001');
+    // AI 서비스 생성 (설정에서 가져옴)
+    const aiService = await AIServiceFactory.createService();
 
     // 간단한 메시지 배열
     const messages = [

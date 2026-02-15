@@ -368,32 +368,8 @@ function clearCache() {
   externalServersCache = {};
 }
 
-/**
- * Jina MCP 서버에 도구 직접 호출 (내부 후처리용)
- * 검색 결과 중복 제거 등에 사용
- */
-async function callJinaTool(toolName, input) {
-  try {
-    const config = await loadServerConfig();
-    if (!config.externalServers) return null;
-
-    // Jina 서버 찾기 (URL에 jina 포함)
-    const jinaEntry = Object.entries(config.externalServers)
-      .find(([, info]) => info.url?.includes('jina'));
-    if (!jinaEntry) return null;
-
-    const [, serverInfo] = jinaEntry;
-    const result = await executeToolStreamableHTTP(serverInfo.url, toolName, input, serverInfo.apiKey);
-    return result?.success ? result.result : null;
-  } catch (e) {
-    console.error(`[MCP] callJinaTool(${toolName}) failed:`, e.message);
-    return null;
-  }
-}
-
 module.exports = {
   loadMCPTools,
   executeMCPTool,
-  callJinaTool,
   clearCache
 };

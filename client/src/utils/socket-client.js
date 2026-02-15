@@ -467,8 +467,34 @@ class SoulSocketClient {
    * 도구 실행 결과가 열려있는 패널에 즉시 반영 + 변경 부분 하이라이트
    */
   _handleCanvasUpdate(data) {
+    // builtin section container 감지 (iframe이 아닌 직접 DOM)
+    const builtinContainer = document.querySelector(`#canvas-iframe-${data.panel}.builtin-section-container`);
+    if (builtinContainer) {
+      const app = window.soulApp;
+      // 새 패널 5개 → panelRenderer
+      const panelRenderer = app?.panelRenderer;
+      if (panelRenderer) {
+        panelRenderer.handleCanvasUpdate(data.panel, data).catch(e =>
+          console.error('[socket] canvas update error:', e)
+        );
+      }
+      // 기존 패널 → main.js의 render 메서드 직접 호출
+      if (app) {
+        switch (data.panel) {
+          case 'section_todo': app.renderTodoUI?.(builtinContainer); break;
+          case 'section_note': app.renderNoteUI?.(builtinContainer); break;
+          case 'section_calendar': app.renderCalendarUI?.(builtinContainer); break;
+          case 'section_system': /* 시스템은 재렌더링 불필요 */ break;
+        }
+      }
+      // 하이라이트 이펙트
+      builtinContainer.classList.add('canvas-content-flash');
+      setTimeout(() => builtinContainer.classList.remove('canvas-content-flash'), 1500);
+      return;
+    }
+
     // 캔버스 iframe에 변경 알림 (MCP 도구 실행 후 실시간 반영 + 이펙트)
-    // data.panel은 'todo' 같은 단축명이지만, iframe ID는 'canvas-iframe-mcp_xxx' 형태
+    // data.panel은 'section_xxx' 또는 단축명, iframe ID는 'canvas-iframe-mcp_xxx' 형태
     // → 모든 MCP iframe을 순회하며 매칭
     let canvasIframe = document.querySelector(`#canvas-iframe-${data.panel} iframe`);
     if (!canvasIframe) {

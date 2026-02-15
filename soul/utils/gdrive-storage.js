@@ -9,19 +9,27 @@ class GDriveStorage {
   constructor(config = {}) {
     this.config = {
       keyFile: config.keyFile || process.env.GDRIVE_KEY_FILE,
+      keyData: config.keyData || null, // JSON 객체 직접 전달 (DB에서 읽은 경우)
       folderId: config.folderId || process.env.GDRIVE_FOLDER_ID,
       basePath: config.basePath || 'soul-memory'
     };
 
-    if (!this.config.keyFile) {
-      throw new Error('[GDriveStorage] keyFile is required');
+    if (!this.config.keyFile && !this.config.keyData) {
+      throw new Error('[GDriveStorage] keyFile or keyData is required');
     }
 
-    // 서비스 계정 인증
-    this.auth = new google.auth.GoogleAuth({
-      keyFile: this.config.keyFile,
-      scopes: ['https://www.googleapis.com/auth/drive']
-    });
+    // 서비스 계정 인증 (keyData 우선, 없으면 keyFile)
+    if (this.config.keyData) {
+      this.auth = new google.auth.GoogleAuth({
+        credentials: this.config.keyData,
+        scopes: ['https://www.googleapis.com/auth/drive']
+      });
+    } else {
+      this.auth = new google.auth.GoogleAuth({
+        keyFile: this.config.keyFile,
+        scopes: ['https://www.googleapis.com/auth/drive']
+      });
+    }
 
     this.drive = google.drive({ version: 'v3', auth: this.auth });
     this.folderCache = {}; // 폴더 ID 캐시
@@ -297,14 +305,227 @@ class GDriveStorage {
       return [];
     }
   }
+  // ========== 도구용 메서드 (builtin-tools에서 호출) ==========
+
+  /**
+   * 파일 검색
+   * @param {string} query - 검색어
+   * @param {string} fileType - document|spreadsheet|image|pdf|any
+   * @returns {Promise<Array>}
+   */
+  async searchFiles(query, fileType = 'any') {
+    const mimeTypes = {
+      document: 'application/vnd.google-apps.document',
+      spreadsheet: 'application/vnd.google-apps.spreadsheet',
+      image: 'image/',
+      pdf: 'application/pdf'
+    };
+
+    let q = `fullText contains '${query.replace(/'/g, "\\'")}' and trashed=false`;
+
+    if (fileType !== 'any' && mimeTypes[fileType]) {
+      if (fileType === 'image') {
+        q += ` and mimeType contains '${mimeTypes[fileType]}'`;
+      } else {
+        q += ` and mimeType='${mimeTypes[fileType]}'`;
+      }
+    }
+
+    // 공유 폴더 내에서만 검색
+    if (this.config.folderId) {
+      q += ` and '${this.config.folderId}' in parents`;
+    }
+
+    const res = await this.drive.files.list({
+      q,
+      fields: 'files(id, name, mimeType, size, modifiedTime, webViewLink)',
+      pageSize: 20,
+      orderBy: 'modifiedTime desc'
+    });
+
+    return (res.data.files || []).map(f => ({
+      id: f.id,
+      name: f.name,
+      mimeType: f.mimeType,
+      size: f.size ? parseInt(f.size) : null,
+      modifiedTime: f.modifiedTime,
+      webViewLink: f.webViewLink
+    }));
+  }
+
+  /**
+   * 파일 읽기 (ID로)
+   * Google Docs는 텍스트로 export, 나머지는 원본 다운로드
+   * @param {string} fileId
+   * @returns {Promise<{content: string, mimeType: string, name: string}>}
+   */
+  async readFileById(fileId) {
+    // 파일 메타데이터 먼저 가져오기
+    const meta = await this.drive.files.get({
+      fileId,
+      fields: 'id, name, mimeType, size'
+    });
+
+    const { name, mimeType } = meta.data;
+
+    // Google Docs/Sheets/Slides → export
+    const exportTypes = {
+      'application/vnd.google-apps.document': 'text/plain',
+      'application/vnd.google-apps.spreadsheet': 'text/csv',
+      'application/vnd.google-apps.presentation': 'text/plain'
+    };
+
+    let content;
+    if (exportTypes[mimeType]) {
+      const res = await this.drive.files.export({
+        fileId,
+        mimeType: exportTypes[mimeType]
+      });
+      content = res.data;
+    } else {
+      const res = await this.drive.files.get({
+        fileId,
+        alt: 'media'
+      });
+      content = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
+    }
+
+    // 결과가 너무 길면 자르기 (AI 컨텍스트 보호)
+    const maxLen = 10000;
+    const truncated = content.length > maxLen
+      ? content.slice(0, maxLen) + `\n...(${content.length - maxLen}자 생략)`
+      : content;
+
+    return { content: truncated, mimeType, name };
+  }
+
+  /**
+   * 파일 생성 또는 수정
+   * @param {string} title - 파일명
+   * @param {string} content - 내용
+   * @param {string} folderId - 폴더 ID (생략 시 루트)
+   * @param {string} fileId - 기존 파일 수정 시
+   * @param {string} mimeType - MIME 타입
+   * @returns {Promise<{fileId: string, webViewLink: string}>}
+   */
+  async createOrUpdateFile(title, content, folderId, fileId, mimeType = 'text/plain') {
+    const media = {
+      mimeType,
+      body: Readable.from([content])
+    };
+
+    if (fileId) {
+      // 기존 파일 수정
+      const res = await this.drive.files.update({
+        fileId,
+        media,
+        fields: 'id, webViewLink'
+      });
+      return { fileId: res.data.id, webViewLink: res.data.webViewLink };
+    } else {
+      // 새 파일 생성
+      const parentId = folderId || this.config.folderId;
+      if (!parentId) {
+        throw new Error('폴더 ID가 필요합니다 (서비스 계정은 루트에 파일 생성 불가)');
+      }
+
+      const res = await this.drive.files.create({
+        resource: {
+          name: title,
+          parents: [parentId]
+        },
+        media,
+        fields: 'id, webViewLink'
+      });
+      return { fileId: res.data.id, webViewLink: res.data.webViewLink };
+    }
+  }
+
+  /**
+   * 파일 삭제 (휴지통으로 이동)
+   * @param {string} fileId
+   * @returns {Promise<{success: boolean}>}
+   */
+  async trashFile(fileId) {
+    await this.drive.files.update({
+      fileId,
+      resource: { trashed: true }
+    });
+    return { success: true };
+  }
+
+  /**
+   * 폴더 내 파일 목록 (도구용 - ID 기반)
+   * @param {string} folderId - 폴더 ID (생략 시 루트)
+   * @param {number} limit - 최대 개수
+   * @returns {Promise<Array>}
+   */
+  async listFolder(folderId, limit = 20) {
+    const parentId = folderId || this.config.folderId;
+    if (!parentId) {
+      throw new Error('폴더 ID가 필요합니다');
+    }
+
+    const res = await this.drive.files.list({
+      q: `'${parentId}' in parents and trashed=false`,
+      fields: 'files(id, name, mimeType, size, modifiedTime, webViewLink)',
+      pageSize: Math.min(limit, 100),
+      orderBy: 'modifiedTime desc'
+    });
+
+    return (res.data.files || []).map(f => ({
+      id: f.id,
+      name: f.name,
+      type: f.mimeType === 'application/vnd.google-apps.folder' ? 'directory' : 'file',
+      mimeType: f.mimeType,
+      size: f.size ? parseInt(f.size) : null,
+      modifiedTime: f.modifiedTime,
+      webViewLink: f.webViewLink
+    }));
+  }
+
+  /**
+   * 폴더 생성
+   * @param {string} name - 폴더명
+   * @param {string} parentId - 부모 폴더 ID
+   * @returns {Promise<{folderId: string}>}
+   */
+  async createFolder(name, parentId) {
+    const parent = parentId || this.config.folderId;
+    if (!parent) {
+      throw new Error('부모 폴더 ID가 필요합니다 (서비스 계정은 루트에 폴더 생성 불가)');
+    }
+
+    const res = await this.drive.files.create({
+      resource: {
+        name,
+        mimeType: 'application/vnd.google-apps.folder',
+        parents: [parent]
+      },
+      fields: 'id'
+    });
+
+    return { folderId: res.data.id };
+  }
 }
 
 // 싱글톤
 let instance = null;
 
+/**
+ * GDrive 인스턴스 가져오기
+ * config 미제공 시 환경변수에서 자동 로드
+ * 키 파일이 없으면 null 반환 (미연결 상태)
+ */
 function getGDriveStorage(config) {
   if (!instance) {
-    instance = new GDriveStorage(config);
+    try {
+      instance = new GDriveStorage(config);
+    } catch (err) {
+      // keyFile이 없으면 null (미연결)
+      console.warn('[GDriveStorage] 초기화 실패 (미연결):', err.message);
+      return null;
+    }
   }
   return instance;
 }

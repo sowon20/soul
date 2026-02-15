@@ -76,6 +76,7 @@ export class StorageSettings {
       this.bindEvents();
       this._eventsBound = true;
     }
+    // GDrive 설정은 독(Dock) Cloud 패널에서 관리
   }
 
   renderContent() {

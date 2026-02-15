@@ -21,7 +21,7 @@ class Agent {
     this.name = config.name || 'Agent';
     this.role = config.role || 'assistant';
     this.instructions = config.instructions || '';
-    this.model = config.model || 'claude-3-5-sonnet-20241022';
+    this.model = config.model || '';
     this.tools = config.tools || [];
   }
 

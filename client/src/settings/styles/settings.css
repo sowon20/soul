@@ -7231,6 +7231,179 @@ textarea.settings-field-input {
   font-size: 0.85rem;
 }
 
+/* === Google Drive 섹션 === */
+
+.gdrive-section {
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  padding-top: 1rem;
+}
+
+.gdrive-status {
+  min-height: 2rem;
+}
+
+.storage-loading {
+  color: rgba(0, 0, 0, 0.4);
+  font-size: 0.85rem;
+}
+
+.storage-error {
+  color: #ef4444;
+  font-size: 0.85rem;
+}
+
+.gdrive-connected {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+}
+
+.gdrive-connected-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.gdrive-badge {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.85);
+}
+
+.gdrive-folder-id {
+  font-size: 0.8rem;
+  color: rgba(0, 0, 0, 0.5);
+  font-family: monospace;
+}
+
+.gdrive-connected-date {
+  font-size: 0.75rem;
+  color: rgba(0, 0, 0, 0.4);
+}
+
+.gdrive-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.gdrive-change-btn,
+.gdrive-disconnect-btn {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.5);
+  font-size: 0.8rem;
+  cursor: pointer;
+  color: rgba(0, 0, 0, 0.7);
+  transition: all 0.2s;
+}
+
+.gdrive-change-btn:hover {
+  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(139, 92, 67, 0.3);
+}
+
+.gdrive-disconnect-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+
+.gdrive-setup-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.gdrive-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.gdrive-label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.gdrive-label-hint {
+  font-size: 0.75rem;
+  color: rgba(0, 0, 0, 0.4);
+  margin-bottom: 0.25rem;
+}
+
+.gdrive-textarea {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.5);
+  font-size: 0.8rem;
+  font-family: monospace;
+  resize: vertical;
+  color: rgba(0, 0, 0, 0.85);
+  box-sizing: border-box;
+}
+
+.gdrive-textarea:focus {
+  outline: none;
+  border-color: rgba(139, 92, 67, 0.4);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.gdrive-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.5);
+  font-size: 0.85rem;
+  color: rgba(0, 0, 0, 0.85);
+  box-sizing: border-box;
+}
+
+.gdrive-input:focus {
+  outline: none;
+  border-color: rgba(139, 92, 67, 0.4);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.gdrive-form-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.gdrive-connect-btn {
+  padding: 0.5rem 1.25rem;
+  border: none;
+  border-radius: 8px;
+  background: rgba(139, 92, 67, 0.7);
+  color: white;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.gdrive-connect-btn:hover {
+  background: rgba(139, 92, 67, 0.9);
+}
+
+.gdrive-connect-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.gdrive-form-msg {
+  font-size: 0.8rem;
+  min-height: 1rem;
+}
+
 /* ============================================
    저장소 설정 - 다크 테마 (.base-layer)
    ============================================ */
@@ -7364,6 +7537,66 @@ textarea.settings-field-input {
 .base-layer .storage-settings .modal-header h3 { color: rgba(255, 255, 255, 0.95); }
 .base-layer .storage-settings .close-btn { color: rgba(255, 255, 255, 0.5); }
 .base-layer .storage-settings .close-btn:hover { color: rgba(255, 255, 255, 0.9); }
+
+/* GDrive 다크 */
+.base-layer .gdrive-section { border-color: rgba(255, 255, 255, 0.06); }
+.base-layer .storage-loading { color: rgba(255, 255, 255, 0.4); }
+.base-layer .storage-error { color: #e57373; }
+
+.base-layer .gdrive-connected {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.base-layer .gdrive-badge { color: rgba(255, 255, 255, 0.9); }
+.base-layer .gdrive-folder-id { color: rgba(255, 255, 255, 0.45); }
+.base-layer .gdrive-connected-date { color: rgba(255, 255, 255, 0.35); }
+
+.base-layer .gdrive-change-btn,
+.base-layer .gdrive-disconnect-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.base-layer .gdrive-change-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.base-layer .gdrive-disconnect-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #e57373;
+}
+
+.base-layer .gdrive-label { color: rgba(255, 255, 255, 0.7); }
+.base-layer .gdrive-label-hint { color: rgba(255, 255, 255, 0.35); }
+
+.base-layer .gdrive-textarea,
+.base-layer .gdrive-input {
+  background: rgba(0, 0, 0, 0.3);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.base-layer .gdrive-textarea::placeholder,
+.base-layer .gdrive-input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.base-layer .gdrive-textarea:focus,
+.base-layer .gdrive-input:focus {
+  border-color: rgba(196, 149, 106, 0.5);
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.base-layer .gdrive-connect-btn {
+  background: rgba(196, 149, 106, 0.6);
+}
+
+.base-layer .gdrive-connect-btn:hover {
+  background: rgba(196, 149, 106, 0.8);
+}
 
 /* 목소리 설정 */
 .voice-settings {

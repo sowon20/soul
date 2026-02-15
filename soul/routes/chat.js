@@ -21,7 +21,7 @@ const Role = require('../models/Role');
 const UsageStats = require('../models/UsageStats');
 const Message = require('../models/Message');
 const ConversationStore = require('../utils/conversation-store');
-const { loadMCPTools, executeMCPTool, callJinaTool } = require('../utils/mcp-tools');
+const { loadMCPTools, executeMCPTool } = require('../utils/mcp-tools');
 const { builtinTools, executeBuiltinTool, isBuiltinTool, getMinimalTools } = require('../utils/builtin-tools');
 const configManager = require('../utils/config');
 const { trackCall: trackAlba } = require('../utils/alba-stats');
@@ -54,9 +54,25 @@ async function getCachedTools() {
   const { getCallWorkerTool } = require('../utils/builtin-tools');
   const callWorkerTool = await getCallWorkerTool();
 
-  _cachedTools = [...builtinTools, ...(callWorkerTool ? [callWorkerTool] : []), ...mcpTools];
+  // 미구현 도구 제외 (호출해도 에러만 반환되므로 토큰 낭비)
+  const excludedTools = new Set(['file_read', 'file_write', 'file_list', 'file_info', 'cloud_search', 'cloud_read', 'cloud_write', 'cloud_delete', 'cloud_list', 'execute_command']);
+
+  // search_web: API 키 미설정 시 제외
+  try {
+    const configManager = require('../utils/config');
+    const webSearchConfig = await configManager.getConfigValue('web_search', {});
+    if (!webSearchConfig.enabled || !webSearchConfig.apiKey) {
+      excludedTools.add('search_web');
+    }
+  } catch (e) {
+    excludedTools.add('search_web');
+  }
+
+  const enabledBuiltins = builtinTools.filter(t => !excludedTools.has(t.name));
+
+  _cachedTools = [...enabledBuiltins, ...(callWorkerTool ? [callWorkerTool] : []), ...mcpTools];
   _cachedToolsTimestamp = now;
-  console.log(`[Chat] Tools cache refreshed: ${_cachedTools.length} tools (call_worker: ${!!callWorkerTool})`);
+  console.log(`[Chat] Tools cache refreshed: ${_cachedTools.length} tools (excluded: ${excludedTools.size}, call_worker: ${!!callWorkerTool})`);
   return _cachedTools;
 }
 
@@ -654,62 +670,9 @@ router.post('/', async (req, res) => {
         }
       };
 
-      // 검색 결과 중복 제거 후처리
-      const SEARCH_TOOLS = new Set(['search_web', 'search_arxiv', 'search_ssrn', 'search_jina_blog', 'search_bibtex',
-        'parallel_search_web', 'parallel_search_arxiv', 'parallel_search_ssrn']);
-      const IMAGE_TOOLS = new Set(['search_images']);
-
+      // 검색 결과 후처리 (현재 패스스루 - 향후 중복 제거 로직 추가 가능)
       async function deduplicateToolResult(toolName, result) {
-        if (!result) return result;
-        const resultStr = typeof result === 'string' ? result : (result.result || '');
-        if (!resultStr || resultStr.length < 500) return result; // 짧으면 스킵
-
-        try {
-          // 텍스트 검색 결과 → deduplicate_strings
-          if (SEARCH_TOOLS.has(toolName)) {
-            // snippet 줄 단위로 분리 (title: ...\nsnippet: ... 패턴)
-            const lines = resultStr.split('\n').filter(l => l.trim());
-            if (lines.length < 5) return result; // 항목이 적으면 스킵
-
-            console.log(`[Dedup] ${toolName}: ${lines.length}줄 → deduplicate_strings 호출`);
-            const deduped = await callJinaTool('deduplicate_strings', { strings: lines });
-            if (deduped) {
-              const parsed = typeof deduped === 'string' ? deduped : JSON.stringify(deduped);
-              const originalLen = resultStr.length;
-              const newLen = parsed.length;
-              console.log(`[Dedup] 결과: ${originalLen} → ${newLen} chars (${Math.round((1 - newLen / originalLen) * 100)}% 절감)`);
-              if (typeof result === 'object') {
-                return { ...result, result: parsed };
-              }
-              return parsed;
-            }
-          }
-
-          // 이미지 검색 결과 → deduplicate_images
-          if (IMAGE_TOOLS.has(toolName)) {
-            // base64 이미지나 URL 추출
-            const urlPattern = /https?:\/\/[^\s"'<>]+\.(?:jpg|jpeg|png|gif|webp|svg)[^\s"'<>]*/gi;
-            const imageUrls = resultStr.match(urlPattern);
-            if (imageUrls && imageUrls.length >= 3) {
-              console.log(`[Dedup] ${toolName}: ${imageUrls.length}개 이미지 → deduplicate_images 호출`);
-              const deduped = await callJinaTool('deduplicate_images', { images: imageUrls });
-              if (deduped) {
-                const dedupedUrls = typeof deduped === 'string' ? deduped : JSON.stringify(deduped);
-                console.log(`[Dedup] 이미지: ${imageUrls.length}개 → 중복 제거 완료`);
-                // 중복 제거된 URL 목록을 결과에 추가
-                const appendNote = `\n\n[중복 제거된 고유 이미지]\n${dedupedUrls}`;
-                if (typeof result === 'object') {
-                  return { ...result, result: resultStr + appendNote };
-                }
-                return resultStr + appendNote;
-              }
-            }
-          }
-        } catch (e) {
-          console.error(`[Dedup] 후처리 실패 (원본 유지):`, e.message);
-        }
-
-        return result; // 실패 시 원본 그대로
+        return result;
       }
 
       // 통합 도구 실행기 (소켓 이벤트 포함)
@@ -736,7 +699,7 @@ router.post('/', async (req, res) => {
         let result;
         try {
           // 검색 도구: num 기본값 20으로 제한
-          const searchTools = ['search_web', 'search_arxiv', 'search_ssrn', 'search_jina_blog', 'search_images', 'search_bibtex'];
+          const searchTools = ['search_web', 'search_arxiv', 'search_ssrn', 'search_images', 'search_bibtex'];
           const actualToolName = parsed.tool || toolName;
           if (searchTools.includes(actualToolName) && !input.num) {
             input.num = 20;
@@ -783,14 +746,51 @@ router.post('/', async (req, res) => {
 
             // 캔버스 패널 실시간 업데이트 이벤트
             const canvasToolMap = {
-              'recall_memory': 'memory',
-              'get_profile': 'profile',
-              'update_profile': 'profile'
+              // Memory
+              'recall_memory': 'section_memory',
+              'save_memory': 'section_memory',
+              'update_memory': 'section_memory',
+              'list_memories': 'section_memory',
+              'get_profile': 'section_memory',
+              'update_profile': 'section_memory',
+              'update_tags': 'section_memory',
+              // Todo
+              'manage_todo': 'section_todo',
+              // Note
+              'manage_note': 'section_note',
+              // Calendar
+              'get_events': 'section_calendar',
+              'create_event': 'section_calendar',
+              'update_event': 'section_calendar',
+              'delete_event': 'section_calendar',
+              // Messaging
+              'send_message': 'section_messaging',
+              'schedule_message': 'section_messaging',
+              'cancel_scheduled_message': 'section_messaging',
+              'list_scheduled_messages': 'section_messaging',
+              // Browser
+              'search_web': 'section_browser',
+              'read_url': 'section_browser',
+              'browse': 'section_browser',
+              // Filesystem
+              'file_read': 'section_filesystem',
+              'file_write': 'section_filesystem',
+              'file_list': 'section_filesystem',
+              'file_info': 'section_filesystem',
+              // Cloud
+              'cloud_search': 'section_cloud',
+              'cloud_read': 'section_cloud',
+              'cloud_write': 'section_cloud',
+              'cloud_delete': 'section_cloud',
+              'cloud_list': 'section_cloud',
+              // System
+              'execute_command': 'section_system',
+              'get_weather': 'section_system'
             };
             // MCP 도구도 매핑: 도구 이름에 todo/memo 관련 키워드 포함 시 todo 패널 업데이트
             let targetPanel = canvasToolMap[toolName];
             if (!targetPanel && /todo|task|memo/i.test(toolName)) {
-              targetPanel = 'todo';
+              targetPanel = 'section_todo';
             }
             if (targetPanel) {
               global.io.emit('canvas_update', {
@@ -863,7 +863,8 @@ router.post('/', async (req, res) => {
           systemPrompt: finalSystemPrompt,
           maxTokens: aiSettings.maxTokens,
           temperature: aiSettings.temperature,
-          tools: null,  // 도구 정의 전송 안 함
+          tools: null,  // API에 도구 정의 전송 안 함 (토큰 절약)
+          textToolNames: allTools.map(t => t.name),  // 텍스트 파싱용 도구 이름 목록
           toolExecutor: toolExecutor,
           thinking: routingResult.thinking || false,
           documents: attachmentDocuments.length > 0 ? attachmentDocuments : undefined,
@@ -1004,11 +1005,15 @@ router.post('/', async (req, res) => {
           delegatedRole = role;
 
           // 알바에게 작업 위임
-          const roleModelId = role.preferredModel || 'claude-3-5-sonnet-20241022';
+          const roleModelId = role.preferredModel;
           const rawRoleConfig = role.config || {};
           const roleConfig = typeof rawRoleConfig === 'string' ? JSON.parse(rawRoleConfig) : rawRoleConfig;
-          const roleServiceName = roleConfig.serviceId || inferServiceFromModel(roleModelId) || 'anthropic';
+          const roleServiceName = roleConfig.serviceId || inferServiceFromModel(roleModelId);
 
+          if (!roleModelId || !roleServiceName) {
+            console.warn(`[Chat] @${roleId} 모델/서비스 미설정 → 건너뜀`);
+            // 알바 건너뛰고 메인 모델로 처리
+          } else {
           const roleService = await AIServiceFactory.createService(roleServiceName, roleModelId);
 
           console.log(`[Chat] @${roleId} 작업 시작 (model: ${roleModelId}, service: ${roleServiceName})`);
@@ -1055,6 +1060,7 @@ router.post('/', async (req, res) => {
           }
 
           console.log(`[Chat] @${roleId} 작업 완료`);
+          } // if (!roleModelId || !roleServiceName) else 블록 끝
         } else {
           console.warn(`[Chat] 요청한 역할 @${roleId}를 찾을 수 없음`);
           finalResponse = aiResponse.replace(/\[DELEGATE:[a-z_-]+\]/gi, '').trim();
@@ -1766,7 +1772,7 @@ router.get('/service-billing', async (req, res) => {
       // Fireworks: firectl account get으로 잔액 조회
       if (sid === 'fireworks') {
         try {
-          const billingResp = await fetch('http://localhost:5041/api/billing/fireworks');
+          const billingResp = await fetch(`http://localhost:${process.env.PORT || 5041}/api/billing/fireworks`);
           if (billingResp.ok) {
             const billingData = await billingResp.json();
             entry.balance = {
@@ -1783,7 +1789,7 @@ router.get('/service-billing', async (req, res) => {
       // OpenAI: 사용량 조회
       if (sid === 'openai') {
         try {
-          const billingResp = await fetch('http://localhost:5041/api/billing/openai');
+          const billingResp = await fetch(`http://localhost:${process.env.PORT || 5041}/api/billing/openai`);
           if (billingResp.ok) {
             const billingData = await billingResp.json();
             entry.balance = {

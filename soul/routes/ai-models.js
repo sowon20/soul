@@ -12,8 +12,8 @@ router.get('/services', (req, res) => {
 
     res.json({
       current: {
-        service: process.env.DEFAULT_AI_SERVICE || 'anthropic',
-        model: process.env.DEFAULT_AI_MODEL || 'claude-3-haiku-20240307'
+        service: process.env.DEFAULT_AI_SERVICE || '',
+        model: process.env.DEFAULT_AI_MODEL || ''
       },
       available: services
     });

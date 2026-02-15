@@ -242,8 +242,7 @@ class PersonalityCore {
       const verbosity = profile.communication.verbosity ?? 0.5;
       let lengthStyle = '';
       if (verbosity < 0.3) {
-        lengthStyle = `- 길이: 짧고 간결하게. 핵심만 1-3문장으로 답변. 불필요한 부연설명, 반복, 나열 금지
-- 예시: 질문에 바로 답. "~이야", "~해볼게" 수준. 장문 금지`;
+        lengthStyle = '- 길이: 짧고 간결하게. 핵심만 1-3문장으로 답변. 불필요한 부연설명, 반복, 나열 금지';
       } else if (verbosity < 0.5) {
         lengthStyle = '- 길이: 간결하게. 핵심 위주로 짧게 답변';
       } else if (verbosity > 0.7) {

@@ -36,29 +36,18 @@ class BatchProcessor {
   async initialize() {
     if (this.initialized) return;
 
-    // Claude API 키 확인
-    const apiKey = process.env.ANTHROPIC_API_KEY;
+    // Anthropic API 키 확인 (Batch API는 Anthropic 전용 기능)
+    let apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      try {
+        apiKey = await AIServiceFactory.getApiKey('anthropic');
+      } catch {}
+    }
     if (!apiKey) {
       console.warn('[BatchProcessor] No Anthropic API key, batch processing disabled');
       this.initialized = true;
       this.enabled = false;
       return;
-    }
-
-    // 현재 기본 AI 서비스 확인
-    try {
-      const configManager = require('./config');
-      const aiConfig = await configManager.getAIConfig();
-
-      // Anthropic이 기본 서비스가 아니면 배치 비활성화
-      if (aiConfig.defaultService !== 'anthropic') {
-        console.log(`[BatchProcessor] Default service is ${aiConfig.defaultService}, batch disabled (Claude only)`);
-        this.initialized = true;
-        this.enabled = false;
-        return;
-      }
-    } catch (err) {
-      console.warn('[BatchProcessor] Could not check AI config:', err.message);
     }
 
     this.client = new Anthropic({ apiKey });
@@ -175,7 +164,7 @@ class BatchProcessor {
    */
   _buildRequestParams(req) {
     const baseParams = {
-      model: 'claude-haiku-4-5-20251001', // 배치는 저렴한 모델 사용
+      model: this.config?.model || '', // 설정에서 지정
       max_tokens: 1024
     };
 
@@ -330,8 +319,8 @@ JSON 배열로 응답: ["태그1", "태그2", ...]`;
         if (result.result?.type === 'succeeded' && result.result.message?.usage) {
           try {
             await AIServiceFactory.trackUsage({
-              serviceId: 'anthropic',
-              modelId: result.result.message?.model || 'claude-3-5-haiku-20241022',
+              serviceId: this.config?.service || 'unknown',
+              modelId: result.result.message?.model || this.config?.model || 'unknown',
               tier: 'light',
               usage: result.result.message.usage,
               latency: 0, // 배치는 지연 시간 측정 불가
@@ -411,8 +400,8 @@ JSON 배열로 응답: ["태그1", "태그2", ...]`;
       const latency = Date.now() - startTime;
       try {
         await AIServiceFactory.trackUsage({
-          serviceId: 'anthropic',
-          modelId: params.model || 'claude-3-5-haiku-20241022',
+          serviceId: this.config?.service || 'unknown',
+          modelId: params.model || this.config?.model || 'unknown',
           tier: 'light',
           usage: response.usage || {},
           latency,
