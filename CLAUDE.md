@@ -5,6 +5,17 @@ Soul AI는 개인용 AI 어시스턴트 앱입니다. 여러 AI 서비스(Claude
 
 ---
 
+## 🚨🚨🚨 절대 금지 — 컨텍스트 압축 후에도 반드시 유지 🚨🚨🚨
+
+### mem0 제거가 목표다. 절대 mem0를 통합/강화/확장하지 마라.
+- mem0는 **제거 대상**이다. 새로 통합하거나 의존성을 추가하는 행위 금지.
+- mem0-storage.js, memory.db, vector_store.db 등 mem0 관련 파일을 새로 만들지 마라.
+- recall_memory 등 기존 도구에서 mem0 의존성을 늘리지 마라.
+- 메모리/검색 시스템은 FTS5 + conversations JSON 기반으로 전환 중이다.
+- **이 지시를 무시하고 mem0를 강화하면 사용자의 수개월 작업이 날아간다.**
+
+---
+
 ## ⚠️ 핵심 원칙 (반드시 준수)
 
 ### 1. 환경 독립성
@@ -26,64 +37,11 @@ Soul AI는 개인용 AI 어시스턴트 앱입니다. 여러 AI 서비스(Claude
 
 ## 배포 환경
 
-### Raspberry Pi (배포용)
-- **호스트명**: pi
-- **OS**: Debian (aarch64), Linux 6.12
-- **스펙**: 4GB RAM, ARM64, 58GB SD
-- **포트**: 5041
-- **경로**: `~/soul`
-- **저장**: 파일시스템 기반 (SQLite)
-- **Git remote**: `https://github.com/sowon20/.soul.git`
+> **라즈베리파이는 더 이상 사용하지 않는다. 라즈베리파이 관련 코드/설정/배포 스크립트를 절대 추가하지 마라.**
 
----
-
-## 🔥 배포 구조 (매우 중요 - 반드시 숙지!)
-
-### 전체 흐름도
-```
-[로컬 개발 (Mac)]
-    ↓ git push origin main
-[GitHub] ───── GitHub Actions ─────→ [Raspberry Pi]
-                                      SSH로 git pull & restart
-                                      (배포용, 5041 포트)
-```
-
-**⚡ git push 한 번에 라즈베리파이 자동 배포!**
-
-### 라즈베리파이 관리
-
-**SSH 접속:**
-```bash
-ssh pi
-# ~/.ssh/config:
-#   Host pi
-#   HostName 192.168.0.50
-#   User sowon
-```
-
-**서버 실행:**
-```bash
-# 프로덕션 실행
-cd ~/soul && ./start.sh
-
-# start.sh 내용: NODE_ENV=production PORT=5041 node soul/server/index.js
-```
-
-**코드 업데이트 (수동):**
-```bash
-ssh pi "cd ~/soul && git pull && cd client && npm run build"
-```
-
-### 자동 배포 설정
-
-**워크플로우:** `.github/workflows/sync-to-hf.yml` (이름은 레거시, 실제로는 Pi 배포)
-
-**GitHub Secrets 필요:**
-- `PI_SSH_KEY`: 라즈베리파이 SSH 키
-
-### 주의사항
-1. **환경별 코드 분기 금지** - 환경변수로만 차이 처리
-2. **keytar 사용 금지** - 환경변수로만 인증 처리
+- 배포 대상: 새 호스팅 서버 (별도 설정 예정)
+- **환경별 코드 분기 금지** - 환경변수로만 차이 처리
+- **keytar 사용 금지** - 환경변수로만 인증 처리
 
 ---
 

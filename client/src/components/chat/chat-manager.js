@@ -992,13 +992,13 @@ export class ChatManager {
    */
   deleteMessage(messageDiv, message) {
     if (confirm('이 메시지를 삭제하시겠습니까?')) {
+      const id = message.id || message._id;
+      if (id) {
+        fetch(`/api/chat/message/${id}`, { method: 'DELETE' }).catch(e => console.error('삭제 실패:', e));
+      }
       messageDiv.remove();
       const index = this.messages.indexOf(message);
-      if (index > -1) {
-        this.messages.splice(index, 1);
-      }
-      // TODO: API 호출하여 메시지 삭제
-      console.log('메시지 삭제됨');
+      if (index > -1) this.messages.splice(index, 1);
     }
   }
 

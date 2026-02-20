@@ -2,7 +2,7 @@
  * Terminal Service — 쉘 세션 관리
  *
  * - child_process.spawn으로 인터랙티브 쉘 실행
- * - node-pty 사용 가능하면 우선 사용 (라즈베리파이 등)
+ * - node-pty 사용 가능하면 우선 사용
  * - 세션 ID 기반 관리 (소켓 끊겨도 쉘 유지 = 백그라운드)
  * - 출력 버퍼 보관 (캔버스 다시 열 때 복원)
  * - Socket.io로 실시간 출력 전달

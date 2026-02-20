@@ -19,7 +19,8 @@ export class ProfileSettings {
     try {
       // 프로필 데이터 로드
       const response = await apiClient.get(`/profile/p?userId=${this.userId}`);
-      this.profile = response.profile;
+      this.profile = response.profile || {};
+      if (!this.profile.basicInfo) this.profile.basicInfo = {};
 
       // 통화 설정 로드
       try {

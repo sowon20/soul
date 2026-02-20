@@ -60,8 +60,11 @@ export class StorageSettings {
   async loadUsage() {
     try {
       const response = await this.apiClient.get('/storage/usage');
-      if (response?.success) {
-        this.usageInfo = { memory: response.memory || {}, file: response.file || {} };
+      if (response) {
+        const info = response.type === 'oracle'
+          ? { info: `메시지 ${response.messages}개 · 메모리 ${response.memories}개` }
+          : (response.memory || {});
+        this.usageInfo = { memory: info, file: info };
       }
     } catch (error) {
       console.error('Failed to load usage:', error);
